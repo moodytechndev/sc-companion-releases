@@ -59,6 +59,12 @@ Default toggle: **Insert**. Change it any time in the **Settings** tab. The firs
 
 ---
 
+## Planned Updates
+
+- **Language support** — French, Spanish, and German localizations
+
+---
+
 ## Known Issues
 
 - **Close behavior** — The close/quit setting may not apply consistently; the window can behave unexpectedly when closed depending on how the app was launched.
