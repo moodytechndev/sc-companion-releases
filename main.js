@@ -9,8 +9,10 @@ let mainWindow;
 let tray = null;
 
 const CURRENT_VERSION = require('./package.json').version;
-// Host a JSON file at this URL with content: { "version": "x.x.x" }
-const UPDATE_CHECK_URL = 'https://raw.githubusercontent.com/moodytechndev/sc-companion/main/latest.json';
+const { autoUpdater } = require('electron-updater');
+
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 let _lastToggle = 0;
 function toggleWindow() {
@@ -256,6 +258,8 @@ app.whenReady().then(() => {
 
   const logPath = store.get('logPath') || detectLogPath();
   startLogWatcher(logPath);
+
+  setTimeout(() => autoUpdater.checkForUpdates(), 5000);
 });
 
 app.on('window-all-closed', () => {
@@ -323,21 +327,23 @@ ipcMain.handle('log:getStatus', () => ({
   path: logWatchPath,
 }));
 
-// ─── IPC: Auto-update check ──────────────────────────────────────────────────
-ipcMain.handle('app:checkUpdate', async () => {
-  try {
-    const data = await fetchJson(UPDATE_CHECK_URL);
-    const latest = data.version || '';
-    if (latest && latest !== CURRENT_VERSION) {
-      return { updateAvailable: true, version: latest, url: data.url || '' };
-    }
-    return { updateAvailable: false };
-  } catch {
-    return { updateAvailable: false };
-  }
+// ─── Auto-updater ────────────────────────────────────────────────────────────
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('updater:available', { version: info.version });
+});
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow?.webContents.send('updater:progress', { percent: Math.round(progress.percent) });
+});
+autoUpdater.on('update-downloaded', () => {
+  mainWindow?.webContents.send('updater:downloaded');
+});
+autoUpdater.on('error', (err) => {
+  console.error('[AutoUpdater]', err.message);
 });
 
 ipcMain.handle('app:getVersion', () => CURRENT_VERSION);
+ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate());
+ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall(); });
 ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
