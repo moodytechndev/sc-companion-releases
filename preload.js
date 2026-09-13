@@ -32,4 +32,13 @@ contextBridge.exposeInMainWorld('api', {
   getLogStatus: () => ipcRenderer.invoke('log:getStatus'),
   onRefineryKioskDetected: (cb) => ipcRenderer.on('log:refineryKioskDetected', cb),
   onRefineryJobComplete: (cb) => ipcRenderer.on('log:refineryJobComplete', cb),
+
+  // Data backup
+  exportData: () => ipcRenderer.invoke('data:export'),
+  importData: () => ipcRenderer.invoke('data:import'),
+
+  // App version / updates
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 });

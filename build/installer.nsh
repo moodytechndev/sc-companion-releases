@@ -1,13 +1,10 @@
-; SC Companion — custom NSIS hooks (runs at installer/admin privilege)
+; SC Companion — custom NSIS hooks
+; KeyHook scheduled task removed in v1.3.0 — no elevated process needed
 
 !macro customInstall
-  ; Create elevated scheduled task for KeyHook.exe.
-  ; /sc onlogon lets schtasks /run trigger it on demand without a separate trigger type.
-  ; /rl highest runs it at the user's highest available privilege (admin on admin accounts).
-  ExecWait 'schtasks /create /tn "SCCompanionHook" /tr "$\"$INSTDIR\resources\app.asar.unpacked\KeyHook.exe$\"" /sc onlogon /rl highest /f'
+  ; reserved for future installer steps
 !macroend
 
 !macro customUnInstall
-  ExecWait 'schtasks /end /tn "SCCompanionHook"'
-  ExecWait 'schtasks /delete /tn "SCCompanionHook" /f'
+  ; reserved for future uninstaller steps
 !macroend

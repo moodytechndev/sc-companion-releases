@@ -317,13 +317,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <button onclick="api.minimize()" title="Minimize">─</button>
     <button class="btn-close" onclick="api.close()" title="Hide  (Alt+S to restore)">✕</button>
   </div>
+  <!-- ── Update banner ── -->
+  <div id="update-banner" hidden style="display:flex;align-items:center;gap:8px;padding:5px 12px;background:rgba(0,170,255,0.12);border-bottom:1px solid rgba(0,170,255,0.3);font-size:11px">
+    <span style="color:var(--accent);flex:1" id="update-banner-text"></span>
+    <a id="update-banner-link" href="#" onclick="return false;" style="color:var(--accent);font-weight:600;text-decoration:none;padding:2px 8px;border:1px solid var(--accent);border-radius:var(--r)" data-i18n="update.download">Download</a>
+    <button onclick="document.getElementById('update-banner').hidden=true" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;line-height:1;padding:0 2px">✕</button>
+  </div>
 
   <!-- ── Tabs ── -->
   <div id="tabs">
-    <div class="tab active" data-tab="refinery">⛏ Refinery</div>
-    <div class="tab" data-tab="mining">⛰ Mining</div>
-    <div class="tab" data-tab="prices">📈 Prices</div>
-    <div class="tab" data-tab="crafting">🔧 Craft</div>
+    <div class="tab active" data-tab="refinery" data-i18n="tab.refinery">⛏ Refinery</div>
+    <div class="tab" data-tab="mining" data-i18n="tab.mining">⛰ Mining</div>
+    <div class="tab" data-tab="prices" data-i18n="tab.prices">📈 Prices</div>
+    <div class="tab" data-tab="crafting" data-i18n="tab.craft">🔧 Craft</div>
   </div>
 
   <!-- ── Content ── -->
@@ -332,12 +338,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <!-- REFINERY -->
     <div class="panel active" id="panel-refinery">
       <div class="panel-header">
-        <button class="btn btn-full" onclick="openAddJob()">+ Add Refinery Job</button>
+        <button class="btn btn-full" onclick="openAddJob()" data-i18n="refinery.addJob">+ Add Refinery Job</button>
       </div>
       <div class="scroll-area" id="jobs-list">
         <div class="empty-state" id="no-jobs">
           <div class="ico">⛏</div>
-          <div class="lbl">No active refinery jobs.<br>Add one to start tracking.</div>
+          <div class="lbl"><span data-i18n="refinery.empty.line1">No active refinery jobs.</span><br><span data-i18n="refinery.empty.line2">Add one to start tracking.</span></div>
         </div>
       </div>
     </div>
@@ -346,8 +352,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <div class="panel" id="panel-mining">
       <div class="panel-header">
         <div class="filter-chips" id="mining-chips">
-          <div class="chip active" onclick="switchMiningView('locations',this)">Ore Locations</div>
-          <div class="chip" onclick="switchMiningView('bonuses',this)">Station Bonuses</div>
+          <div class="chip active" onclick="switchMiningView('locations',this)" data-i18n="mining.oreLocations">Ore Locations</div>
+          <div class="chip" onclick="switchMiningView('bonuses',this)" data-i18n="mining.stationBonuses">Station Bonuses</div>
         </div>
       </div>
 
@@ -356,7 +362,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div style="padding:8px 10px 4px">
           <div class="search-bar">
             <span class="ico">🔍</span>
-            <input type="text" id="mining-search" placeholder="Search ores or locations…" oninput="filterMining()">
+            <input type="text" id="mining-search" data-i18n="mining.search" data-i18n-prop="placeholder" placeholder="Search ores or locations…" oninput="filterMining()">
           </div>
         </div>
         <div class="scroll-area" id="mining-list"></div>
@@ -367,7 +373,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div style="padding:8px 10px 4px">
           <select id="station-select" onchange="renderBonuses()"
             style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
-            <option value="">Select a station…</option>
+            <option value="" data-i18n="mining.selectStation">Select a station…</option>
             <optgroup label="── Stanton ──">
               <option value="ARC-L1">ARC-L1</option>
               <option value="ARC-L2">ARC-L2</option>
@@ -405,22 +411,22 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <div class="panel-header">
         <div class="search-bar">
           <span class="ico">🔍</span>
-          <input type="text" id="com-search" placeholder="Search commodities..." oninput="filterComs()">
+          <input type="text" id="com-search" data-i18n="prices.search" data-i18n-prop="placeholder" placeholder="Search commodities..." oninput="filterComs()">
         </div>
         <div class="filter-chips" id="price-chips">
-          <div class="chip active" onclick="setFilter('all',this)">All</div>
-          <div class="chip" onclick="setFilter('mineral',this)">Minerals</div>
-          <div class="chip" onclick="setFilter('raw',this)">Raw Ore</div>
-          <div class="chip" onclick="setFilter('refined',this)">Refined</div>
-          <div class="chip" onclick="setFilter('inventory',this)">In Inventory</div>
+          <div class="chip active" onclick="setFilter('all',this)" data-i18n="prices.all">All</div>
+          <div class="chip" onclick="setFilter('mineral',this)" data-i18n="prices.minerals">Minerals</div>
+          <div class="chip" onclick="setFilter('raw',this)" data-i18n="prices.rawOre">Raw Ore</div>
+          <div class="chip" onclick="setFilter('refined',this)" data-i18n="prices.refined">Refined</div>
+          <div class="chip" onclick="setFilter('inventory',this)" data-i18n="prices.inInventory">In Inventory</div>
         </div>
       </div>
       <div class="scroll-area" id="com-list">
-        <div class="loading" id="com-loading"><div class="spinner"></div>Loading commodities…</div>
+        <div class="loading" id="com-loading"><div class="spinner"></div><span data-i18n="prices.loading">Loading commodities…</span></div>
       </div>
       <div id="prices-detail" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="prices-title" id="prices-title" style="margin-bottom:0">Best Sell Locations</div>
+          <div class="prices-title" id="prices-title" style="margin-bottom:0" data-i18n="prices.bestSell">Best Sell Locations</div>
           <button onclick="closePriceDetail()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px" title="Close">✕</button>
         </div>
         <div id="prices-list"></div>
@@ -431,8 +437,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <div class="panel" id="panel-crafting">
       <div class="panel-header">
         <div class="filter-chips" id="crafting-chips">
-          <div class="chip active" onclick="switchCraftingView('owned',this)">My Blueprints</div>
-          <div class="chip" onclick="switchCraftingView('inventory',this)">Inventory</div>
+          <div class="chip active" onclick="switchCraftingView('owned',this)" data-i18n="craft.myBlueprints">My Blueprints</div>
+          <div class="chip" onclick="switchCraftingView('inventory',this)" data-i18n="craft.inventory">Inventory</div>
         </div>
       </div>
 
@@ -442,23 +448,23 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           <div style="display:flex;gap:6px">
             <div class="search-bar" style="flex:1">
               <span class="ico">🔍</span>
-              <input type="text" id="owned-search" placeholder="Search blueprints…" oninput="renderOwned()">
+              <input type="text" id="owned-search" data-i18n="craft.searchBlueprints" data-i18n-prop="placeholder" placeholder="Search blueprints…" oninput="renderOwned()">
             </div>
             <select id="owned-filter" onchange="renderOwned()" style="padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;flex-shrink:0">
-              <option value="all">All</option>
-              <option value="owned">Owned</option>
-              <option value="missing">Missing</option>
+              <option value="all" data-i18n="craft.all">All</option>
+              <option value="owned" data-i18n="craft.owned">Owned</option>
+              <option value="missing" data-i18n="craft.missing">Missing</option>
             </select>
           </div>
           <div style="display:flex;gap:6px">
             <select id="owned-cat-filter" onchange="renderOwned()" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;min-width:0">
-              <option value="">All Categories</option>
+              <option value="" data-i18n="craft.allCategories">All Categories</option>
             </select>
             <select id="owned-sort" onchange="renderOwned()" style="padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;flex-shrink:0">
-              <option value="name-asc">A → Z</option>
-              <option value="name-desc">Z → A</option>
-              <option value="time-asc">Craft Time ↑</option>
-              <option value="time-desc">Craft Time ↓</option>
+              <option value="name-asc" data-i18n="craft.sortAZ">A → Z</option>
+              <option value="name-desc" data-i18n="craft.sortZA">Z → A</option>
+              <option value="time-asc" data-i18n="craft.sortTimeAsc">Craft Time ↑</option>
+              <option value="time-desc" data-i18n="craft.sortTimeDesc">Craft Time ↓</option>
             </select>
           </div>
         </div>
@@ -471,15 +477,15 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           <div style="display:flex;gap:6px">
             <div class="search-bar" style="flex:1">
               <span class="ico">🔍</span>
-              <input type="text" id="inv-search" placeholder="Search ore or location…" oninput="renderInventory()">
+              <input type="text" id="inv-search" data-i18n="craft.searchOre" data-i18n-prop="placeholder" placeholder="Search ore or location…" oninput="renderInventory()">
             </div>
-            <button class="btn btn-sm" onclick="openAddInventory()" style="flex-shrink:0">+ Add</button>
+            <button class="btn btn-sm" onclick="openAddInventory()" style="flex-shrink:0" data-i18n="craft.addBtn">+ Add</button>
           </div>
           <div style="display:flex;gap:6px">
             <select id="inv-sort" onchange="renderInventory()" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;min-width:0">
-              <option value="name-asc">Ore A→Z</option>
-              <option value="name-desc">Ore Z→A</option>
-              <option value="qty-desc">Most SCU first</option>
+              <option value="name-asc" data-i18n="craft.oreAZ">Ore A→Z</option>
+              <option value="name-desc" data-i18n="craft.oreZA">Ore Z→A</option>
+              <option value="qty-desc" data-i18n="craft.mostSCU">Most SCU first</option>
             </select>
           </div>
         </div>
@@ -496,15 +502,28 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <div class="scroll-area">
         <div class="setting-row">
           <div>
-            <div class="setting-label">Window Opacity</div>
-            <div class="setting-desc">How transparent the overlay is</div>
+            <div class="setting-label" data-i18n="settings.language">Language</div>
+            <div class="setting-desc" data-i18n="settings.language.desc">Display language for the app</div>
+          </div>
+          <select id="language-select" onchange="onLangChange(this.value)"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label" data-i18n="settings.opacity">Window Opacity</div>
+            <div class="setting-desc" data-i18n="settings.opacity.desc">How transparent the overlay is</div>
           </div>
           <input type="range" id="opacity-range" min="30" max="100" value="96" oninput="api.setOpacity(this.value/100)">
         </div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Show / Hide Key</div>
-            <div class="setting-desc">Works even when Star Citizen has focus</div>
+            <div class="setting-label" data-i18n="settings.hotkey">Show / Hide Key</div>
+            <div class="setting-desc" data-i18n="settings.hotkey.desc">Works even when Star Citizen has focus</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
             <select id="shortcut-select" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
@@ -518,40 +537,40 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
               <option value="24">Home</option>
               <option value="23">End</option>
             </select>
-            <button class="btn btn-sm" onclick="saveShortcut()">Set</button>
+            <button class="btn btn-sm" onclick="saveShortcut()" data-i18n="settings.hotkey.set">Set</button>
           </div>
         </div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Close Button</div>
-            <div class="setting-desc">What happens when you click ✕</div>
+            <div class="setting-label" data-i18n="settings.close">Close Button</div>
+            <div class="setting-desc" data-i18n="settings.close.desc">What happens when you click ✕</div>
           </div>
           <select id="close-behavior-select" onchange="saveCloseBehavior()"
             style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
-            <option value="tray">Minimize to Tray</option>
-            <option value="quit">Quit App</option>
+            <option value="tray" data-i18n="settings.close.tray">Minimize to Tray</option>
+            <option value="quit" data-i18n="settings.close.quit">Quit App</option>
           </select>
         </div>
         <div class="setting-row" style="margin-top:12px">
           <div>
-            <div class="setting-label">Clear Completed Jobs</div>
-            <div class="setting-desc">Remove all finished refinery jobs</div>
+            <div class="setting-label" data-i18n="settings.clearCompleted">Clear Completed Jobs</div>
+            <div class="setting-desc" data-i18n="settings.clearCompleted.desc">Remove all finished refinery jobs</div>
           </div>
-          <button class="btn btn-sm btn-danger" onclick="clearCompleted()">Clear</button>
+          <button class="btn btn-sm btn-danger" onclick="clearCompleted()" data-i18n="settings.clearCompleted.btn">Clear</button>
         </div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Clear All Jobs</div>
-            <div class="setting-desc">Remove every tracked refinery job</div>
+            <div class="setting-label" data-i18n="settings.clearAll">Clear All Jobs</div>
+            <div class="setting-desc" data-i18n="settings.clearAll.desc">Remove every tracked refinery job</div>
           </div>
-          <button class="btn btn-sm btn-danger" onclick="clearAll()">Clear All</button>
+          <button class="btn btn-sm btn-danger" onclick="clearAll()" data-i18n="settings.clearAll.btn">Clear All</button>
         </div>
         <!-- Log watcher -->
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px">
           <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
             <div>
-              <div class="setting-label">Game Log Path</div>
-              <div class="setting-desc">Auto-opens timer when you press Sell at refinery</div>
+              <div class="setting-label" data-i18n="settings.logPath">Game Log Path</div>
+              <div class="setting-desc" data-i18n="settings.logPath.desc">Auto-opens timer when you press Sell at refinery</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span class="dot" id="log-dot" style="background:var(--text-dim)"></span>
@@ -560,9 +579,21 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </div>
           <div style="display:flex;gap:6px;width:100%">
             <input type="text" id="log-path-input" style="flex:1;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;font-family:monospace" placeholder="E:\Program\StarCitizen\LIVE\game.log">
-            <button class="btn btn-sm" onclick="saveLogPath()">Save</button>
+            <button class="btn btn-sm" onclick="saveLogPath()" data-i18n="settings.logPath.save">Save</button>
           </div>
         </div>
+
+        <div class="setting-row" style="margin-top:4px">
+          <div>
+            <div class="setting-label" data-i18n="settings.backup">Backup &amp; Restore</div>
+            <div class="setting-desc" data-i18n="settings.backup.desc">Save or load all your jobs, inventory &amp; settings</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" onclick="doExport()" data-i18n="settings.backup.export">Export</button>
+            <button class="btn btn-sm" onclick="doImport()" data-i18n="settings.backup.import">Import</button>
+          </div>
+        </div>
+        <div id="backup-msg" style="font-size:11px;text-align:center;padding:4px 0;display:none"></div>
 
         <div style="margin-top:16px;padding:12px;background:var(--bg-card);border-radius:var(--r);border:1px solid var(--border)">
           <div style="font-size:10px;color:var(--text-dim);line-height:1.6">
@@ -589,28 +620,28 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <!-- ── Inventory Modal ── -->
 <div id="inv-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal">
-    <h3 id="inv-modal-title">📦 Add Item</h3>
+    <h3 id="inv-modal-title" data-i18n="modal.inv.addTitle">📦 Add Item</h3>
     <div class="form-group">
-      <label>Ore / Material</label>
+      <label data-i18n="modal.inv.oreMaterial">Ore / Material</label>
       <select id="inv-name-input"></select>
     </div>
     <div class="form-group">
-      <label>Quality %</label>
+      <label data-i18n="modal.inv.quality">Quality %</label>
       <input type="number" id="inv-quality-input" min="0" max="100" step="0.1" placeholder="0.0">
     </div>
     <div class="form-group">
-      <label>Box Sizes</label>
+      <label data-i18n="modal.inv.boxSizes">Box Sizes</label>
       <div id="inv-rows-container"></div>
-      <button class="btn btn-sm" id="inv-add-row-btn" style="margin-top:6px;width:100%" onclick="addInvRow()">+ Add Row</button>
+      <button class="btn btn-sm" id="inv-add-row-btn" style="margin-top:6px;width:100%" onclick="addInvRow()" data-i18n="modal.inv.addRow">+ Add Row</button>
     </div>
     <div class="form-group">
-      <label>Location</label>
+      <label data-i18n="modal.inv.location">Location</label>
       <select id="inv-loc-select" onchange="onLocSelectChange()"></select>
-      <input type="text" id="inv-loc-custom" placeholder="Enter location…" style="margin-top:4px;display:none">
+      <input type="text" id="inv-loc-custom" data-i18n="modal.inv.locationPh" data-i18n-prop="placeholder" placeholder="Enter location…" style="margin-top:4px;display:none">
     </div>
     <div class="modal-actions">
-      <button class="btn" style="flex:1" onclick="saveInventoryItem()">Save</button>
-      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeInvModal()">Cancel</button>
+      <button class="btn" style="flex:1" onclick="saveInventoryItem()" data-i18n="modal.inv.save">Save</button>
+      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeInvModal()" data-i18n="modal.cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -618,19 +649,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <!-- ── Deliver Job Modal ── -->
 <div id="deliver-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal">
-    <h3>📦 Collect from Refinery</h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Enter what you pulled from the cargo elevator.</p>
+    <h3 data-i18n="modal.deliver.title">📦 Collect from Refinery</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px" data-i18n="modal.deliver.desc">Enter what you pulled from the cargo elevator.</p>
     <div id="deliver-ore-list"></div>
     <div id="deliver-location-row" style="font-size:11px;color:var(--text-dim);margin-bottom:14px"></div>
     <div class="modal-actions">
-      <button class="btn" style="flex:1" onclick="confirmDelivery()">✓ Add to Inventory</button>
-      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeDeliverModal()">Cancel</button>
+      <button class="btn" style="flex:1" onclick="confirmDelivery()" data-i18n="modal.deliver.addToInv">✓ Add to Inventory</button>
+      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeDeliverModal()" data-i18n="modal.cancel">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- ── Kiosk Detected Toast ── -->
-<div id="kiosk-toast">⛏ Refinery kiosk detected — timer ready!</div>
+<div id="kiosk-toast" data-i18n="toast.kiosk">⛏ Refinery kiosk detected — timer ready!</div>
 <!-- ── Job Complete Toast ── -->
 <div id="complete-toast" style="
   position:fixed; bottom:36px; left:50%; transform:translateX(-50%) translateY(16px);
@@ -642,16 +673,16 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <!-- ── Add Job Modal ── -->
 <div id="modal-overlay">
   <div class="modal">
-    <h3 id="modal-title">⛏ Add Refinery Job</h3>
+    <h3 id="modal-title" data-i18n="modal.addJob.title">⛏ Add Refinery Job</h3>
     <div class="form-group">
-      <label>Ore / Materials</label>
+      <label data-i18n="modal.addJob.oreMaterials">Ore / Materials</label>
       <div id="ore-rows"></div>
-      <button class="btn btn-sm" style="margin-top:6px;width:100%" onclick="addOreRow('')">+ Add Ore</button>
+      <button class="btn btn-sm" style="margin-top:6px;width:100%" onclick="addOreRow('')" data-i18n="modal.addJob.addOre">+ Add Ore</button>
     </div>
     <div class="form-group">
-      <label>Refinery Method</label>
+      <label data-i18n="modal.addJob.method">Refinery Method</label>
       <select id="job-method">
-        <option value="">Select method…</option>
+        <option value="" data-i18n="modal.addJob.method.select">Select method…</option>
         <option value="Cormack Method">Cormack Method</option>
         <option value="Dinyx Solventation">Dinyx Solventation</option>
         <option value="Electrostarolysis">Electrostarolysis</option>
@@ -665,7 +696,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       </select>
     </div>
     <div class="form-group">
-      <label>Duration (copy from refinery UI)</label>
+      <label data-i18n="modal.addJob.duration">Duration (copy from refinery UI)</label>
       <div class="duration-row">
         <input type="number" id="job-h" min="0" max="999" placeholder="0" style="width:72px">
         <span class="duration-lbl">h</span>
@@ -676,36 +707,50 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       </div>
     </div>
     <div class="form-group">
-      <label>Location</label>
-      <input type="text" id="job-location" list="location-datalist" placeholder="e.g. MIC-L5, ARC-L1…" autocomplete="off">
+      <label data-i18n="modal.addJob.location">Location</label>
+      <input type="text" id="job-location" list="location-datalist" data-i18n="modal.addJob.location.ph" data-i18n-prop="placeholder" placeholder="e.g. MIC-L5, ARC-L1…" autocomplete="off">
       <datalist id="location-datalist">
-        <option value="CRU-L1 Ambitious Dream">
-        <option value="CRU-L5 Beautiful Glen">
         <option value="ARC-L1 Wide Forest">
         <option value="ARC-L2 Lively Pathway">
+        <option value="ARC-L3 Modern Express">
+        <option value="ARC-L4 Faint Glen">
+        <option value="ARC-L5 Distant Dream">
+        <option value="CRU-L1 Ambitious Dream">
+        <option value="CRU-L2 Ambitious Reserve">
+        <option value="CRU-L3 Stanton Gateway">
+        <option value="CRU-L4 Celestial Acres">
+        <option value="CRU-L5 Beautiful Glen">
         <option value="HUR-L1 Green Glade">
         <option value="HUR-L2 Faithful Dream">
+        <option value="HUR-L3 Thundering Express">
+        <option value="HUR-L4 Melodic Fields">
+        <option value="HUR-L5 High Course">
         <option value="MIC-L1 Shallow Frontier">
+        <option value="MIC-L2 Long Forest">
+        <option value="MIC-L3 Endless Odyssey">
+        <option value="MIC-L4 Shallow Fields">
         <option value="MIC-L5 Modern Icarus">
         <option value="Port Tressler">
+        <option value="Levski">
         <option value="Pyro Gateway">
         <option value="Ruin Station">
+        <option value="Patch City">
         <option value="Orbituary">
         <option value="Checkmate">
-        <option value="Levski">
       </datalist>
     </div>
     <div class="form-group">
-      <label>Notes (optional)</label>
-      <input type="text" id="job-notes" placeholder="e.g. 24 SCU, Bay 3…">
+      <label data-i18n="modal.addJob.notes">Notes (optional)</label>
+      <input type="text" id="job-notes" data-i18n="modal.addJob.notes.ph" data-i18n-prop="placeholder" placeholder="e.g. 24 SCU, Bay 3…">
     </div>
     <div class="modal-actions">
-      <button class="btn" id="modal-submit" style="flex:1" onclick="addJob()">▶ Start Timer</button>
-      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeModal()">Cancel</button>
+      <button class="btn" id="modal-submit" style="flex:1" onclick="addJob()" data-i18n="modal.addJob.start">▶ Start Timer</button>
+      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeModal()" data-i18n="modal.cancel">Cancel</button>
     </div>
   </div>
 </div>
 
+<script src="i18n.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
 // State
@@ -1673,8 +1718,8 @@ function jobOres(job) { return job.ores || (job.ore ? [job.ore] : []); }
 
 function openAddJob() {
   editingJobId = null;
-  document.getElementById('modal-title').textContent = '⛏ Add Refinery Job';
-  document.getElementById('modal-submit').textContent = '▶ Start Timer';
+  document.getElementById('modal-title').textContent = t('modal.addJob.title');
+  document.getElementById('modal-submit').textContent = t('modal.addJob.start');
   resetOreRows();
   document.getElementById('modal-overlay').classList.add('show');
   setTimeout(() => document.querySelector('#ore-rows .ore-input')?.focus(), 50);
@@ -1684,8 +1729,8 @@ function openEditJob(id) {
   const job = jobs.find(j => j.id === id);
   if (!job) return;
   editingJobId = id;
-  document.getElementById('modal-title').textContent = '✎ Edit Refinery Job';
-  document.getElementById('modal-submit').textContent = '✔ Save Changes';
+  document.getElementById('modal-title').textContent = t('modal.editJob.title');
+  document.getElementById('modal-submit').textContent = t('modal.addJob.update');
 
   resetOreRows(jobOres(job), job.qualities || []);
   document.getElementById('job-method').value   = job.method === 'Custom' ? '' : (job.method || '');
@@ -1708,8 +1753,8 @@ function closeModal() {
   ['job-location','job-notes'].forEach(id => { document.getElementById(id).value = ''; });
   ['job-h','job-m','job-s'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('job-method').value = '';
-  document.getElementById('modal-title').textContent = '⛏ Add Refinery Job';
-  document.getElementById('modal-submit').textContent = '▶ Start Timer';
+  document.getElementById('modal-title').textContent = t('modal.addJob.title');
+  document.getElementById('modal-submit').textContent = t('modal.addJob.start');
 }
 
 function addJob() {
@@ -1812,14 +1857,14 @@ function jobCardHTML(job, rem, pct, done, expiring) {
     <div class="progress-track"><div class="progress-fill${fillClass}" style="width:${pct.toFixed(1)}%"></div></div>
     <div class="job-time">
       <div>
-        <div class="time-remaining${remClass}" id="tmr-${job.id}">${done ? '✓ READY' : fmtTime(rem)}</div>
+        <div class="time-remaining${remClass}" id="tmr-${job.id}">${done ? t('job.ready') : fmtTime(rem)}</div>
         ${job.notes ? `<div class="time-started">${esc(job.notes)}</div>` : ''}
       </div>
-      <div class="time-started">Started ${fmtStart(job.startTime)}</div>
+      <div class="time-started">${t('job.started', { args: [fmtStart(job.startTime)] })}</div>
     </div>
     ${done ? `<div class="ready-badge show pulse" style="justify-content:space-between">
-      <span>✓ Ready to collect</span>
-      <button class="deliver-btn" onclick="deliverJob('${job.id}')">📦 Delivered</button>
+      <span>${t('job.readyCollect')}</span>
+      <button class="deliver-btn" onclick="deliverJob('${job.id}')">${t('job.delivered')}</button>
     </div>` : ''}
   `;
 }
@@ -1850,7 +1895,7 @@ function tickTimers() {
     const fill  = card?.querySelector('.progress-fill');
 
     if (tmrEl) {
-      tmrEl.textContent = done ? '✓ READY' : fmtTime(rem);
+      tmrEl.textContent = done ? t('job.ready') : fmtTime(rem);
       tmrEl.className = `time-remaining${done ? ' ready pulse' : expiring ? ' expiring' : ''}`;
     }
     if (fill) {
@@ -1869,7 +1914,7 @@ function tickTimers() {
 function updateStatusBar() {
   const now = Date.now();
   const active = jobs.filter(j => (now - j.startTime) / 1000 < j.durationSeconds).length;
-  document.getElementById('active-jobs-label').textContent = `${active} active job${active !== 1 ? 's' : ''}`;
+  document.getElementById('active-jobs-label').textContent = t('status.activeJobs', { count: active });
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -2124,7 +2169,7 @@ async function saveCloseBehavior() {
 let completeToastTimer = null;
 function showCompleteToast(station) {
   const el = document.getElementById('complete-toast');
-  el.textContent = `✓ Refinery job complete${station ? ' — ' + station : ''}!`;
+  el.textContent = station ? t('job.complete.toastAt', { args: [station] }) : t('job.complete.toast');
   el.style.opacity = '1';
   el.style.transform = 'translateX(-50%) translateY(0)';
   clearTimeout(completeToastTimer);
@@ -2134,11 +2179,65 @@ function showCompleteToast(station) {
   }, 6000);
 }
 
+let _backupMsgTimer = null;
+function showBackupMsg(text, color) {
+  const el = document.getElementById('backup-msg');
+  el.textContent = text;
+  el.style.color = color || 'var(--success)';
+  el.style.display = 'block';
+  clearTimeout(_backupMsgTimer);
+  _backupMsgTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+async function doExport() {
+  const result = await api.exportData();
+  if (result.ok) showBackupMsg('✓ Data exported successfully.', 'var(--success)');
+  else if (result.error) showBackupMsg('Export failed: ' + result.error, 'var(--danger)');
+}
+
+async function doImport() {
+  const result = await api.importData();
+  if (result.ok) {
+    showBackupMsg('✓ Data imported — reloading…', 'var(--success)');
+    setTimeout(() => location.reload(), 1200);
+  } else if (result.error) {
+    showBackupMsg('Import failed: ' + result.error, 'var(--danger)');
+  }
+}
+
+async function onLangChange(lang) {
+  setLang(lang);
+  await api.setStore('language', lang);
+}
+
+async function initLanguage() {
+  const lang = (await api.getStore('language', 'en')) || 'en';
+  const sel = document.getElementById('language-select');
+  if (sel) sel.value = lang;
+  setLang(lang);
+}
+
+async function initUpdateCheck() {
+  try {
+    const result = await api.checkUpdate();
+    if (result && result.updateAvailable) {
+      const banner = document.getElementById('update-banner');
+      const bannerText = document.getElementById('update-banner-text');
+      const bannerLink = document.getElementById('update-banner-link');
+      bannerText.textContent = t('update.available', { args: [result.version] });
+      if (result.url) bannerLink.onclick = () => { api.openExternal(result.url); return false; };
+      banner.hidden = false;
+    }
+  } catch {}
+}
+
 // ════════════════════════════════════════════════════════════════════
 init();
 initShortcut();
 initLogWatcher();
 initCloseBehavior();
+initLanguage();
+setTimeout(initUpdateCheck, 3000);
 if (api.onRefineryKioskDetected) {
   api.onRefineryKioskDetected((_, location) => openAddJobFromLog(location));
 }
@@ -2187,7 +2286,7 @@ async function initCrafting() {
   craftInventory  = (await api.getStore('craftInventory', [])) || [];
 
   const list = document.getElementById('owned-list');
-  list.innerHTML = '<div class="loading"><div class="spinner"></div>Checking for updates…</div>';
+  list.innerHTML = `<div class="loading"><div class="spinner"></div>${t('craft.loading.check')}</div>`;
 
   try {
     const cfgRes = await fetch('https://sc-craft.tools/api/config');
@@ -2205,7 +2304,7 @@ async function initCrafting() {
       }
     }
 
-    list.innerHTML = '<div class="loading"><div class="spinner"></div>Fetching blueprint data (first time only)…</div>';
+    list.innerHTML = `<div class="loading"><div class="spinner"></div>${t('craft.loading.fetch')}</div>`;
     const fetched = [];
     const firstRes = await fetch(`https://sc-craft.tools/api/blueprints?page=1&limit=100&search=&version=${liveVersion}`);
     const firstData = await firstRes.json();
@@ -2224,7 +2323,7 @@ async function initCrafting() {
     craftingInitialized = true;
     renderOwned();
   } catch (e) {
-    list.innerHTML = '<div class="empty-state"><div class="lbl">Failed to load blueprint data.<br>Check your internet connection.</div></div>';
+    list.innerHTML = `<div class="empty-state"><div class="lbl">${t('craft.error.load')}</div><button class="btn btn-sm" style="margin-top:10px" onclick="craftingInitialized=false;initCrafting()">${t('craft.retry')}</button></div>`;
   }
 }
 
@@ -2276,7 +2375,7 @@ function renderOwned() {
   });
 
   if (!bps.length) {
-    list.innerHTML = '<div class="empty-state"><div class="lbl">No blueprints match this filter</div></div>';
+    list.innerHTML = `<div class="empty-state"><div class="lbl">${t('craft.noMatch')}</div></div>`;
     return;
   }
 
@@ -2811,7 +2910,7 @@ function removeInvRow(i) {
 
 function openAddInventory() {
   editingInvId = null;
-  document.getElementById('inv-modal-title').textContent = '📦 Add Item';
+  document.getElementById('inv-modal-title').textContent = t('modal.inv.addTitle');
   populateOreSelect('');
   document.getElementById('inv-quality-input').value = '';
   invRows = [{ qty: '', unit: '1' }];
@@ -2824,7 +2923,7 @@ function openAddInventory() {
 function openEditInventory(i) {
   editingInvId = i;
   const item = craftInventory[i];
-  document.getElementById('inv-modal-title').textContent = '📦 Edit Item';
+  document.getElementById('inv-modal-title').textContent = t('modal.inv.editTitle');
   populateOreSelect(item.name);
   document.getElementById('inv-quality-input').value = item.quality ?? '';
   invRows = [{ qty: item.qty, unit: String(item.unit) }];

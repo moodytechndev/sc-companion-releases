@@ -1,18 +1,21 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu, dialog, shell } = require('electron');
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
-const os = require('os');
 const Store = require('electron-store');
 
 const store = new Store();
 let mainWindow;
 let tray = null;
 
+const CURRENT_VERSION = require('./package.json').version;
+// Host a JSON file at this URL with content: { "version": "x.x.x" }
+const UPDATE_CHECK_URL = 'https://raw.githubusercontent.com/moodytechndev/sc-companion/main/latest.json';
+
 let _lastToggle = 0;
 function toggleWindow() {
   const now = Date.now();
-  if (now - _lastToggle < 300) return; // debounce: both globalShortcut + KeyHook may fire
+  if (now - _lastToggle < 300) return;
   _lastToggle = now;
   if (!mainWindow) return;
   if (mainWindow.isVisible()) {
@@ -38,7 +41,17 @@ function buildTray() {
 }
 
 // ─── Game log watcher ─────────────────────────────────────────────────────────
-const DEFAULT_LOG_PATH = 'C:\\Program Files\\Roberts Space Industries\\StarCitizen\\LIVE\\game.log';
+function detectLogPath() {
+  const candidates = [
+    'C:\\Program Files\\Roberts Space Industries\\StarCitizen\\LIVE\\game.log',
+    'C:\\Program Files (x86)\\Roberts Space Industries\\StarCitizen\\LIVE\\game.log',
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return '';
+}
+
 let logWatcher = null;
 let logPos = 0;
 let logWatchPath = '';
@@ -46,27 +59,47 @@ let lastKnownLocation = '';
 let lastKioskFire = 0;
 
 const LOCATION_MAP = {
-  'RR_CRU_L1': 'CRU-L1 Ambitious Dream',
-  'RR_CRU_L5': 'CRU-L5 Beautiful Glen',
+  // Stanton — ARC-L rest stops
   'RR_ARC_L1': 'ARC-L1 Wide Forest',
   'RR_ARC_L2': 'ARC-L2 Lively Pathway',
+  'RR_ARC_L3': 'ARC-L3 Modern Express',
+  'RR_ARC_L4': 'ARC-L4 Faint Glen',
+  'RR_ARC_L5': 'ARC-L5 Distant Dream',
+  // Stanton — CRU-L rest stops
+  'RR_CRU_L1': 'CRU-L1 Ambitious Dream',
+  'RR_CRU_L2': 'CRU-L2 Ambitious Reserve',
+  'RR_CRU_L3': 'CRU-L3 Stanton Gateway',
+  'RR_CRU_L4': 'CRU-L4 Celestial Acres',
+  'RR_CRU_L5': 'CRU-L5 Beautiful Glen',
+  // Stanton — HUR-L rest stops
   'RR_HUR_L1': 'HUR-L1 Green Glade',
   'RR_HUR_L2': 'HUR-L2 Faithful Dream',
+  'RR_HUR_L3': 'HUR-L3 Thundering Express',
+  'RR_HUR_L4': 'HUR-L4 Melodic Fields',
+  'RR_HUR_L5': 'HUR-L5 High Course',
+  // Stanton — MIC-L rest stops
   'RR_MIC_L1': 'MIC-L1 Shallow Frontier',
+  'RR_MIC_L2': 'MIC-L2 Long Forest',
+  'RR_MIC_L3': 'MIC-L3 Endless Odyssey',
+  'RR_MIC_L4': 'MIC-L4 Shallow Fields',
   'RR_MIC_L5': 'MIC-L5 Modern Icarus',
+  // Stanton — orbit/surface stations
   'PT':        'Port Tressler',
+  'LEVSKI':    'Levski',
+  // Pyro — rest stops
   'RR_PYR_L1': 'Pyro Gateway',
   'RR_PYR_L2': 'Ruin Station',
+  'RR_PYR_L3': 'Patch City',
   'RR_PYR_L4': 'Orbituary',
   'RR_PYR_L5': 'Checkmate',
 };
 
 function startLogWatcher(filePath) {
   if (logWatcher) { try { logWatcher.close(); } catch {} logWatcher = null; }
-  logWatchPath = filePath || DEFAULT_LOG_PATH;
+  logWatchPath = filePath || '';
 
-  if (!fs.existsSync(logWatchPath)) {
-    console.log('[LogWatcher] Not found:', logWatchPath);
+  if (!logWatchPath || !fs.existsSync(logWatchPath)) {
+    console.log('[LogWatcher] Not found or no path set:', logWatchPath);
     return;
   }
 
@@ -79,7 +112,7 @@ function startLogWatcher(filePath) {
       if (event !== 'change') return;
       try {
         const stat = fs.statSync(logWatchPath);
-        if (stat.size < logPos) logPos = 0; // log rotated/restarted
+        if (stat.size < logPos) logPos = 0;
         if (stat.size <= logPos) return;
 
         const len = stat.size - logPos;
@@ -98,33 +131,27 @@ function startLogWatcher(filePath) {
           lastKnownLocation = LOCATION_MAP[code] || code.replace(/_/g, '-');
         }
 
-        // Fires when refinery kiosk UI opens (debounced to 30s)
-        if (text.includes('populating refinery list flash')) {
-          const now = Date.now();
-          if (now - lastKioskFire > 30000) {
-            lastKioskFire = now;
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('log:refineryKioskDetected', lastKnownLocation);
-              if (!mainWindow.isVisible()) {
-                mainWindow.show();
-                mainWindow.focus();
-              }
-            }
-          }
-        }
+        // Kiosk detection commented out — unreliable, revisit later
+        // if (text.includes('populating refinery list flash')) {
+        //   const now = Date.now();
+        //   if (now - lastKioskFire > 30000) {
+        //     lastKioskFire = now;
+        //     if (mainWindow && !mainWindow.isDestroyed()) {
+        //       mainWindow.webContents.send('log:refineryKioskDetected', lastKnownLocation);
+        //       if (!mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
+        //     }
+        //   }
+        // }
 
-        // "A Refinery Work Order has been Completed at <Station>: "
-        const completionMatches = [...text.matchAll(/A Refinery Work Order has been Completed at ([^":\n]+?)[\s:"]+/g)];
-        for (const m of completionMatches) {
-          const station = m[1].trim();
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('log:refineryJobComplete', station);
-            if (!mainWindow.isVisible()) {
-              mainWindow.show();
-              mainWindow.focus();
-            }
-          }
-        }
+        // Completion detection commented out — regex needs validation against live logs
+        // const completionMatches = [...text.matchAll(/A Refinery Work Order has been Completed at ([^":\n]+?)[\s:"]+/g)];
+        // for (const m of completionMatches) {
+        //   const station = m[1].trim();
+        //   if (mainWindow && !mainWindow.isDestroyed()) {
+        //     mainWindow.webContents.send('log:refineryJobComplete', station);
+        //     if (!mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
+        //   }
+        // }
       } catch (e) {
         console.error('[LogWatcher] Read error:', e.message);
       }
@@ -154,10 +181,19 @@ function fetchJson(url) {
   });
 }
 
+function saveBounds() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    store.set('windowBounds', mainWindow.getBounds());
+  }
+}
+
 function createWindow() {
+  const savedBounds = store.get('windowBounds') || {};
   mainWindow = new BrowserWindow({
-    width: 440,
-    height: 620,
+    width:  savedBounds.width  || 440,
+    height: savedBounds.height || 620,
+    x:      savedBounds.x,
+    y:      savedBounds.y,
     minWidth: 380,
     minHeight: 400,
     frame: false,
@@ -175,6 +211,9 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
 
+  mainWindow.on('moved',   saveBounds);
+  mainWindow.on('resized', saveBounds);
+
   mainWindow.on('close', (e) => {
     if (app.isQuitting) return;
     e.preventDefault();
@@ -188,111 +227,35 @@ function createWindow() {
   });
 }
 
-// ── Hotkey: globalShortcut (non-SC focus) + elevated scheduled task (SC focus) ──
-const { exec }  = require('child_process');
-const net       = require('net');
-
-const HOOK_TASK = 'SCCompanionHook';
-const HOOK_CFG  = path.join(os.tmpdir(), 'sc-companion-hook.cfg');
-
 const VK_TO_ACCEL = {
   '2D': 'Insert', '77': 'F8',  '78': 'F9',  '79': 'F10',
   '7A': 'F11',   '91': 'ScrollLock', '13': 'Pause', '24': 'Home', '23': 'End',
 };
 
-// TCP server — KeyHook.exe (elevated) connects here and sends "TOGGLE\n".
-// TCP is not subject to UIPI; works across privilege levels on localhost.
-let _hookServer = null;
-let _hookPort   = 0;
-
-function startHookServer() {
-  return new Promise((resolve) => {
-    if (_hookServer) { _hookServer.close(); _hookServer = null; }
-    _hookServer = net.createServer((socket) => {
-      socket.on('data', (d) => { if (d.toString().includes('TOGGLE')) toggleWindow(); });
-      socket.on('error', () => {});
-    });
-    _hookServer.on('error', () => resolve(0));
-    _hookServer.listen(0, '127.0.0.1', () => {
-      _hookPort = _hookServer.address().port;
-      console.log('[KeyHook] TCP server on port', _hookPort);
-      resolve(_hookPort);
-    });
-  });
-}
-
-let _hookRestartTimer = null;
-
-async function startKeyHook(vkHex) {
-  // 1. globalShortcut — works when SC does NOT have focus
+function registerShortcut(vkHex) {
   globalShortcut.unregisterAll();
   const accel = VK_TO_ACCEL[vkHex];
-  if (accel) try { globalShortcut.register(accel, toggleWindow); } catch {}
-
-  // 2. Start TCP server and write config so KeyHook.exe knows VK + port
-  const port = await startHookServer();
-  try { fs.writeFileSync(HOOK_CFG, `${vkHex}\n${port}\n`, 'utf8'); } catch {}
-
-  // 3. Kill any running instance, then fire the elevated scheduled task.
-  //    If the task doesn't exist yet, create it first (one-time admin prompt).
-  const exePath = path.join(__dirname, 'KeyHook.exe').replace('app.asar', 'app.asar.unpacked');
-
-  exec(`schtasks /end /tn "${HOOK_TASK}"`, () => {
-    setTimeout(() => {
-      exec(`schtasks /run /tn "${HOOK_TASK}"`, (runErr) => {
-        if (!runErr) {
-          console.log('[KeyHook] Elevated task started');
-          return;
-        }
-        // Task not installed — create it now (requires admin → UAC prompt once)
-        console.log('[KeyHook] Task missing, creating via elevated PowerShell…');
-        const bat = path.join(os.tmpdir(), 'sc-hook-setup.bat');
-        try {
-          fs.writeFileSync(bat,
-            `@echo off\r\nschtasks /create /tn "SCCompanionHook" /tr "${exePath}" /sc onlogon /rl highest /f\r\n`);
-        } catch {}
-        exec(`powershell -WindowStyle Hidden -Command "Start-Process cmd -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList '/c ${bat}'"`,
-          (psErr) => {
-            if (!psErr) setTimeout(() => exec(`schtasks /run /tn "${HOOK_TASK}"`, () => {}), 1000);
-          });
-      });
-    }, 500); // let /end finish before /run
-  });
-
-  // 4. Keep-alive: schtasks /run every 30s; mutex in KeyHook.exe prevents duplicates
-  if (_hookRestartTimer) clearInterval(_hookRestartTimer);
-  _hookRestartTimer = setInterval(() => {
-    if (!app.isQuitting) exec(`schtasks /run /tn "${HOOK_TASK}"`, () => {});
-  }, 30000);
-
-  console.log('[KeyHook] Armed: accel=' + (accel || 'none') + ' VK=0x' + vkHex + ' port=' + port);
-}
-
-function stopKeyHook() {
-  if (_hookRestartTimer) { clearInterval(_hookRestartTimer); _hookRestartTimer = null; }
-  globalShortcut.unregisterAll();
-  exec(`schtasks /end /tn "${HOOK_TASK}"`, () => {});
-  if (_hookServer) { _hookServer.close(); _hookServer = null; }
+  if (accel) {
+    try { globalShortcut.register(accel, toggleWindow); } catch {}
+  }
 }
 
 app.whenReady().then(() => {
   createWindow();
-
   buildTray();
 
   const savedVK = store.get('hotkeyVK', '2D');
-  startKeyHook(savedVK);
+  registerShortcut(savedVK);
 
   ipcMain.handle('shortcut:get', () => store.get('hotkeyVK', '2D'));
   ipcMain.handle('shortcut:set', (_, vkHex) => {
     store.set('hotkeyVK', vkHex);
-    startKeyHook(vkHex);
+    registerShortcut(vkHex);
     return true;
   });
 
-  app.on('will-quit', () => stopKeyHook());
-
-  startLogWatcher(store.get('logPath', DEFAULT_LOG_PATH));
+  const logPath = store.get('logPath') || detectLogPath();
+  startLogWatcher(logPath);
 });
 
 app.on('window-all-closed', () => {
@@ -350,7 +313,7 @@ ipcMain.handle('notify', (_, { title, body }) => {
 });
 
 // ─── IPC: Log watcher ─────────────────────────────────────────────────────────
-ipcMain.handle('log:getPath', () => store.get('logPath', DEFAULT_LOG_PATH));
+ipcMain.handle('log:getPath', () => store.get('logPath') || detectLogPath() || '');
 ipcMain.handle('log:setPath', (_, p) => {
   store.set('logPath', p);
   startLogWatcher(p);
@@ -359,3 +322,82 @@ ipcMain.handle('log:getStatus', () => ({
   watching: !!logWatcher,
   path: logWatchPath,
 }));
+
+// ─── IPC: Auto-update check ──────────────────────────────────────────────────
+ipcMain.handle('app:checkUpdate', async () => {
+  try {
+    const data = await fetchJson(UPDATE_CHECK_URL);
+    const latest = data.version || '';
+    if (latest && latest !== CURRENT_VERSION) {
+      return { updateAvailable: true, version: latest, url: data.url || '' };
+    }
+    return { updateAvailable: false };
+  } catch {
+    return { updateAvailable: false };
+  }
+});
+
+ipcMain.handle('app:getVersion', () => CURRENT_VERSION);
+ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
+
+// ─── IPC: Data export / import ────────────────────────────────────────────────
+const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+
+const VALID_LANGS = new Set(['en', 'de', 'fr', 'es']);
+const VALID_CLOSE = new Set(['tray', 'quit']);
+const VK_RE = /^[0-9a-fA-F]{2}$/;
+
+function validateImport(data) {
+  if (data.jobs !== undefined && !Array.isArray(data.jobs)) return 'jobs must be an array';
+  if (data.craftInventory !== undefined && !Array.isArray(data.craftInventory)) return 'craftInventory must be an array';
+  if (data.craftingOwned !== undefined && (typeof data.craftingOwned !== 'object' || Array.isArray(data.craftingOwned))) return 'craftingOwned must be an object';
+  if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
+  if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';
+  if (data.logPath !== undefined && typeof data.logPath !== 'string') return 'logPath must be a string';
+  if (data.language !== undefined && !VALID_LANGS.has(data.language)) return 'language must be en, de, fr, or es';
+  return null;
+}
+
+ipcMain.handle('data:export', async () => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export SC Companion Data',
+    defaultPath: `sc-companion-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'SC Companion Backup', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePath) return { ok: false };
+  const data = {};
+  for (const key of EXPORT_KEYS) {
+    const val = store.get(key);
+    if (val !== undefined) data[key] = val;
+  }
+  try {
+    fs.writeFileSync(result.filePath, JSON.stringify({ version: 1, exported: new Date().toISOString(), data }, null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('data:import', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import SC Companion Data',
+    filters: [{ name: 'SC Companion Backup', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false };
+  try {
+    const raw = fs.readFileSync(result.filePaths[0], 'utf8');
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return { ok: false, error: 'Invalid backup file format' };
+    const importData = parsed.data || parsed;
+    if (typeof importData !== 'object' || importData === null) return { ok: false, error: 'Invalid backup file format' };
+    const validationError = validateImport(importData);
+    if (validationError) return { ok: false, error: `Validation failed: ${validationError}` };
+    for (const key of EXPORT_KEYS) {
+      if (importData[key] !== undefined) store.set(key, importData[key]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
