@@ -1,0 +1,52 @@
+{
+  "name": "sc-companion",
+  "version": "1.2.7",
+  "description": "Star Citizen companion overlay — refinery timers & commodity prices",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.mtds.sc-companion",
+    "productName": "SC Companion",
+    "copyright": "Copyright © 2026 Moody Technical and Development Solutions LLC",
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SC Companion",
+      "include": "build/installer.nsh"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "icon.png",
+      "KeyHook.exe",
+      "node_modules/**/*",
+      "!node_modules/electron-builder/**/*",
+      "!node_modules/.cache/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "asarUnpack": ["KeyHook.exe"]
+  }
+}
