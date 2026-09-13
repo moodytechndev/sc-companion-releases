@@ -2224,18 +2224,31 @@ async function initLanguage() {
   setLang(lang);
 }
 
-async function initUpdateCheck() {
-  try {
-    const result = await api.checkUpdate();
-    if (result && result.updateAvailable) {
-      const banner = document.getElementById('update-banner');
-      const bannerText = document.getElementById('update-banner-text');
-      const bannerLink = document.getElementById('update-banner-link');
-      bannerText.textContent = t('update.available', { args: [result.version] });
-      if (result.url) bannerLink.onclick = () => { api.openExternal(result.url); return false; };
-      banner.style.display = 'flex';
-    }
-  } catch {}
+function initUpdateCheck() {
+  const banner   = document.getElementById('update-banner');
+  const bannerText = document.getElementById('update-banner-text');
+  const bannerBtn  = document.getElementById('update-banner-link');
+
+  api.onUpdateAvailable((info) => {
+    bannerText.textContent = t('update.available', { args: [info.version] });
+    bannerBtn.textContent = t('update.download');
+    bannerBtn.onclick = () => { api.downloadUpdate(); bannerBtn.disabled = true; bannerBtn.style.opacity = '0.5'; return false; };
+    banner.style.display = 'flex';
+  });
+
+  api.onUpdateProgress((info) => {
+    bannerText.textContent = `Downloading update… ${info.percent}%`;
+    bannerBtn.hidden = true;
+  });
+
+  api.onUpdateDownloaded(() => {
+    bannerText.textContent = 'Update ready — restart to apply.';
+    bannerBtn.textContent = 'Restart Now';
+    bannerBtn.hidden = false;
+    bannerBtn.disabled = false;
+    bannerBtn.style.opacity = '1';
+    bannerBtn.onclick = () => { api.installUpdate(); return false; };
+  });
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -2244,7 +2257,7 @@ initShortcut();
 initLogWatcher();
 initCloseBehavior();
 initLanguage();
-setTimeout(initUpdateCheck, 3000);
+initUpdateCheck();
 if (api.onRefineryKioskDetected) {
   api.onRefineryKioskDetected((_, location) => openAddJobFromLog(location));
 }
