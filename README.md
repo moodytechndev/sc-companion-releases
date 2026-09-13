@@ -59,6 +59,15 @@ Default toggle: **Insert**. Change it any time in the **Settings** tab. The firs
 
 ---
 
+## Known Issues
+
+- **Close behavior** — The close/quit setting may not apply consistently; the window can behave unexpectedly when closed depending on how the app was launched.
+- **Show / Hide** — The overlay show and hide toggle may not respond reliably in all scenarios, particularly when Star Citizen has focus.
+
+These are being tracked for a future release.
+
+---
+
 ## Compiling KeyHook.exe yourself
 
 If you'd rather not trust the pre-built binary, compile it from `KeyHook.cs` using the .NET SDK:
