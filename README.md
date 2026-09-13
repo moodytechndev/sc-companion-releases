@@ -63,6 +63,67 @@ Default toggle: **Insert**. Change it any time in the **Settings** tab. The firs
 
 ---
 
+## How to Use
+
+Once the overlay is running, press your hotkey (default: **Insert**) to show or hide it. It lives in your system tray when hidden.
+
+### ⛏ Refinery Tab
+
+Track active refinery jobs with live countdown timers.
+
+1. Click **+ Add Refinery Job**
+2. Enter the ores/materials, refinery method, duration (copy it directly from the in-game UI), location, and any notes
+3. Click **▶ Start Timer** — your job appears as a card with a progress bar and countdown
+4. When the job completes, a **Deliver** button appears — click it to log what you pulled from the cargo elevator and automatically add it to your inventory
+
+**Auto-detection:** If your game log path is configured in Settings, the overlay auto-opens when you walk up to a refinery kiosk in-game.
+
+---
+
+### ⛰ Mining Tab
+
+Two views, toggle with the chips at the top:
+
+- **Ore Locations** — search any ore to see every location it spawns, including share percentage and radar signature count
+- **Station Bonuses** — select a station from the dropdown to see its refinery bonuses
+
+---
+
+### 📈 Prices Tab
+
+Live commodity prices pulled from UEX Corp.
+
+- Search by name or use the filter chips (All / Minerals / Raw Ore / Refined / In Inventory)
+- Click any commodity to expand a ranked list of the best sell locations with terminal names and current prices
+
+---
+
+### 🔧 Craft Tab
+
+Two views, toggle with the chips at the top:
+
+- **My Blueprints** — browse all craftable items; mark ones you own, filter by category, sort by name or craft time; items highlight green when you have all ingredients in inventory
+- **Inventory** — track your ore and material stockpiles; add entries with ore type, quality %, box sizes, and location; sort by ore name or SCU quantity
+
+---
+
+### ⚙ Settings
+
+Click the gear icon in the bottom-right corner.
+
+| Setting | Description |
+|---|---|
+| Language | Switch between English, Deutsch, Français, Español |
+| Window Opacity | Adjust how transparent the overlay is |
+| Show / Hide Key | Change the toggle hotkey (Insert, F8–F11, Scroll Lock, Pause, Home, End) |
+| Close Button | Choose whether ✕ minimizes to tray or quits the app |
+| Clear Completed Jobs | Remove all finished refinery jobs |
+| Clear All Jobs | Remove every tracked job |
+| Game Log Path | Path to `game.log` for auto-detection of refinery kiosk events |
+| Backup & Restore | Export or import all jobs, inventory, and settings as a JSON file |
+
+---
+
 ## Planned Updates
 
 - **Language support** — French, Spanish, and German localizations
