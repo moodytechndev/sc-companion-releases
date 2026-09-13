@@ -59,6 +59,8 @@ Default toggle: **Insert**. Change it any time in the **Settings** tab. The firs
 
 > ⚠️ **Note:** Show/hide toggle behavior may be unreliable in some scenarios. See [Known Issues](#known-issues).
 
+> ⚠️ **KeyHook.exe** is a pre-compiled binary required for hotkey detection while Star Citizen has focus. Its full source is in `KeyHook.cs`. If you'd prefer to compile it yourself rather than trust the included binary, see [Compiling KeyHook.exe yourself](#compiling-keyhookexe-yourself).
+
 ---
 
 ## Planned Updates
