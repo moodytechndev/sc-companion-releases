@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // App version / updates
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
-  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
+  onUpdateAvailable: (cb) => ipcRenderer.on('updater:available', (_, info) => cb(info)),
+  onUpdateProgress: (cb) => ipcRenderer.on('updater:progress', (_, info) => cb(info)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('updater:downloaded', cb),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 });
