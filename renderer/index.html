@@ -211,18 +211,19 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .mining-row:last-child { border-bottom:none; }
 .mining-ore { font-size:13px; font-weight:600; color:var(--accent); margin-bottom:4px; }
 .mining-locs { display:flex; flex-wrap:wrap; gap:4px; }
-.mining-loc { position:relative; font-size:11px; background:var(--bg-hover); padding:3px 8px; border-radius:10px; white-space:nowrap; color:var(--text); line-height:1.3; cursor:default; }
-.mining-loc[data-tip]:hover { background:var(--border); }
-.mining-loc[data-tip]::after {
-  content: attr(data-tip);
-  position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
-  background:var(--bg-card); border:1px solid var(--accent); color:var(--text);
-  font-size:12px; padding:5px 11px; border-radius:5px; white-space:nowrap;
-  pointer-events:none; opacity:0; transition:opacity .1s; z-index:200;
-  font-variant-numeric:tabular-nums; font-weight:600; letter-spacing:.02em;
-  box-shadow:0 2px 10px rgba(0,0,0,0.35);
-}
-.mining-loc[data-tip]:hover::after { opacity:1; }
+.mining-loc { display:flex; flex-direction:column; gap:1px; font-size:11px; background:var(--bg-hover); padding:4px 9px; border-radius:8px; white-space:nowrap; border:1px solid transparent; }
+.mining-loc .ml-name { font-weight:600; color:var(--text); line-height:1.3; }
+.mining-loc .ml-meta { font-size:10px; font-variant-numeric:tabular-nums; line-height:1.2; }
+/* share tiers */
+.mining-loc.t-s { border-color:rgba(0,204,102,0.30); background:rgba(0,204,102,0.07); }
+.mining-loc.t-s .ml-name { color:var(--success); }
+.mining-loc.t-s .ml-meta { color:rgba(0,204,102,0.70); }
+.mining-loc.t-a .ml-name { color:var(--accent); }
+.mining-loc.t-a .ml-meta { color:rgba(0,170,255,0.65); }
+.mining-loc.t-b .ml-name { color:var(--text); }
+.mining-loc.t-b .ml-meta { color:var(--text-dim); }
+.mining-loc.t-c .ml-name { color:var(--text-dim); }
+.mining-loc.t-c .ml-meta { color:#2a4055; }
 
 #prices-detail { padding:10px; border-top:1px solid var(--border); flex-shrink:0; max-height:48%; overflow-y:auto; }
 .prices-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-dim); margin-bottom:8px; }
@@ -301,6 +302,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 .inv-ore-name { font-size:13px; font-weight:700; color:var(--text); flex:1; min-width:0; }
 .inv-ore-qual { font-size:11px; color:var(--accent); white-space:nowrap; }
 .inv-ore-scu  { font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.inv-ore-val  { font-size:10px; color:var(--success); font-variant-numeric:tabular-nums; white-space:nowrap; text-align:right; }
 .inv-manifest { padding:0 10px 6px; }
 .inv-manifest-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-top:1px solid var(--border); font-size:12px; }
 .inv-manifest-loc  { font-size:12px; font-weight:600; color:var(--text); min-width:80px; }
@@ -355,6 +357,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div class="filter-chips" id="mining-chips">
           <div class="chip active" onclick="switchMiningView('locations',this)" data-i18n="mining.oreLocations">Ore Locations</div>
           <div class="chip" onclick="switchMiningView('bonuses',this)" data-i18n="mining.stationBonuses">Station Bonuses</div>
+          <div class="chip" onclick="switchMiningView('halo',this)">🪨 Aaron Halo</div>
         </div>
       </div>
 
@@ -367,6 +370,43 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </div>
         </div>
         <div class="scroll-area" id="mining-list"></div>
+      </div>
+
+      <!-- Aaron Halo view -->
+      <div id="mining-view-halo" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border)">
+          <!-- Presets -->
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+            <button class="btn btn-sm" onclick="applyHaloPreset('cru-l1','arc-l3',5)">CRU-L1→ARC-L3 B5</button>
+            <button class="btn btn-sm" onclick="applyHaloPreset('cru-l1','arc-l1',5)">CRU-L1→ARC-L1 B5</button>
+            <button class="btn btn-sm" onclick="applyHaloPreset('arc-l1','cru-l1',5)">ARC-L1→CRU-L1 B5</button>
+            <button class="btn btn-sm" onclick="applyHaloPreset('hur-l1','arc-l4',5)">HUR-L1→ARC-L4 B5</button>
+            <button class="btn btn-sm" onclick="applyHaloPreset('hur-l1','arc-l5',9)">HUR-L1→ARC-L5 B9</button>
+          </div>
+          <!-- Inputs -->
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:end">
+            <div>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">From</div>
+              <select id="halo-from" onchange="calcHalo()" style="width:100%;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none"></select>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">To</div>
+              <select id="halo-to" onchange="calcHalo()" style="width:100%;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none"></select>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">Band</div>
+              <select id="halo-band" onchange="calcHalo()" style="padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none">
+                <option value="1">B1</option><option value="2">B2</option><option value="3">B3</option>
+                <option value="4">B4</option><option value="5" selected>B5</option><option value="6">B6</option>
+                <option value="7">B7</option><option value="8">B8</option><option value="9">B9</option>
+                <option value="10">B10</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="scroll-area">
+          <div id="halo-result"></div>
+        </div>
       </div>
 
       <!-- Station Bonuses view -->
@@ -426,10 +466,16 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div class="loading" id="com-loading"><div class="spinner"></div><span data-i18n="prices.loading">Loading commodities…</span></div>
       </div>
       <div id="prices-detail" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="prices-title" id="prices-title" style="margin-bottom:0" data-i18n="prices.bestSell">Best Sell Locations</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="prices-title" id="prices-title" style="margin-bottom:0"></div>
           <button onclick="closePriceDetail()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px" title="Close">✕</button>
         </div>
+        <div id="prices-best-buy" style="display:none;align-items:center;gap:8px;padding:5px 8px;margin-bottom:6px;background:rgba(0,170,255,0.07);border:1px solid rgba(0,170,255,0.2);border-radius:var(--r);font-size:11px">
+          <span style="color:var(--text-dim);flex-shrink:0">Best Buy</span>
+          <span id="prices-best-buy-loc" style="color:var(--text-bright);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+          <span id="prices-best-buy-price" style="color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;flex-shrink:0"></span>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Best Sell</div>
         <div id="prices-list"></div>
       </div>
     </div>
@@ -493,7 +539,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div class="scroll-area" id="inv-list"></div>
         <div id="inv-total" hidden class="inv-total-bar">
           <span id="inv-total-count" style="color:var(--text-dim)"></span>
-          <span>Total: <span id="inv-total-scu" style="color:var(--accent);font-variant-numeric:tabular-nums"></span> SCU</span>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+            <span><span id="inv-total-scu" style="color:var(--accent);font-variant-numeric:tabular-nums"></span> SCU</span>
+            <span id="inv-total-value" hidden style="font-size:10px;color:var(--success);font-variant-numeric:tabular-nums">≈ <span id="inv-total-value-num"></span> aUEC</span>
+          </span>
         </div>
       </div>
     </div>
@@ -658,6 +707,26 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <button class="btn" style="flex:1" onclick="confirmDelivery()" data-i18n="modal.deliver.addToInv">✓ Add to Inventory</button>
       <button class="btn" style="background:none;border-color:var(--border)" onclick="closeDeliverModal()" data-i18n="modal.cancel">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- ── Terminal Prices Modal ── -->
+<div id="terminal-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeTerminalModal()">
+  <div class="modal" style="width:320px;max-height:70vh;display:flex;flex-direction:column;padding:16px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-shrink:0">
+      <div>
+        <div id="tm-terminal" style="font-size:13px;font-weight:700;color:var(--text-bright)"></div>
+        <div id="tm-loc" style="font-size:11px;color:var(--text-dim);margin-top:2px"></div>
+      </div>
+      <button onclick="closeTerminalModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;margin-left:8px">✕</button>
+    </div>
+    <!-- hidden placeholders kept for JS compat -->
+    <div id="tm-commodity" style="display:none"></div>
+    <div id="tm-sell" style="display:none"></div>
+    <div id="tm-buy" style="display:none"></div>
+    <div id="tm-spread-row" style="display:none"><span id="tm-spread"></span></div>
+    <!-- commodity list -->
+    <div id="tm-rows" style="overflow-y:auto;flex:1;scrollbar-width:thin;scrollbar-color:var(--border) transparent"></div>
   </div>
 </div>
 
@@ -1391,6 +1460,14 @@ async function init() {
   // Pre-load inventory so startup price prefetch knows what to fetch
   craftInventory = (await api.getStore('craftInventory', [])) || [];
 
+  // Restore persisted price data so Prices/Inventory tabs show values instantly
+  const [savedProfits, savedPrices] = await Promise.all([
+    api.getStore('profitCache', {}),
+    api.getStore('priceCache', {}),
+  ]);
+  Object.assign(profitCache, savedProfits || {});
+  Object.assign(priceCache,  savedPrices  || {});
+
   document.querySelectorAll('.tab').forEach(t =>
     t.addEventListener('click', () => switchTab(t.dataset.tab))
   );
@@ -1417,7 +1494,7 @@ function switchTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
   const sb = document.getElementById('settings-btn');
   if (sb) sb.classList.toggle('active', name === 'settings');
-  if (name === 'mining')   { if (miningView === 'locations') renderMining(); else renderBonuses(); }
+  if (name === 'mining')   { if (miningView === 'locations') renderMining(); else if (miningView === 'bonuses') renderBonuses(); else initHalo(); }
   if (name === 'crafting') initCrafting();
 }
 
@@ -1587,7 +1664,9 @@ function switchMiningView(view, chipEl) {
   chipEl.classList.add('active');
   document.getElementById('mining-view-locations').style.display = view === 'locations' ? 'flex' : 'none';
   document.getElementById('mining-view-bonuses').style.display  = view === 'bonuses'   ? 'flex' : 'none';
+  document.getElementById('mining-view-halo').style.display     = view === 'halo'      ? 'flex' : 'none';
   if (view === 'bonuses') renderBonuses();
+  if (view === 'halo')    initHalo();
 }
 
 function renderBonuses() {
@@ -1611,6 +1690,24 @@ function renderBonuses() {
   }).join('');
 }
 
+function shareNum(share) {
+  return parseFloat((share || '').replace(/[^0-9.]/g, '')) || 0;
+}
+
+function shareTier(share) {
+  const n = shareNum(share);
+  if (n >= 20) return 't-s';
+  if (n >= 5)  return 't-a';
+  if (n >= 1)  return 't-b';
+  return 't-c';
+}
+
+function fmtSigs(sigs) {
+  if (!sigs) return '';
+  if (sigs >= 1000) return (sigs / 1000).toFixed(1).replace(/\.0$/, '') + 'k sigs';
+  return sigs + ' sigs';
+}
+
 function renderMining(query) {
   const q = (query || document.getElementById('mining-search')?.value || '').toLowerCase().trim();
   const list = document.getElementById('mining-list');
@@ -1621,16 +1718,23 @@ function renderMining(query) {
     list.innerHTML = `<div class="empty-state"><div class="lbl">No ores match "${esc(q)}"</div></div>`;
     return;
   }
-  list.innerHTML = entries.map(([ore, locs]) => `
+  list.innerHTML = entries.map(([ore, locs]) => {
+    const filtered = q ? locs.filter(l =>
+      ore.toLowerCase().includes(q) || l.location.toLowerCase().includes(q)
+    ) : locs;
+    return `
     <div class="mining-row">
       <div class="mining-ore">${esc(ore)}</div>
-      <div class="mining-locs">${locs.map(l => {
-        const meta = [l.share, l.sigs ? `sig ${l.sigs.toLocaleString()}` : null].filter(Boolean).join(' · ');
-        return meta
-          ? `<span class="mining-loc" data-tip="${esc(meta)}">${esc(l.location)}</span>`
-          : `<span class="mining-loc">${esc(l.location)}</span>`;
+      <div class="mining-locs">${filtered.map(l => {
+        const tier = shareTier(l.share);
+        const meta = [l.share, fmtSigs(l.sigs)].filter(Boolean).join(' · ');
+        return `<span class="mining-loc ${tier}">
+          <span class="ml-name">${esc(l.location)}</span>
+          ${meta ? `<span class="ml-meta">${esc(meta)}</span>` : ''}
+        </span>`;
       }).join('')}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function filterMining() {
@@ -1927,6 +2031,8 @@ function updateStatusBar() {
 // ════════════════════════════════════════════════════════════════════
 // Commodity prices
 // ════════════════════════════════════════════════════════════════════
+const profitCache = {};  // id -> { sell, buy, margin }
+
 async function loadCommodities() {
   const dot    = document.getElementById('api-dot');
   const status = document.getElementById('api-status');
@@ -1942,6 +2048,7 @@ async function loadCommodities() {
     status.textContent = `UEX Corp · ${commodities.length} items`;
     renderComs();
     prefetchInventoryPrices();
+    fetchBulkProfits();
   } catch (e) {
     dot.className = 'dot offline';
     status.textContent = 'API unavailable';
@@ -1968,6 +2075,75 @@ async function prefetchInventoryPrices() {
     } catch {}
     await new Promise(r => setTimeout(r, 350));
   }
+}
+
+function rowLocation(p) {
+  const place = [p.city_name || p.outpost_name || p.poi_name, p.moon_name, p.planet_name].filter(Boolean).join(' · ');
+  return p.terminal_name + (place ? ` · ${place}` : '');
+}
+
+function applyPriceRows(rows) {
+  const bestSell    = {};  // id -> price
+  const bestSellRow = {};  // id -> row (for terminal name)
+  const bestBuy     = {};
+  rows.forEach(p => {
+    if (p.price_sell > 0) {
+      if (bestSell[p.id_commodity] == null || p.price_sell > bestSell[p.id_commodity]) {
+        bestSell[p.id_commodity]    = p.price_sell;
+        bestSellRow[p.id_commodity] = p;
+      }
+    }
+    if (p.price_buy > 0) {
+      if (bestBuy[p.id_commodity] == null || p.price_buy < bestBuy[p.id_commodity])
+        bestBuy[p.id_commodity] = p.price_buy;
+    }
+  });
+  let changed = false;
+  commodities.forEach(c => {
+    const sell = bestSell[c.id];
+    const buy  = bestBuy[c.id];
+    if (sell || buy) {
+      const sellAt = bestSellRow[c.id] ? rowLocation(bestSellRow[c.id]) : null;
+      profitCache[c.id] = { sell: sell || null, buy: buy || null, margin: (sell && buy) ? sell - buy : null, sellAt };
+      if (sell && priceCache[c.id] == null) priceCache[c.id] = sell;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+function refreshPriceViews() {
+  renderComs();
+  if (craftingView === 'inventory' && document.getElementById('crafting-view-inventory')?.style.display !== 'none') {
+    renderInventory();
+  }
+  api.setStore('profitCache', profitCache);
+  api.setStore('priceCache',  priceCache);
+}
+
+async function fetchBulkProfits() {
+  try {
+    // Try bulk endpoint (returns all rows regardless of commodity)
+    const res = await api.getBulkPrices();
+    if (res.status === 'ok' && res.rows?.length > 0) {
+      if (applyPriceRows(res.rows)) refreshPriceViews();
+      return;
+    }
+  } catch {}
+
+  // Fallback: batch all commodity ids in parallel groups of 25
+  if (!commodities.length) return;
+  const BATCH = 25;
+  for (let i = 0; i < commodities.length; i += BATCH) {
+    const ids = commodities.slice(i, i + BATCH).map(c => c.id);
+    try {
+      const res = await api.getCommodityPricesBatch(ids);
+      if (res.status === 'ok' && res.rows?.length > 0) {
+        applyPriceRows(res.rows);
+      }
+    } catch {}
+  }
+  refreshPriceViews();
 }
 
 function setFilter(f, el) {
@@ -2009,10 +2185,22 @@ function renderComs() {
     const el = document.createElement('div');
     el.className = `commodity-item${selectedCom?.id === c.id ? ' selected' : ''}`;
     el.dataset.comId = c.id;
+
+    const profit = profitCache[c.id];
+    let profitSpan = '';
+    if (profit?.margin != null) {
+      const m = profit.margin;
+      const col = m >= 2000 ? 'var(--success)' : m >= 500 ? 'var(--warn)' : 'var(--text-dim)';
+      profitSpan = `<span style="font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;color:${col};white-space:nowrap">+${m.toLocaleString()}</span>`;
+    } else if (profit?.sell != null) {
+      profitSpan = `<span style="font-size:10px;color:var(--text-dim)">—</span>`;
+    }
+
     const priceSpan = priceCache[c.id] != null
       ? `<span class="com-top-price">${priceCache[c.id].toLocaleString()}</span>`
       : `<span class="com-top-price" style="visibility:hidden">—</span>`;
-    el.innerHTML = `<span class="com-code">${esc(c.code)}</span><span class="com-name">${esc(c.name)}</span><span class="com-kind">${esc(c.kind)}</span>${priceSpan}`;
+
+    el.innerHTML = `<span class="com-code">${esc(c.code)}</span><span class="com-name">${esc(c.name)}</span><span class="com-kind">${esc(c.kind)}</span>${profitSpan}${priceSpan}`;
     el.addEventListener('click', () => selectCom(c, el));
     list.appendChild(el);
   });
@@ -2020,6 +2208,7 @@ function renderComs() {
 
 function closePriceDetail() {
   document.getElementById('prices-detail').style.display = 'none';
+  document.getElementById('prices-best-buy').style.display = 'none';
   document.querySelectorAll('.commodity-item').forEach(c => c.classList.remove('selected'));
   selectedCom = null;
 }
@@ -2033,15 +2222,40 @@ async function selectCom(com, el) {
   const plist  = document.getElementById('prices-list');
   const title  = document.getElementById('prices-title');
 
+  const bestBuyEl    = document.getElementById('prices-best-buy');
+  const bestBuyLoc   = document.getElementById('prices-best-buy-loc');
+  const bestBuyPrice = document.getElementById('prices-best-buy-price');
+
   detail.style.display = 'block';
-  title.textContent = `Loading prices for ${com.name}…`;
+  bestBuyEl.style.display = 'none';
+  title.innerHTML = `<span style="color:var(--accent)">${esc(com.name)}</span> <span style="font-size:10px;color:var(--text-dim);font-weight:400">tap row for details</span>`;
   plist.innerHTML = '<div class="loading"><div class="spinner"></div>Fetching…</div>';
 
   try {
-    const res = await api.getCommodityPrices(com.id, 'sell');
-    if (res.status !== 'ok') throw new Error(res.error || 'API error');
+    const [sellRes, buyRes] = await Promise.all([
+      api.getCommodityPrices(com.id, 'sell'),
+      api.getCommodityPrices(com.id, 'buy'),
+    ]);
+    if (sellRes.status !== 'ok') throw new Error(sellRes.error || 'API error');
 
-    const prices = (res.data || [])
+    // Best buy line
+    let _topBuyPrice = null;
+    if (buyRes.status === 'ok') {
+      const topBuy = (buyRes.data || [])
+        .filter(p => p.price_buy > 0)
+        .sort((a, b) => a.price_buy - b.price_buy)
+        .shift();
+      if (topBuy) {
+        _topBuyPrice = topBuy.price_buy;
+        const loc = [topBuy.city_name || topBuy.outpost_name || topBuy.poi_name, topBuy.planet_name]
+          .filter(Boolean).join(' · ');
+        bestBuyLoc.textContent   = topBuy.terminal_name + (loc ? ` · ${loc}` : '');
+        bestBuyPrice.textContent = topBuy.price_buy.toLocaleString() + ' aUEC';
+        bestBuyEl.style.display  = 'flex';
+      }
+    }
+
+    const prices = (sellRes.data || [])
       .filter(p => p.price_sell > 0)
       .sort((a, b) => b.price_sell - a.price_sell)
       .slice(0, 12);
@@ -2050,9 +2264,14 @@ async function selectCom(com, el) {
       priceCache[com.id] = prices[0].price_sell;
       const listEl = document.querySelector(`.commodity-item[data-com-id="${com.id}"] .com-top-price`);
       if (listEl) { listEl.style.visibility = ''; listEl.textContent = prices[0].price_sell.toLocaleString(); }
+      // Update profit cache with fresh click data
+      const topSell = prices[0].price_sell;
+      const sellAt  = rowLocation(prices[0]);
+      profitCache[com.id] = { sell: topSell, buy: _topBuyPrice, margin: _topBuyPrice ? topSell - _topBuyPrice : null, sellAt };
+      api.setStore('profitCache', profitCache);
+      api.setStore('priceCache',  priceCache);
+      renderComs();
     }
-
-    title.innerHTML = `Best Sell — <span style="color:var(--accent)">${esc(com.name)}</span>`;
 
     if (prices.length === 0) {
       plist.innerHTML = '<div style="padding:12px;color:var(--text-dim);font-size:12px">No sell locations found.</div>';
@@ -2062,8 +2281,13 @@ async function selectCom(com, el) {
     plist.innerHTML = prices.map((p, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
       const loc = [p.city_name || p.outpost_name || p.poi_name, p.moon_name, p.planet_name].filter(Boolean).join(' · ');
+      const rowData = encodeURIComponent(JSON.stringify({
+        terminal_name: p.terminal_name,
+        id_terminal: p.id_terminal,
+        loc: loc || p.star_system_name || '',
+      }));
       return `
-        <div class="price-row">
+        <div class="price-row" style="cursor:pointer" onclick="showTerminalPrices('${rowData}')">
           <span class="price-rank">${medal}</span>
           <div class="price-location">
             <div class="price-terminal">${esc(p.terminal_name)}</div>
@@ -2078,6 +2302,61 @@ async function selectCom(com, el) {
   } catch (e) {
     plist.innerHTML = `<div style="color:var(--danger);padding:12px;font-size:12px">Error: ${esc(e.message)}</div>`;
   }
+}
+
+async function showTerminalPrices(encodedData) {
+  const p = JSON.parse(decodeURIComponent(encodedData));
+
+  document.getElementById('tm-terminal').textContent = p.terminal_name;
+  document.getElementById('tm-loc').textContent      = p.loc || '';
+  document.getElementById('tm-commodity').textContent = '';
+  document.getElementById('tm-sell').textContent     = '';
+  document.getElementById('tm-buy').textContent      = '';
+  document.getElementById('tm-spread-row').style.display = 'none';
+  document.getElementById('tm-rows').innerHTML = '<div class="loading"><div class="spinner"></div>Loading…</div>';
+  document.getElementById('terminal-modal-overlay').style.display = 'flex';
+
+  try {
+    const res = await api.getTerminalPrices(p.id_terminal);
+    if (res.status !== 'ok') throw new Error(res.error || 'API error');
+
+    const rows = res.data || [];
+
+    // Group by commodity name, collect sell and buy
+    const byName = {};
+    rows.forEach(r => {
+      const name = r.commodity_name || r.name || '?';
+      if (!byName[name]) byName[name] = { name, sell: null, buy: null };
+      if (r.price_sell > 0) byName[name].sell = r.price_sell;
+      if (r.price_buy  > 0) byName[name].buy  = r.price_buy;
+    });
+
+    const items = Object.values(byName).sort((a, b) => a.name.localeCompare(b.name));
+
+    if (items.length === 0) {
+      document.getElementById('tm-rows').innerHTML =
+        '<div style="padding:12px;color:var(--text-dim);font-size:12px;text-align:center">No commodity data for this terminal.</div>';
+      return;
+    }
+
+    document.getElementById('tm-rows').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:0;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;padding:4px 0 6px;border-bottom:1px solid var(--border);margin-bottom:4px">
+        <span>Commodity</span><span style="text-align:right;padding-right:10px">Sell</span><span style="text-align:right">Buy</span>
+      </div>
+      ${items.map(it => `
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:0;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center">
+          <span style="font-size:11px;color:var(--text-bright)">${esc(it.name)}</span>
+          <span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--success);text-align:right;padding-right:10px;min-width:70px">${it.sell ? it.sell.toLocaleString() : '<span style="color:var(--text-dim)">—</span>'}</span>
+          <span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--accent);text-align:right;min-width:60px">${it.buy ? it.buy.toLocaleString() : '<span style="color:var(--text-dim)">—</span>'}</span>
+        </div>`).join('')}`;
+  } catch (e) {
+    document.getElementById('tm-rows').innerHTML =
+      `<div style="color:var(--danger);padding:12px;font-size:12px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function closeTerminalModal() {
+  document.getElementById('terminal-modal-overlay').style.display = 'none';
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -2250,6 +2529,55 @@ function initUpdateCheck() {
     bannerBtn.onclick = () => { api.installUpdate(); return false; };
   });
 }
+
+// ════════════════════════════════════════════════════════════════════
+// Tooltip — handles [data-tip] anywhere in the document
+// ════════════════════════════════════════════════════════════════════
+(function () {
+  const tip = document.getElementById('tip');
+  let current = null;
+
+  function show(el, x, y) {
+    tip.textContent = el.dataset.tip;
+    tip.style.opacity = '1';
+    position(x, y);
+  }
+
+  function position(x, y) {
+    const pad = 12;
+    tip.style.left = '0';
+    tip.style.top  = '0';
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = x + pad;
+    let top  = y - th - pad;
+    if (left + tw > vw - 4) left = x - tw - pad;
+    if (top < 4)            top  = y + pad;
+    tip.style.left = left + 'px';
+    tip.style.top  = top  + 'px';
+  }
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if (!el) return;
+    current = el;
+    show(el, e.clientX, e.clientY);
+  });
+
+  document.addEventListener('mouseout', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el && el === current) {
+      tip.style.opacity = '0';
+      current = null;
+    }
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (current) position(e.clientX, e.clientY);
+  });
+})();
 
 // ════════════════════════════════════════════════════════════════════
 init();
@@ -2431,6 +2759,29 @@ function itemSCU(item) {
   return (Number(item.qty) || 0) * (Number(item.unit) || 1);
 }
 
+function invCom(name) {
+  const lc = name.toLowerCase();
+  return commodities.find(c => c.name.toLowerCase() === lc) ?? null;
+}
+
+function invBestSellPrice(name) {
+  const com = invCom(name);
+  if (!com) return null;
+  return profitCache[com.id]?.sell ?? priceCache[com.id] ?? null;
+}
+
+function invSellAt(name) {
+  const com = invCom(name);
+  if (!com) return null;
+  return profitCache[com.id]?.sellAt ?? null;
+}
+
+function fmtAuec(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 }) + 'M';
+  if (n >= 1_000)     return (n / 1_000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'k';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
 function invRowHtml(item, origIdx) {
   const scu     = itemSCU(item);
   const qualStr = item.quality !== '' && item.quality != null ? `${item.quality}%` : '—';
@@ -2495,6 +2846,22 @@ function renderInventory() {
   document.getElementById('inv-total-count').textContent = `${groups.length} ore type${groups.length !== 1 ? 's' : ''}`;
   document.getElementById('inv-total-scu').textContent = totalSCU.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
+  // Total estimated value across all groups
+  let totalValue = 0;
+  groups.forEach(grp => {
+    const scu = Object.values(grp.locs).flat().reduce((s, { item }) => s + itemSCU(item), 0);
+    const price = invBestSellPrice(grp.name);
+    if (price) totalValue += scu * price;
+  });
+  const valEl = document.getElementById('inv-total-value');
+  const valNumEl = document.getElementById('inv-total-value-num');
+  if (totalValue > 0) {
+    valEl.hidden = false;
+    valNumEl.textContent = fmtAuec(Math.round(totalValue));
+  } else {
+    valEl.hidden = true;
+  }
+
   list.innerHTML = groups.map(grp => {
     const totalGrpSCU = Object.values(grp.locs).flat().reduce((s, { item }) => s + itemSCU(item), 0);
     const qualStr = (grp.quality !== '' && grp.quality != null) ? `${grp.quality}%` : '—';
@@ -2504,6 +2871,10 @@ function renderInventory() {
     const chevron = isOpen ? '▾' : '▸';
 
     const isGrpInTransit = Object.values(grp.locs).flat().some(({ item }) => item.inTransit);
+
+    const grpSellPrice = invBestSellPrice(grp.name);
+    const grpValue     = grpSellPrice ? totalGrpSCU * grpSellPrice : null;
+    const grpSellAt    = invSellAt(grp.name);
 
     const locRows = isOpen ? Object.entries(grp.locs).map(([loc, entries]) => {
       const locSCU  = entries.reduce((s, { item }) => s + itemSCU(item), 0);
@@ -2560,7 +2931,10 @@ function renderInventory() {
             <div class="inv-ore-name">${nameEsc}</div>
             <div class="inv-ore-qual">Quality: ${esc(qualStr)}</div>
           </div>
-          <span class="inv-ore-scu">${totalGrpSCU} SCU</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0">
+            <span class="inv-ore-scu">${totalGrpSCU} SCU</span>
+            ${grpValue != null ? `<span class="inv-ore-val"${grpSellAt ? ` title="Best sell: ${esc(grpSellAt)}\n${grpSellPrice.toLocaleString()} aUEC/SCU"` : ''}>≈ ${fmtAuec(Math.round(grpValue))} aUEC</span>` : ''}
+          </div>
           <button onclick="openAddInventoryForGroup('${nameEsc}','${qualEsc}');event.stopPropagation()"
             style="margin-left:6px;font-size:11px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--text-dim);cursor:pointer;flex-shrink:0"
             onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">+ Add</button>
@@ -2991,6 +3365,230 @@ async function deleteInventoryItem(i) {
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
+
+// ════════════════════════════════════════════════════════════════════
+// Aaron Halo Navigator
+// ════════════════════════════════════════════════════════════════════
+const HALO_BANDS = [
+  {band:1,name:'Band 1',inner:19673e3,center:19702e3,outer:19715e3,width:42e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminium'],desc:'Inner edge of the Aaron Halo'},
+  {band:2,name:'Band 2',inner:19815e3,center:19887e3,outer:19914e3,width:99e3,tier:'Medium',hotspot:false,ores:['Titanium','Tungsten','Beryl','Diamond'],desc:'Moderate density'},
+  {band:3,name:'Band 3',inner:19914e3,center:19995e3,outer:19995e3,width:81e3,tier:'Medium',hotspot:false,ores:['Titanium','Tungsten','Beryl','Diamond'],desc:'Good density, often grouped with Band 2'},
+  {band:4,name:'Band 4',inner:20071e3,center:20188e3,outer:20179e3,width:108e3,tier:'High',hotspot:false,ores:['Bexalite','Taranite','Gold','Agricium'],desc:'Transition zone'},
+  {band:5,name:'Band 5',inner:20230e3,center:20320e3,outer:20407e3,width:177e3,tier:'Ultra',hotspot:true,tag:'CROWN JEWEL',ores:['Quantainium','Bexalite','Taranite','Gold','Laranite'],desc:'Peak density — best overall mining'},
+  {band:6,name:'Band 6',inner:20407e3,center:20471e3,outer:20540e3,width:133e3,tier:'High',hotspot:false,ores:['Bexalite','Taranite','Gold','Agricium'],desc:'Good density, often grouped with Band 5'},
+  {band:7,name:'Band 7',inner:20540e3,center:20962e3,outer:20881e3,width:341e3,tier:'High',hotspot:false,tag:'WIDEST BAND',ores:['Laranite','Agricium','Bexalite','Gold'],desc:'Widest band, excellent density'},
+  {band:8,name:'Band 8',inner:20881e3,center:20968e3,outer:21046e3,width:165e3,tier:'High',hotspot:false,ores:['Bexalite','Taranite','Gold','Agricium'],desc:'Moderate density'},
+  {band:9,name:'Band 9',inner:21046e3,center:21062e3,outer:21132e3,width:86e3,tier:'Ultra',hotspot:true,tag:'OUTER HOTSPOT',ores:['Quantainium','Bexalite','Taranite','Laranite'],desc:'Prime outer hotspot'},
+  {band:10,name:'Band 10',inner:21132e3,center:21207e3,outer:21298e3,width:166e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminium'],desc:'Outer edge of the Aaron Halo'},
+];
+
+const HALO_STATIONS = [
+  {id:'arc-l1',name:'ARC-L1 Wide Forest',x:17070426,y:-19640279,solar:26020000,refinery:true},
+  {id:'arc-l2',name:'ARC-L2 Lively Pathway',x:21561875,y:-23401164,solar:31810000,refinery:true},
+  {id:'arc-l3',name:'ARC-L3 Modern Express',x:-27361537,y:2756140,solar:27500000,refinery:false},
+  {id:'arc-l4',name:'ARC-L4 Faint Glen',x:23005777,y:17324512,solar:28800000,refinery:true},
+  {id:'arc-l5',name:'ARC-L5 Yellow Core',x:941098,y:-28916716,solar:28800000,refinery:false},
+  {id:'cru-l1',name:'CRU-L1 Ambitious Dream',x:-13504738,y:-9480087,solar:16500000,refinery:true},
+  {id:'cru-l3',name:'CRU-L3 Bold Vantage',x:20005534,y:255631,solar:20000000,refinery:false},
+  {id:'cru-l4',name:'CRU-L4 Shallow Fields',x:-5101607,y:-17470364,solar:18200000,refinery:false},
+  {id:'cru-l5',name:'CRU-L5 Beautiful Glen',x:-15828158,y:8983842,solar:18200000,refinery:false},
+  {id:'hur-l1',name:'HUR-L1 Green Glade',x:11100030,y:2998029,solar:11500000,refinery:true},
+  {id:'hur-l2',name:'HUR-L2 Faithful Dream',x:12348711,y:4050700,solar:13000000,refinery:true},
+  {id:'hur-l3',name:'HUR-L3 Thundering Express',x:-10000000,y:0,solar:10000000,refinery:false},
+  {id:'hur-l4',name:'HUR-L4 Melodic Fields',x:-2655211,y:11907043,solar:12200000,refinery:false},
+  {id:'hur-l5',name:'HUR-L5 High Course',x:10979612,y:-5310723,solar:12200000,refinery:false},
+  {id:'mic-l1',name:'MIC-L1 Shallow Frontier',x:9270825,y:37363026,solar:38500000,refinery:true},
+  {id:'mic-l2',name:'MIC-L2 Long Forest',x:17022006,y:37338656,solar:41000000,refinery:true},
+  {id:'mic-l5',name:'MIC-L5 Modern Icarus',x:33100844,y:19644064,solar:38500000,refinery:true},
+  {id:'hurston',name:'Hurston',x:12850000,y:0,solar:12850000,refinery:false},
+  {id:'crusader',name:'Crusader',x:-17219000,y:-7935889,solar:18930000,refinery:false},
+  {id:'arccorp',name:'ArcCorp',x:24742597,y:-15055868,solar:28910000,refinery:false},
+  {id:'microtech',name:'microTech',x:2630926,y:38867310,solar:38850000,refinery:false},
+  {id:'pyro-gateway',name:'Pyro Gateway',x:10254724,y:-26367490,solar:28300000,refinery:true},
+];
+
+function initHalo() {
+  const fromSel = document.getElementById('halo-from');
+  const toSel   = document.getElementById('halo-to');
+  if (fromSel.options.length > 0) { calcHalo(); return; }
+  HALO_STATIONS.forEach(s => {
+    const label = s.name + (s.refinery ? ' ⚙' : '');
+    fromSel.add(new Option(label, s.id));
+    toSel.add(new Option(label, s.id));
+  });
+  fromSel.value = 'cru-l1';
+  toSel.value   = 'arc-l1';
+  calcHalo();
+}
+
+function applyHaloPreset(fromId, toId, band) {
+  document.getElementById('halo-from').value = fromId;
+  document.getElementById('halo-to').value   = toId;
+  document.getElementById('halo-band').value = band;
+  calcHalo();
+}
+
+function haloRaySphere(from, to, radiusKm) {
+  const ex = to.x - from.x, ey = to.y - from.y;
+  const c  = ex*ex + ey*ey;
+  const b  = 2*(from.x*ex + from.y*ey);
+  const disc = b*b - 4*c*(from.x*from.x + from.y*from.y - radiusKm*radiusKm);
+  if (disc < 0) return [];
+  const sq = Math.sqrt(disc);
+  return [(-b - sq)/(2*c), (-b + sq)/(2*c)].filter(t => t >= 0 && t <= 1).sort((a,b) => a-b);
+}
+
+function calcHalo() {
+  const fromId = document.getElementById('halo-from').value;
+  const toId   = document.getElementById('halo-to').value;
+  const bandN  = parseInt(document.getElementById('halo-band').value);
+  const result = document.getElementById('halo-result');
+
+  const from = HALO_STATIONS.find(s => s.id === fromId);
+  const to   = HALO_STATIONS.find(s => s.id === toId);
+  const band = HALO_BANDS.find(b => b.band === bandN);
+
+  if (!from || !to || from === to) {
+    result.innerHTML = '<div class="empty-state"><div class="ico">🪨</div><div class="lbl">Select different departure and destination stations.</div></div>';
+    return;
+  }
+
+  const totalKm = Math.sqrt((to.x - from.x)**2 + (to.y - from.y)**2);
+  const totalGM = totalKm / 1e6;
+
+  const tInner  = haloRaySphere(from, to, band.inner);
+  const tCenter = haloRaySphere(from, to, band.center);
+  const tOuter  = haloRaySphere(from, to, band.outer);
+
+  const hudDist = (tArr) => tArr.length > 0 ? ((1 - tArr[0]) * totalKm / 1e6).toFixed(3) : null;
+  const entryT  = [...tInner, ...tOuter].sort((a,b) => a-b);
+  const exitT   = [...tInner, ...tOuter].sort((a,b) => a-b);
+
+  const centerHUD = hudDist(tCenter);
+  const entryHUD  = entryT.length  > 0 ? ((1 - entryT[0])  * totalKm / 1e6).toFixed(3) : null;
+  const exitHUD   = exitT.length   > 1 ? ((1 - exitT[exitT.length-1])  * totalKm / 1e6).toFixed(3) :
+                    exitT.length   > 0 ? ((1 - exitT[0])   * totalKm / 1e6).toFixed(3) : null;
+
+  const windowKm = (entryHUD && exitHUD) ? Math.abs((parseFloat(entryHUD) - parseFloat(exitHUD)) * 1e6).toLocaleString(undefined,{maximumFractionDigits:0}) : null;
+
+  const tierColor = {Ultra:'var(--warn)',High:'var(--success)',Medium:'var(--accent)',Low:'var(--text-dim)'};
+  const tc = tierColor[band.tier] || 'var(--text)';
+
+  // ── Route diagram ──────────────────────────────────────────────────────────
+  const _diagW = 280, _diagH = 74, _pad = 22, _ly = 38;
+  const _rw = _diagW - _pad * 2;
+  const _tx = t => _pad + t * _rw;
+
+  const _edges = [...tInner, ...tOuter].sort((a, b) => a - b);
+  const _eX = _edges.length > 0 ? _tx(_edges[0])                   : null;
+  const _xX = _edges.length > 1 ? _tx(_edges[_edges.length - 1])   : null;
+  const _pX = tCenter.length > 0 ? _tx(tCenter[0])                 : null;
+
+  const _bzone = (_eX && _xX) ? `
+    <rect x="${_eX}" y="${_ly-9}" width="${_xX-_eX}" height="18" rx="2" fill="${tc}" opacity="0.12"/>
+    <rect x="${_eX}" y="${_ly-9}" width="${_xX-_eX}" height="18" rx="2" fill="none" stroke="${tc}" stroke-width="0.8" opacity="0.3"/>` : '';
+
+  const _tick = (x, lbl, val, up) => {
+    const sign = up ? -1 : 1;
+    return `<line x1="${x}" y1="${_ly + sign*9}" x2="${x}" y2="${_ly + sign*14}" stroke="rgba(180,210,255,0.5)" stroke-width="0.8"/>
+      <text x="${x}" y="${_ly + sign*20}" text-anchor="middle" font-size="6.5" font-weight="bold" fill="rgba(180,210,255,0.7)" font-family="monospace">${lbl}</text>
+      ${val ? `<text x="${x}" y="${_ly + sign*28}" text-anchor="middle" font-size="6" fill="rgba(180,210,255,0.45)" font-family="monospace">${val}</text>` : ''}`;
+  };
+
+  const _drop = _pX ? `
+    <circle cx="${_pX}" cy="${_ly}" r="5.5" fill="${tc}" opacity="0.92"/>
+    <text x="${_pX}" y="${_ly+3.5}" text-anchor="middle" font-size="7" font-weight="bold" fill="#07111e" font-family="monospace">★</text>
+    <text x="${_pX}" y="${_ly-12}" text-anchor="middle" font-size="6.5" font-weight="bold" fill="${tc}" font-family="monospace">CUT HERE</text>
+    <text x="${_pX}" y="${_ly-6}" text-anchor="middle" font-size="6" fill="${tc}" font-family="monospace">${centerHUD} GM</text>` : '';
+
+  const _fl = from.name.split(' ')[0], _tl = to.name.split(' ')[0];
+
+  const routeSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${_diagW} ${_diagH}" style="width:100%;display:block;border-radius:5px;margin-bottom:10px;background:rgba(0,10,25,0.55)">
+    <line x1="${_pad}" y1="${_ly}" x2="${_diagW-_pad}" y2="${_ly}" stroke="rgba(180,210,255,0.18)" stroke-width="1.5" stroke-dasharray="5 3"/>
+    ${_bzone}
+    <circle cx="${_pad}" cy="${_ly}" r="4" fill="var(--warn)" opacity="0.9"/>
+    <text x="${_pad}" y="${_diagH-4}" text-anchor="middle" font-size="6.5" fill="rgba(255,153,0,0.8)" font-family="monospace" font-weight="bold">${_fl}</text>
+    <polygon points="${_diagW-_pad-3.5},${_ly-3.5} ${_diagW-_pad+2},${_ly} ${_diagW-_pad-3.5},${_ly+3.5}" fill="var(--success)" opacity="0.9"/>
+    <text x="${_diagW-_pad}" y="${_diagH-4}" text-anchor="middle" font-size="6.5" fill="rgba(0,204,102,0.8)" font-family="monospace" font-weight="bold">${_tl}</text>
+    ${_eX ? _tick(_eX, 'ENTRY', entryHUD ? entryHUD+' GM' : '', false) : ''}
+    ${_xX ? _tick(_xX, 'EXIT',  exitHUD  ? exitHUD +' GM' : '', true)  : ''}
+    ${_drop}
+    <text x="${_diagW/2}" y="10" text-anchor="middle" font-size="6" fill="rgba(180,210,255,0.3)" font-family="monospace" letter-spacing="2">QT ROUTE · ${band.name.toUpperCase()}</text>
+  </svg>`;
+
+  const noRoute = !centerHUD;
+
+  if (noRoute) {
+    result.innerHTML = `
+      <div class="card" style="text-align:center;padding:16px">
+        <div style="font-size:11px;color:var(--warn);font-weight:700;margin-bottom:6px">⚠ No Intersection</div>
+        <div style="font-size:11px;color:var(--text-dim)">This route vector does not cross Band ${bandN}.<br>Try a different departure/destination pair.</div>
+      </div>`;
+    return;
+  }
+
+  result.innerHTML = `
+    <div class="card" style="text-align:center;margin-bottom:6px">
+      <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">HUD Reticle — Cut Engines At</div>
+      <div style="font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;color:${tc};letter-spacing:2px;line-height:1">${centerHUD} <span style="font-size:16px">GM</span></div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:4px">${from.name.split(' ')[0]} → ${to.name.split(' ')[0]} · ${band.name}${band.tag ? ' · '+band.tag : ''}</div>
+    </div>
+
+    <div class="card" style="margin-bottom:6px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+        <div>
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px">Entry</div>
+          <div style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text-bright)">${entryHUD || '—'} <span style="font-size:10px;color:var(--text-dim)">GM</span></div>
+          <div style="font-size:9px;color:var(--text-dim)">belt edge</div>
+        </div>
+        <div style="border-left:1px solid var(--border);border-right:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px">Peak ★</div>
+          <div style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;color:${tc}">${centerHUD} <span style="font-size:10px;color:var(--text-dim)">GM</span></div>
+          <div style="font-size:9px;color:var(--text-dim)">drop target</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px">Exit</div>
+          <div style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text-bright)">${exitHUD || '—'} <span style="font-size:10px;color:var(--text-dim)">GM</span></div>
+          <div style="font-size:9px;color:var(--text-dim)">outer edge</div>
+        </div>
+      </div>
+      ${windowKm ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);text-align:center;font-size:11px;color:var(--text-dim)">Safe crossing window: <span style="color:var(--text-bright);font-weight:700">${windowKm} km</span></div>` : ''}
+    </div>
+
+    <div class="card" style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+        <span style="color:var(--text-dim)">Total route</span>
+        <span style="font-variant-numeric:tabular-nums;color:var(--text-bright)">${totalGM.toFixed(3)} GM</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+        <span style="color:var(--text-dim)">Band density</span>
+        <span style="color:${tc};font-weight:700">${band.tier}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px">
+        <span style="color:var(--text-dim)">Top ores</span>
+        <span style="color:var(--text-bright)">${band.ores.slice(0,3).join(', ')}</span>
+      </div>
+    </div>
+
+    <div class="card" style="background:rgba(0,170,255,0.05)">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:8px">How to Drop</div>
+      ${routeSvg}
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:11px">
+        <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">1.</span><span>QT to <strong style="color:var(--text-bright)">${to.name.split(' ').slice(0,2).join(' ')}</strong> and watch the HUD reticle count down</span></div>
+        <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">2.</span><span>Press <strong style="color:var(--text-bright)">U</strong> or <strong style="color:var(--text-bright)">I</strong> to cut engines at <strong style="color:${tc}">${centerHUD} GM</strong></span></div>
+        <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">3.</span><span>You'll drop into <strong style="color:var(--text-bright)">${band.name}</strong> — ${band.desc.toLowerCase()}</span></div>
+      </div>
+    </div>`;
+}
 </script>
+<div id="tip" style="
+  position:fixed; z-index:9999; pointer-events:none;
+  background:var(--bg-card); border:1px solid var(--accent); color:var(--text);
+  font-size:12px; font-weight:600; letter-spacing:.02em;
+  font-variant-numeric:tabular-nums; line-height:1.5;
+  padding:5px 11px; border-radius:5px; white-space:pre;
+  box-shadow:0 2px 10px rgba(0,0,0,0.35);
+  opacity:0; transition:opacity .1s; max-width:280px; white-space:pre-wrap;
+"></div>
 </body>
 </html>
