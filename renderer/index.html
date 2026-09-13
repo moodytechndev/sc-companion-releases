@@ -150,6 +150,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .modal {
   background:var(--bg-card); border:1px solid var(--border-hi);
   border-radius:var(--rl); padding:20px; width:360px; max-width:90vw;
+  max-height:85vh; overflow-y:auto;
 }
 #ore-rows { }
 .ore-row { margin-bottom:6px; }
@@ -318,10 +319,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <button class="btn-close" onclick="api.close()" title="Hide  (Alt+S to restore)">✕</button>
   </div>
   <!-- ── Update banner ── -->
-  <div id="update-banner" hidden style="display:flex;align-items:center;gap:8px;padding:5px 12px;background:rgba(0,170,255,0.12);border-bottom:1px solid rgba(0,170,255,0.3);font-size:11px">
+  <div id="update-banner" style="display:none;align-items:center;gap:8px;padding:5px 12px;background:rgba(0,170,255,0.12);border-bottom:1px solid rgba(0,170,255,0.3);font-size:11px">
     <span style="color:var(--accent);flex:1" id="update-banner-text"></span>
     <a id="update-banner-link" href="#" onclick="return false;" style="color:var(--accent);font-weight:600;text-decoration:none;padding:2px 8px;border:1px solid var(--accent);border-radius:var(--r)" data-i18n="update.download">Download</a>
-    <button onclick="document.getElementById('update-banner').hidden=true" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;line-height:1;padding:0 2px">✕</button>
+    <button onclick="document.getElementById('update-banner').style.display='none'" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;line-height:1;padding:0 2px">✕</button>
   </div>
 
   <!-- ── Tabs ── -->
@@ -708,36 +709,42 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
     <div class="form-group">
       <label data-i18n="modal.addJob.location">Location</label>
-      <input type="text" id="job-location" list="location-datalist" data-i18n="modal.addJob.location.ph" data-i18n-prop="placeholder" placeholder="e.g. MIC-L5, ARC-L1…" autocomplete="off">
-      <datalist id="location-datalist">
-        <option value="ARC-L1 Wide Forest">
-        <option value="ARC-L2 Lively Pathway">
-        <option value="ARC-L3 Modern Express">
-        <option value="ARC-L4 Faint Glen">
-        <option value="ARC-L5 Distant Dream">
-        <option value="CRU-L1 Ambitious Dream">
-        <option value="CRU-L2 Ambitious Reserve">
-        <option value="CRU-L3 Stanton Gateway">
-        <option value="CRU-L4 Celestial Acres">
-        <option value="CRU-L5 Beautiful Glen">
-        <option value="HUR-L1 Green Glade">
-        <option value="HUR-L2 Faithful Dream">
-        <option value="HUR-L3 Thundering Express">
-        <option value="HUR-L4 Melodic Fields">
-        <option value="HUR-L5 High Course">
-        <option value="MIC-L1 Shallow Frontier">
-        <option value="MIC-L2 Long Forest">
-        <option value="MIC-L3 Endless Odyssey">
-        <option value="MIC-L4 Shallow Fields">
-        <option value="MIC-L5 Modern Icarus">
-        <option value="Port Tressler">
-        <option value="Levski">
-        <option value="Pyro Gateway">
-        <option value="Ruin Station">
-        <option value="Patch City">
-        <option value="Orbituary">
-        <option value="Checkmate">
-      </datalist>
+      <select id="job-location">
+        <option value="">— Select station —</option>
+        <optgroup label="── Stanton ──">
+          <option value="ARC-L1 Wide Forest">ARC-L1 Wide Forest</option>
+          <option value="ARC-L2 Lively Pathway">ARC-L2 Lively Pathway</option>
+          <option value="ARC-L3 Modern Express">ARC-L3 Modern Express</option>
+          <option value="ARC-L4 Faint Glen">ARC-L4 Faint Glen</option>
+          <option value="ARC-L5 Distant Dream">ARC-L5 Distant Dream</option>
+          <option value="CRU-L1 Ambitious Dream">CRU-L1 Ambitious Dream</option>
+          <option value="CRU-L2 Ambitious Reserve">CRU-L2 Ambitious Reserve</option>
+          <option value="CRU-L3 Stanton Gateway">CRU-L3 Stanton Gateway</option>
+          <option value="CRU-L4 Celestial Acres">CRU-L4 Celestial Acres</option>
+          <option value="CRU-L5 Beautiful Glen">CRU-L5 Beautiful Glen</option>
+          <option value="HUR-L1 Green Glade">HUR-L1 Green Glade</option>
+          <option value="HUR-L2 Faithful Dream">HUR-L2 Faithful Dream</option>
+          <option value="HUR-L3 Thundering Express">HUR-L3 Thundering Express</option>
+          <option value="HUR-L4 Melodic Fields">HUR-L4 Melodic Fields</option>
+          <option value="HUR-L5 High Course">HUR-L5 High Course</option>
+          <option value="MIC-L1 Shallow Frontier">MIC-L1 Shallow Frontier</option>
+          <option value="MIC-L2 Long Forest">MIC-L2 Long Forest</option>
+          <option value="MIC-L3 Endless Odyssey">MIC-L3 Endless Odyssey</option>
+          <option value="MIC-L4 Shallow Fields">MIC-L4 Shallow Fields</option>
+          <option value="MIC-L5 Modern Icarus">MIC-L5 Modern Icarus</option>
+          <option value="Port Tressler">Port Tressler</option>
+        </optgroup>
+        <optgroup label="── Nyx ──">
+          <option value="Levski">Levski</option>
+        </optgroup>
+        <optgroup label="── Pyro ──">
+          <option value="Pyro Gateway">Pyro Gateway</option>
+          <option value="Ruin Station">Ruin Station</option>
+          <option value="Patch City">Patch City</option>
+          <option value="Orbituary">Orbituary</option>
+          <option value="Checkmate">Checkmate</option>
+        </optgroup>
+      </select>
     </div>
     <div class="form-group">
       <label data-i18n="modal.addJob.notes">Notes (optional)</label>
@@ -2226,7 +2233,7 @@ async function initUpdateCheck() {
       const bannerLink = document.getElementById('update-banner-link');
       bannerText.textContent = t('update.available', { args: [result.version] });
       if (result.url) bannerLink.onclick = () => { api.openExternal(result.url); return false; };
-      banner.hidden = false;
+      banner.style.display = 'flex';
     }
   } catch {}
 }

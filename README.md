@@ -6,9 +6,9 @@ A lightweight overlay for Star Citizen. Tracks refinery jobs and commodity price
 
 Download the latest release — no Node.js, no terminal, no setup required.
 
-👉 **[SC Companion v1.3.0 — Download ZIP](https://github.com/moodytechndev/sc-companion-releases/releases/latest)**
+👉 **[SC Companion v1.3.1 — Download ZIP](https://github.com/moodytechndev/sc-companion-releases/releases/latest)**
 
-1. Download `SC-Companion-v1.3.0.zip` from the Assets section
+1. Download `SC-Companion-v1.3.1.zip` from the Assets section
 2. Extract the zip anywhere on your PC
 3. Open the extracted folder and run **SC Companion.exe**
 
