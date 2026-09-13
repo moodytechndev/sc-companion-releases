@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('api', {
   // UEX Corp commodity data
   getCommodities: () => ipcRenderer.invoke('api:getCommodities'),
   getCommodityPrices: (id, type) => ipcRenderer.invoke('api:getCommodityPrices', { id, type }),
+  getTerminalPrices: (id_terminal) => ipcRenderer.invoke('api:getTerminalPrices', { id_terminal }),
+  getBulkPrices: () => ipcRenderer.invoke('api:getBulkPrices'),
+  getCommodityPricesBatch: (ids) => ipcRenderer.invoke('api:getCommodityPricesBatch', { ids }),
 
   // Window controls
   minimize: () => ipcRenderer.invoke('window:minimize'),
