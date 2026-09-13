@@ -9,7 +9,8 @@
     "dist": "electron-builder --win"
   },
   "dependencies": {
-    "electron-store": "^8.2.0"
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -21,7 +22,12 @@
     "copyright": "Copyright © 2026 Moody Technical and Development Solutions LLC",
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "icon.png"
     },
@@ -45,6 +51,11 @@
     "directories": {
       "output": "dist"
     },
-    "asar": true
+    "asar": true,
+    "publish": {
+      "provider": "github",
+      "owner": "moodytechndev",
+      "repo": "sc-companion"
+    }
   }
 }
