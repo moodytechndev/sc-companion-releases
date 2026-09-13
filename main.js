@@ -295,6 +295,47 @@ ipcMain.handle('api:getCommodityPrices', async (_, { id, type }) => {
   }
 });
 
+ipcMain.handle('api:getTerminalPrices', async (_, { id_terminal }) => {
+  try {
+    return await fetchJson(
+      `https://api.uexcorp.space/2.0/commodities_prices?id_terminal=${id_terminal}`
+    );
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getBulkPrices', async () => {
+  try {
+    // Try a single unfiltered call first — returns all buy+sell records
+    const all = await fetchJson('https://api.uexcorp.space/2.0/commodities_prices');
+    const rows = all.data || [];
+    if (rows.length > 0) {
+      return { status: 'ok', rows };
+    }
+    // Fallback: two typed calls
+    const [sell, buy] = await Promise.all([
+      fetchJson('https://api.uexcorp.space/2.0/commodities_prices?type=sell'),
+      fetchJson('https://api.uexcorp.space/2.0/commodities_prices?type=buy'),
+    ]);
+    return { status: 'ok', rows: [...(sell.data || []), ...(buy.data || [])] };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getCommodityPricesBatch', async (_, { ids }) => {
+  try {
+    const results = await Promise.all(
+      ids.map(id => fetchJson(`https://api.uexcorp.space/2.0/commodities_prices?id_commodity=${id}`))
+    );
+    const rows = results.flatMap(r => r.data || []);
+    return { status: 'ok', rows };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
 // ─── IPC: Window ──────────────────────────────────────────────────────────────
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
 ipcMain.handle('window:close', () => {
