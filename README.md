@@ -2,6 +2,22 @@
 
 A lightweight overlay for Star Citizen. Tracks refinery jobs and commodity prices, and fires alerts when your kiosk opens or a job completes — no alt-tab required.
 
+## Just want to run it?
+
+Download the latest release — no Node.js, no terminal, no setup required.
+
+👉 **[SC Companion v1.2.7 — Download ZIP](https://github.com/moodytechndev/sc-companion-releases/releases/latest)**
+
+1. Download `SC-Companion-v1.2.7.zip` from the Assets section
+2. Extract the zip anywhere on your PC
+3. Open the extracted folder and run **SC Companion.exe**
+
+That's it. The app launches to your system tray.
+
+> See [Known Issues](#known-issues) for current limitations before reporting bugs.
+
+---
+
 ## Requirements
 
 - [Node.js](https://nodejs.org) v18 or later
