@@ -57,6 +57,8 @@ If SC is installed elsewhere, open the **Settings** tab in the app and update th
 
 Default toggle: **Insert**. Change it any time in the **Settings** tab. The first time you set a hotkey the app creates a Windows scheduled task (`SCCompanionHook`) to detect it while Star Citizen has focus — you'll see a one-time UAC prompt.
 
+> ⚠️ **Note:** Show/hide toggle behavior may be unreliable in some scenarios. See [Known Issues](#known-issues).
+
 ---
 
 ## Planned Updates
