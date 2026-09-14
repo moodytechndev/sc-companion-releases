@@ -8,12 +8,16 @@ contextBridge.exposeInMainWorld('api', {
   // UEX Corp commodity data
   getCommodities: () => ipcRenderer.invoke('api:getCommodities'),
   getCommodityPrices: (id, type) => ipcRenderer.invoke('api:getCommodityPrices', { id, type }),
+  getTerminalPrices: (id_terminal) => ipcRenderer.invoke('api:getTerminalPrices', { id_terminal }),
+  getBulkPrices: () => ipcRenderer.invoke('api:getBulkPrices'),
+  getCommodityPricesBatch: (ids) => ipcRenderer.invoke('api:getCommodityPricesBatch', { ids }),
 
   // Window controls
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),
   setOpacity: (v) => ipcRenderer.invoke('window:setOpacity', v),
   setAlwaysOnTop: (v) => ipcRenderer.invoke('window:setAlwaysOnTop', v),
+  setResizable: (v) => ipcRenderer.invoke('window:setResizable', v),
 
   // Desktop notifications
   notify: (title, body) => ipcRenderer.invoke('notify', { title, body }),
@@ -39,6 +43,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // App version / updates
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
-  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
+  onUpdateAvailable: (cb) => ipcRenderer.on('updater:available', (_, info) => cb(info)),
+  onUpdateProgress: (cb) => ipcRenderer.on('updater:progress', (_, info) => cb(info)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('updater:downloaded', cb),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 });

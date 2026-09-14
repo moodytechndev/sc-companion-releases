@@ -9,8 +9,10 @@ let mainWindow;
 let tray = null;
 
 const CURRENT_VERSION = require('./package.json').version;
-// Host a JSON file at this URL with content: { "version": "x.x.x" }
-const UPDATE_CHECK_URL = 'https://raw.githubusercontent.com/moodytechndev/sc-companion/main/latest.json';
+const { autoUpdater } = require('electron-updater');
+
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 let _lastToggle = 0;
 function toggleWindow() {
@@ -256,6 +258,8 @@ app.whenReady().then(() => {
 
   const logPath = store.get('logPath') || detectLogPath();
   startLogWatcher(logPath);
+
+  setTimeout(() => autoUpdater.checkForUpdates(), 5000);
 });
 
 app.on('window-all-closed', () => {
@@ -291,6 +295,47 @@ ipcMain.handle('api:getCommodityPrices', async (_, { id, type }) => {
   }
 });
 
+ipcMain.handle('api:getTerminalPrices', async (_, { id_terminal }) => {
+  try {
+    return await fetchJson(
+      `https://api.uexcorp.space/2.0/commodities_prices?id_terminal=${id_terminal}`
+    );
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getBulkPrices', async () => {
+  try {
+    // Try a single unfiltered call first — returns all buy+sell records
+    const all = await fetchJson('https://api.uexcorp.space/2.0/commodities_prices');
+    const rows = all.data || [];
+    if (rows.length > 0) {
+      return { status: 'ok', rows };
+    }
+    // Fallback: two typed calls
+    const [sell, buy] = await Promise.all([
+      fetchJson('https://api.uexcorp.space/2.0/commodities_prices?type=sell'),
+      fetchJson('https://api.uexcorp.space/2.0/commodities_prices?type=buy'),
+    ]);
+    return { status: 'ok', rows: [...(sell.data || []), ...(buy.data || [])] };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getCommodityPricesBatch', async (_, { ids }) => {
+  try {
+    const results = await Promise.all(
+      ids.map(id => fetchJson(`https://api.uexcorp.space/2.0/commodities_prices?id_commodity=${id}`))
+    );
+    const rows = results.flatMap(r => r.data || []);
+    return { status: 'ok', rows };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
 // ─── IPC: Window ──────────────────────────────────────────────────────────────
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
 ipcMain.handle('window:close', () => {
@@ -304,6 +349,18 @@ ipcMain.handle('window:close', () => {
 });
 ipcMain.handle('window:setOpacity', (_, opacity) => mainWindow?.setOpacity(opacity));
 ipcMain.handle('window:setAlwaysOnTop', (_, v) => mainWindow?.setAlwaysOnTop(v));
+ipcMain.handle('window:setResizable', (_, v) => {
+  if (!mainWindow) return;
+  mainWindow.setResizable(v);
+  if (!v) {
+    const [w, h] = mainWindow.getSize();
+    mainWindow.setMinimumSize(w, h);
+    mainWindow.setMaximumSize(w, h);
+  } else {
+    mainWindow.setMinimumSize(380, 400);
+    mainWindow.setMaximumSize(0, 0);
+  }
+});
 
 // ─── IPC: Notifications ───────────────────────────────────────────────────────
 ipcMain.handle('notify', (_, { title, body }) => {
@@ -323,21 +380,23 @@ ipcMain.handle('log:getStatus', () => ({
   path: logWatchPath,
 }));
 
-// ─── IPC: Auto-update check ──────────────────────────────────────────────────
-ipcMain.handle('app:checkUpdate', async () => {
-  try {
-    const data = await fetchJson(UPDATE_CHECK_URL);
-    const latest = data.version || '';
-    if (latest && latest !== CURRENT_VERSION) {
-      return { updateAvailable: true, version: latest, url: data.url || '' };
-    }
-    return { updateAvailable: false };
-  } catch {
-    return { updateAvailable: false };
-  }
+// ─── Auto-updater ────────────────────────────────────────────────────────────
+autoUpdater.on('update-available', (info) => {
+  mainWindow?.webContents.send('updater:available', { version: info.version });
+});
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow?.webContents.send('updater:progress', { percent: Math.round(progress.percent) });
+});
+autoUpdater.on('update-downloaded', () => {
+  mainWindow?.webContents.send('updater:downloaded');
+});
+autoUpdater.on('error', (err) => {
+  console.error('[AutoUpdater]', err.message);
 });
 
 ipcMain.handle('app:getVersion', () => CURRENT_VERSION);
+ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate());
+ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall(); });
 ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
