@@ -46,7 +46,9 @@ contextBridge.exposeInMainWorld('api', {
   onUpdateAvailable: (cb) => ipcRenderer.on('updater:available', (_, info) => cb(info)),
   onUpdateProgress: (cb) => ipcRenderer.on('updater:progress', (_, info) => cb(info)),
   onUpdateDownloaded: (cb) => ipcRenderer.on('updater:downloaded', cb),
+  onUpdateError: (cb) => ipcRenderer.on('updater:error', (_, info) => cb(info)),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  reportBug: (description) => ipcRenderer.invoke('bug:report', { description }),
 });

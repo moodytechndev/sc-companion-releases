@@ -559,6 +559,9 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <button class="btn btn-sm" onclick="openAddInventory()" style="flex-shrink:0" data-i18n="craft.addBtn">+ Add</button>
           </div>
           <div style="display:flex;gap:6px">
+            <button id="inv-view-toggle" onclick="toggleInvView()"
+              style="padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-dim);font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap"
+              title="Switch between Ore and Location view">📍 By Location</button>
             <select id="inv-sort" onchange="renderInventory()" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;min-width:0">
               <option value="name-asc" data-i18n="craft.oreAZ">Ore A→Z</option>
               <option value="name-desc" data-i18n="craft.oreZA">Ore Z→A</option>
@@ -658,6 +661,30 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <option value="quit" data-i18n="settings.close.quit">Quit App</option>
           </select>
         </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Price Data Source <span style="font-size:9px;font-weight:700;color:var(--warn);background:rgba(255,180,0,0.15);border:1px solid var(--warn);border-radius:3px;padding:1px 5px;vertical-align:middle;letter-spacing:0.04em">COMING SOON</span></div>
+            <div class="setting-desc">SC Trader integration in development — UEX Corp active</div>
+          </div>
+          <select id="price-source-select" disabled
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-dim);font-size:12px;font-weight:700;outline:none;opacity:0.5;cursor:not-allowed">
+            <option value="uex">UEX Corp</option>
+            <option value="sctrader">SC Trader</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">In-Transit Icon</div>
+            <div class="setting-desc">Icon shown on items marked as in transit</div>
+          </div>
+          <select id="transit-icon-select" onchange="saveTransitIcon()"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
+            <option value="truck">🚚 Truck</option>
+            <option value="rocket">🚀 Rocket</option>
+          </select>
+        </div>
+
         <div class="setting-row" style="margin-top:12px">
           <div>
             <div class="setting-label" data-i18n="settings.clearCompleted">Clear Completed Jobs</div>
@@ -707,6 +734,26 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <span style="font-weight:700;color:var(--text)">Prices via </span>
             <span style="color:var(--accent)">UEX Corp</span> — community-maintained Star Citizen trade data.<br>
             Press <span style="color:var(--accent)">Alt+S</span> to toggle this overlay from inside the game.
+          </div>
+        </div>
+
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;margin-top:4px">
+          <div>
+            <div class="setting-label">Report a Bug</div>
+            <div class="setting-desc">Describe what happened and we'll get it fixed</div>
+          </div>
+          <textarea id="bug-report-input" rows="3" placeholder="What went wrong? Steps to reproduce…"
+            style="width:100%;box-sizing:border-box;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;font-family:inherit;resize:vertical;outline:none"></textarea>
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <button class="btn btn-sm" onclick="submitBugReport()" id="bug-report-btn">Send Report</button>
+            <span id="bug-report-msg" style="font-size:10px;color:var(--text-dim)"></span>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;padding:12px;background:var(--bg-card);border-radius:var(--r);border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:11px;font-weight:700;color:var(--text)">SC Companion</div>
+            <div style="font-size:11px;color:var(--accent);font-weight:700" id="settings-version">v—</div>
           </div>
         </div>
       </div>
@@ -934,6 +981,7 @@ let editingInvId = null;
 const openInvGroups     = new Set();
 const openInvQualGroups = new Set();
 const selectedInvBoxes  = new Set();
+let invViewMode = 'ore';
 let deliveryJobId   = null;
 
 // ════════════════════════════════════════════════════════════════════
@@ -2281,8 +2329,8 @@ function renderComs() {
     if (comFilter === 'raw')       return c.is_raw;
     if (comFilter === 'refined')   return c.is_refined;
     if (comFilter === 'inventory') {
-      const invNames = new Set(craftInventory.map(i => i.name.toLowerCase()));
-      return invNames.has(c.name.toLowerCase());
+      const transitNames = new Set(craftInventory.filter(i => i.inTransit).map(i => i.name.toLowerCase()));
+      return transitNames.has(c.name.toLowerCase());
     }
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name));
@@ -2580,6 +2628,30 @@ async function initCloseBehavior() {
   document.getElementById('close-behavior-select').value = val;
 }
 
+async function initPriceSource() {
+  const val = await api.getStore('priceSource') || 'uex';
+  document.getElementById('price-source-select').value = val;
+}
+
+async function savePriceSource() {
+  const val = document.getElementById('price-source-select').value;
+  await api.setStore('priceSource', val);
+}
+
+let _transitIcon = 'truck';
+async function initTransitIcon() {
+  _transitIcon = await api.getStore('transitIcon') || 'truck';
+  document.getElementById('transit-icon-select').value = _transitIcon;
+}
+async function saveTransitIcon() {
+  _transitIcon = document.getElementById('transit-icon-select').value;
+  await api.setStore('transitIcon', _transitIcon);
+  renderInventory();
+}
+function getTransitIcon() {
+  return _transitIcon === 'rocket' ? '🚀' : '🚚';
+}
+
 async function saveCloseBehavior() {
   const val = document.getElementById('close-behavior-select').value;
   await api.setStore('closeBehavior', val);
@@ -2629,6 +2701,33 @@ async function onLangChange(lang) {
   await api.setStore('language', lang);
 }
 
+async function submitBugReport() {
+  const input = document.getElementById('bug-report-input');
+  const btn = document.getElementById('bug-report-btn');
+  const msg = document.getElementById('bug-report-msg');
+  const text = (input.value || '').trim();
+  if (!text) { msg.textContent = 'Please describe the bug first.'; msg.style.color = 'var(--danger)'; return; }
+  btn.disabled = true;
+  msg.textContent = 'Sending…';
+  msg.style.color = 'var(--text-dim)';
+  try {
+    const ok = await api.reportBug(text);
+    if (ok) {
+      input.value = '';
+      msg.textContent = '✓ Report sent — thank you!';
+      msg.style.color = 'var(--success)';
+    } else {
+      msg.textContent = 'Failed to send. Try again.';
+      msg.style.color = 'var(--danger)';
+    }
+  } catch {
+    msg.textContent = 'Error sending report.';
+    msg.style.color = 'var(--danger)';
+  }
+  btn.disabled = false;
+  setTimeout(() => { msg.textContent = ''; }, 4000);
+}
+
 async function initLanguage() {
   const lang = (await api.getStore('language', 'en')) || 'en';
   const sel = document.getElementById('language-select');
@@ -2640,6 +2739,11 @@ function initUpdateCheck() {
   const banner   = document.getElementById('update-banner');
   const bannerText = document.getElementById('update-banner-text');
   const bannerBtn  = document.getElementById('update-banner-link');
+
+  api.getVersion().then(v => {
+    const el = document.getElementById('settings-version');
+    if (el) el.textContent = 'v' + v;
+  });
 
   api.onUpdateAvailable((info) => {
     bannerText.textContent = t('update.available', { args: [info.version] });
@@ -2660,6 +2764,15 @@ function initUpdateCheck() {
     bannerBtn.disabled = false;
     bannerBtn.style.opacity = '1';
     bannerBtn.onclick = () => { api.installUpdate(); return false; };
+  });
+
+  api.onUpdateError((info) => {
+    bannerText.textContent = `Update failed: ${info.message}`;
+    bannerBtn.textContent = 'Retry';
+    bannerBtn.disabled = false;
+    bannerBtn.style.opacity = '1';
+    bannerBtn.hidden = false;
+    bannerBtn.onclick = () => { api.downloadUpdate(); bannerBtn.disabled = true; bannerBtn.style.opacity = '0.5'; return false; };
   });
 }
 
@@ -2717,6 +2830,8 @@ init();
 initShortcut();
 initLogWatcher();
 initCloseBehavior();
+initPriceSource();
+initTransitIcon();
 initLanguage();
 initUpdateCheck();
 if (api.onRefineryKioskDetected) {
@@ -3019,6 +3134,107 @@ function renderInventory() {
     return;
   }
 
+  // ── Location view ─────────────────────────────────────────────────────────
+  if (invViewMode === 'location') {
+    const locMap = {};
+    items.forEach(({ item, i }) => {
+      const loc = item.location || '(no location)';
+      if (!locMap[loc]) locMap[loc] = [];
+      locMap[loc].push({ item, i });
+    });
+    const locGroups = Object.entries(locMap).sort((a, b) => {
+      if (a[0] === 'In Transit') return -1;
+      if (b[0] === 'In Transit') return 1;
+      return a[0].localeCompare(b[0]);
+    });
+    const totalSCULoc = items.reduce((s, { item }) => s + itemSCU(item), 0);
+    totalEl.hidden = false;
+    document.getElementById('inv-total-count').textContent = `${locGroups.length} location${locGroups.length !== 1 ? 's' : ''}`;
+    document.getElementById('inv-total-scu').textContent = totalSCULoc.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    document.getElementById('inv-total-value').hidden = true;
+
+    list.innerHTML = locGroups.map(([loc, entries]) => {
+      const locKey = 'loc:' + loc;
+      const isOpen = openInvGroups.has(locKey);
+      const chevron = isOpen ? '▾' : '▸';
+      const locSCU = entries.reduce((s, { item }) => s + itemSCU(item), 0);
+      const locIndices = entries.map(({ i }) => i);
+      const locIndicesJSON = JSON.stringify(locIndices);
+      const locSelCount = locIndices.filter(i => selectedInvBoxes.has(i)).length;
+      const locAllSel = locIndices.length > 0 && locIndices.every(i => selectedInvBoxes.has(i));
+      const locAnySel = locSelCount > 0;
+
+      const rows = isOpen ? entries.map(({ item, i }) => {
+        const unitStr = String(item.unit);
+        const allUnits = SCU_SIZES.includes(unitStr) ? SCU_SIZES : [...SCU_SIZES, unitStr];
+        const unitOpts = allUnits.map(v => {
+          const label = v === '0.01' ? '1 cSCU' : `${v} SCU`;
+          return `<option value="${v}"${unitStr === v ? ' selected' : ''}>${label}</option>`;
+        }).join('');
+        const isSelected = selectedInvBoxes.has(i);
+        const qualTag = item.quality ? `<span style="font-size:10px;color:var(--text-dim);flex-shrink:0">${item.quality}%</span>` : '';
+        const transitTag = item.inTransit ? `<span style="font-size:9px;color:var(--warn);flex-shrink:0">${getTransitIcon()}</span>` : '';
+        return `
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--border);${isSelected ? 'background:var(--accent-dim)' : ''}">
+            <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})"
+              style="flex-shrink:0;cursor:pointer;accent-color:var(--accent);width:13px;height:13px">
+            ${transitTag}
+            <span style="font-size:11px;font-weight:600;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>
+            ${qualTag}
+            <input type="number" min="0.01" step="0.01" value="${esc(String(item.qty))}"
+              onchange="updateInvBox(${i},'qty',this.value)"
+              style="width:44px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex-shrink:0">
+            <select onchange="updateInvBox(${i},'unit',this.value)"
+              style="padding:3px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;flex-shrink:0">${unitOpts}</select>
+            <span style="font-size:10px;color:var(--accent);font-variant-numeric:tabular-nums;flex-shrink:0">${fmtSCULabel(itemSCU(item))}</span>
+            <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+          </div>`;
+      }).join('') : '';
+
+      const isTransitLoc = loc === 'In Transit';
+      return `
+        <div class="inv-ore-card" style="${isTransitLoc ? 'border-color:var(--warn,#e8ac3c)' : ''}">
+          <div class="inv-ore-hdr" style="cursor:pointer${isTransitLoc ? ';background:rgba(255,180,0,0.08)' : ''}" onclick="toggleInvGroup('${esc(locKey)}')">
+            <span style="font-size:10px;color:var(--text-dim);flex-shrink:0;margin-right:2px">${chevron}</span>
+            <div style="flex:1;min-width:0">
+              <div class="inv-ore-name" style="${isTransitLoc ? 'color:var(--warn,#e8ac3c)' : ''}">${isTransitLoc ? getTransitIcon() + ' ' : ''}${esc(loc)}</div>
+              <div style="font-size:10px;color:var(--text-dim)">${entries.length} item${entries.length !== 1 ? 's' : ''}</div>
+            </div>
+            <span class="inv-ore-scu" style="${isTransitLoc ? 'color:var(--warn,#e8ac3c)' : ''}">${fmtSCULabel(locSCU)}</span>
+          </div>
+          ${isOpen ? `
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 8px;background:rgba(0,0,0,0.2);border-top:1px solid var(--border)">
+              <input type="checkbox" ${locAllSel ? 'checked' : ''} onclick="selectAllInQual(${locIndicesJSON})"
+                style="flex-shrink:0;cursor:pointer;accent-color:${isTransitLoc ? 'var(--warn,#e8ac3c)' : 'var(--accent)'};width:13px;height:13px">
+              <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">${locAllSel ? 'Deselect All' : 'Select All'}</span>
+              <span style="flex:1"></span>
+              ${isTransitLoc ? `
+                <select class="transit-move-sel" onchange="onTransitMoveSel(this)"
+                  style="flex:1;min-width:80px;font-size:10px;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:${locAnySel ? 'var(--text)' : 'var(--text-dim)'};outline:none">
+                  <option value="">Move out to…</option>${buildMoveOptGroups('In Transit')}
+                </select>
+                <input class="transit-move-custom" type="text" placeholder="Enter location…" hidden
+                  style="flex:1;min-width:80px;font-size:10px;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none">
+                <button onclick="moveSelectedFromTransit(this,${locIndicesJSON})"
+                  style="font-size:10px;padding:2px 8px;background:${locAnySel ? 'var(--accent-dim)' : 'var(--bg-hover)'};border:1px solid ${locAnySel ? 'var(--accent)' : 'var(--border)'};border-radius:var(--r);color:${locAnySel ? 'var(--accent)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
+                  Move out${locAnySel ? ` (${locSelCount})` : ''}
+                </button>
+                <button onclick="sellSelectedTransit('',${locIndicesJSON})"
+                  style="font-size:10px;padding:2px 8px;background:${locAnySel ? 'rgba(220,50,50,0.15)' : 'var(--bg-hover)'};border:1px solid ${locAnySel ? 'var(--danger,#dc3545)' : 'var(--border)'};border-radius:var(--r);color:${locAnySel ? 'var(--danger,#dc3545)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
+                  💰 Sell${locAnySel ? ` (${locSelCount})` : ''}
+                </button>` : `
+                <button onclick="markSelectedInTransit(${locIndicesJSON})"
+                  style="font-size:10px;padding:2px 8px;background:${locAnySel ? 'rgba(255,180,0,0.15)' : 'var(--bg-hover)'};border:1px solid ${locAnySel ? 'var(--warn,#e8ac3c)' : 'var(--border)'};border-radius:var(--r);color:${locAnySel ? 'var(--warn,#e8ac3c)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
+                  ${getTransitIcon()}${locAnySel ? ` (${locSelCount})` : ''}
+                </button>`}
+            </div>
+            <div>${rows}</div>` : ''}
+        </div>`;
+    }).join('');
+    return;
+  }
+
+  // ── Ore view (default) ────────────────────────────────────────────────────
   // Group by name, with quality sub-groups inside each ore card
   const groupMap = {};
   items.forEach(({ item, i }) => {
@@ -3084,6 +3300,87 @@ function renderInventory() {
       ? `<span style="color:var(--text-dim);font-size:11px">${fmtSCULabel(totalGrpSCU)} →</span> ${fmtSCULabel(grpYieldSCU)}`
       : fmtSCULabel(totalGrpSCU);
 
+    // ── In-transit container (all qualities merged, grouped by location) ──────
+    const transitEntries = allGrpItems.filter(({ item }) => item.inTransit);
+    const transitByLoc = {};
+    transitEntries.forEach(({ item, i }) => {
+      const loc = item.location || '';
+      if (!transitByLoc[loc]) transitByLoc[loc] = [];
+      transitByLoc[loc].push({ item, i });
+    });
+    const transitTotalSCU = transitEntries.reduce((s, { item }) => s + itemSCU(item), 0);
+
+    const transitHTML = isOpen && transitEntries.length > 0 ? `
+      <div style="border-top:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,180,0,0.06)">
+          <span style="font-size:10px;color:var(--warn);font-weight:700">${getTransitIcon()} In Transit</span>
+          <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtSCULabel(transitTotalSCU)}</span>
+        </div>
+        <div class="inv-manifest">${Object.entries(transitByLoc).map(([loc, entries]) => {
+          const locSCU = entries.reduce((s, { item }) => s + itemSCU(item), 0);
+          const locEsc = esc(loc);
+          const locIndices = entries.map(({ i }) => i);
+          const locIndicesJSON = JSON.stringify(locIndices);
+          const locAnySelected = locIndices.some(i => selectedInvBoxes.has(i));
+          const locAllSelected = locIndices.length > 0 && locIndices.every(i => selectedInvBoxes.has(i));
+          const locSelCount = locIndices.filter(i => selectedInvBoxes.has(i)).length;
+          const boxRows = entries.map(({ item, i }) => {
+            const unitStr  = String(item.unit);
+            const allUnits = SCU_SIZES.includes(unitStr) ? SCU_SIZES : [...SCU_SIZES, unitStr];
+            const unitOpts = allUnits.map(v => {
+              const label = v === '0.01' ? '1 cSCU' : `${v} SCU`;
+              return `<option value="${v}"${unitStr === v ? ' selected' : ''}>${label}</option>`;
+            }).join('');
+            const qualLabel = item.quality ? `<span style="font-size:9px;color:var(--warn);opacity:0.7;flex-shrink:0">${item.quality}%</span>` : '';
+            const isSelected = selectedInvBoxes.has(i);
+            return `
+              <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);${isSelected ? 'background:rgba(255,180,0,0.12);border-radius:3px;padding-left:4px' : ''}">
+                <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})"
+                  style="flex-shrink:0;cursor:pointer;accent-color:var(--warn,#e8ac3c);width:13px;height:13px">
+                ${qualLabel}
+                <input type="number" min="0.01" step="0.01" value="${esc(String(item.qty))}"
+                  onchange="updateInvBox(${i},'qty',this.value)"
+                  style="width:48px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;font-variant-numeric:tabular-nums">
+                <select onchange="updateInvBox(${i},'unit',this.value)"
+                  style="padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none">${unitOpts}</select>
+                <input type="number" min="0.01" step="0.01" value="${itemSCU(item)}"
+                  onchange="updateInvBoxSCU(${i}, this.value, '${esc(String(item.unit))}')"
+                  onfocus="this.style.borderColor='var(--warn)'" onblur="this.style.borderColor='var(--border)'"
+                  style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--warn);font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex:1">
+                <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">SCU</span>
+                <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+              </div>`;
+          }).join('');
+          return `
+            <div class="inv-manifest-row" style="flex-direction:column;align-items:stretch;gap:0;background:rgba(255,180,0,0.06);border-radius:4px;padding:0">
+              <div style="display:flex;align-items:center;gap:6px;padding:4px 6px">
+                <input type="checkbox" ${locAllSelected ? 'checked' : ''} onclick="selectAllTransitAtLoc(${locIndicesJSON})"
+                  style="flex-shrink:0;cursor:pointer;accent-color:var(--warn,#e8ac3c);width:13px;height:13px">
+                <div class="inv-manifest-loc" style="color:var(--warn)">${esc(loc || '(no location)')}</div>
+                <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtSCULabel(locSCU)}</span>
+              </div>
+              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:3px 6px 4px;background:rgba(0,0,0,0.15);border-radius:0 0 4px 4px">
+                <select class="transit-move-sel" onchange="onTransitMoveSel(this)"
+                  style="flex:1;min-width:80px;font-size:10px;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:${locAnySelected ? 'var(--text)' : 'var(--text-dim)'};outline:none">
+                  <option value="">Move out to…</option>${buildMoveOptGroups('')}
+                </select>
+                <input class="transit-move-custom" type="text" placeholder="Enter location…" hidden
+                  style="flex:1;min-width:80px;font-size:10px;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none">
+                <button onclick="moveSelectedFromTransit(this,${locIndicesJSON})"
+                  style="font-size:10px;padding:2px 8px;background:${locAnySelected ? 'var(--accent-dim)' : 'var(--bg-hover)'};border:1px solid ${locAnySelected ? 'var(--accent)' : 'var(--border)'};border-radius:var(--r);color:${locAnySelected ? 'var(--accent)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
+                  Move out${locAnySelected ? ` (${locSelCount})` : ''}
+                </button>
+                <button onclick="sellSelectedTransit('${nameEsc}',${locIndicesJSON})"
+                  style="font-size:10px;padding:2px 8px;background:${locAnySelected ? 'rgba(220,50,50,0.15)' : 'var(--bg-hover)'};border:1px solid ${locAnySelected ? 'var(--danger,#dc3545)' : 'var(--border)'};border-radius:var(--r);color:${locAnySelected ? 'var(--danger,#dc3545)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
+                  💰 Sell${locAnySelected ? ` (${locSelCount})` : ''}
+                </button>
+              </div>
+              <div style="padding:0 6px 4px">${boxRows}</div>
+            </div>`;
+        }).join('')}</div>
+      </div>` : '';
+
+    // ── Quality groups (non-transit items only) ───────────────────────────────
     const qualGroupsHTML = isOpen ? Object.entries(grp.qualGroups)
       .sort((a, b) => (parseFloat(b[0]) || 0) - (parseFloat(a[0]) || 0))
       .map(([qual, qg]) => {
@@ -3092,22 +3389,25 @@ function renderInventory() {
         const qualKey     = `${grp.key}|||${qual}`;
         const isQualOpen  = openInvQualGroups.has(qualKey);
         const qualChevron = isQualOpen ? '▾' : '▸';
-        const qualAllEntries = Object.values(qg.locs).flat();
+        const qualAllEntries = Object.values(qg.locs).flat().filter(({ item }) => !item.inTransit);
+        if (!qualAllEntries.length) return '';
         const qualIndices = qualAllEntries.map(({ i }) => i);
         const qualSCU     = qualAllEntries.reduce((s, { item }) => s + itemSCU(item), 0);
         const qualYieldSCU = qualSCU * yieldMod;
         const qualScuLabel = yieldMod < 1
           ? `<span style="color:var(--text-dim);font-size:10px">${fmtSCULabel(qualSCU)} →</span> ${fmtSCULabel(qualYieldSCU)}`
           : fmtSCULabel(qualSCU);
+        const selCount    = qualIndices.filter(i => selectedInvBoxes.has(i)).length;
         const allSelected = qualIndices.length > 0 && qualIndices.every(i => selectedInvBoxes.has(i));
-        const anySelected = qualIndices.some(i => selectedInvBoxes.has(i));
+        const anySelected = selCount > 0;
         const indicesJSON = JSON.stringify(qualIndices);
 
         const locRows = isQualOpen ? Object.entries(qg.locs).map(([loc, entries]) => {
-          const locSCU = entries.reduce((s, { item }) => s + itemSCU(item), 0);
+          const nonTransitEntries = entries.filter(({ item }) => !item.inTransit);
+          if (!nonTransitEntries.length) return '';
+          const locSCU = nonTransitEntries.reduce((s, { item }) => s + itemSCU(item), 0);
           const locEsc = esc(loc);
-          const isLocInTransit = entries.some(({ item }) => item.inTransit);
-          const boxRows = entries.map(({ item, i }) => {
+          const boxRows = nonTransitEntries.map(({ item, i }) => {
             const unitStr  = String(item.unit);
             const allUnits = SCU_SIZES.includes(unitStr) ? SCU_SIZES : [...SCU_SIZES, unitStr];
             const unitOpts = allUnits.map(v => {
@@ -3133,19 +3433,15 @@ function renderInventory() {
                 <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
               </div>`;
           }).join('');
-
           return `
-            <div class="inv-manifest-row" style="flex-direction:column;align-items:stretch;gap:4px${isLocInTransit ? ';background:var(--warn-dim);border-radius:4px;padding:4px 6px' : ''}">
+            <div class="inv-manifest-row" style="flex-direction:column;align-items:stretch;gap:4px">
               <div style="display:flex;align-items:center;gap:8px">
-                <div class="inv-manifest-loc" style="${isLocInTransit ? 'color:var(--warn)' : ''}">${esc(loc || '(no location)')}${isLocInTransit ? ' <span style="font-size:10px;font-weight:400;opacity:0.85">▶ In Transit</span>' : ''}</div>
-                <span class="inv-manifest-scu" style="margin-left:auto${isLocInTransit ? ';color:var(--warn)' : ''}">${fmtSCULabel(locSCU)}</span>
-                <button class="in-transit-btn${isLocInTransit ? ' active' : ''}" onclick="toggleInTransit('${nameEsc}','${qualEsc}','${locEsc}')" title="${isLocInTransit ? 'Clear In Transit' : 'Mark In Transit'}">
-                  ${isLocInTransit ? '⬛ Clear' : '🚚 In Transit'}
-                </button>
+                <div class="inv-manifest-loc">${esc(loc || '(no location)')}</div>
+                <span class="inv-manifest-scu" style="margin-left:auto">${fmtSCULabel(locSCU)}</span>
               </div>
               <div style="padding-left:2px">${boxRows}</div>
             </div>`;
-        }).join('') : '';
+        }).filter(Boolean).join('') : '';
 
         const moveBar = isQualOpen ? `
           <div class="qual-move-bar" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 8px;background:rgba(0,0,0,0.2);border-bottom:1px solid var(--border)">
@@ -3161,7 +3457,11 @@ function renderInventory() {
               style="flex:1;min-width:80px;font-size:10px;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);outline:none">
             <button onclick="doMoveSelectedQual(this,${indicesJSON})"
               style="font-size:10px;padding:2px 8px;background:${anySelected ? 'var(--accent-dim)' : 'var(--bg-hover)'};border:1px solid ${anySelected ? 'var(--accent)' : 'var(--border)'};border-radius:var(--r);color:${anySelected ? 'var(--accent)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
-              Move${anySelected ? ` (${qualIndices.filter(i => selectedInvBoxes.has(i)).length})` : ''}
+              Move${anySelected ? ` (${selCount})` : ''}
+            </button>
+            <button onclick="markSelectedInTransit(${indicesJSON})"
+              style="font-size:10px;padding:2px 8px;background:${anySelected ? 'rgba(255,180,0,0.15)' : 'var(--bg-hover)'};border:1px solid ${anySelected ? 'var(--warn,#e8ac3c)' : 'var(--border)'};border-radius:var(--r);color:${anySelected ? 'var(--warn,#e8ac3c)' : 'var(--text-dim)'};cursor:pointer;white-space:nowrap;flex-shrink:0">
+              ${getTransitIcon()}${anySelected ? ` (${selCount})` : ''}
             </button>
           </div>` : '';
 
@@ -3178,7 +3478,7 @@ function renderInventory() {
             </div>
             ${isQualOpen ? `${moveBar}<div class="inv-manifest">${locRows}</div>` : ''}
           </div>`;
-      }).join('') : '';
+      }).filter(Boolean).join('') : '';
 
     return `
       <div class="inv-ore-card${isGrpInTransit ? ' in-transit' : ''}">
@@ -3192,9 +3492,17 @@ function renderInventory() {
             ${grpValue != null ? `<span class="inv-ore-val"${grpSellAt ? ` title="Best sell: ${esc(grpSellAt)}\n${grpSellPrice.toLocaleString()} aUEC/SCU"` : ''}>≈ ${fmtAuec(Math.round(grpValue))} aUEC</span>` : ''}
           </div>
         </div>
-        ${isOpen ? qualGroupsHTML : ''}
+        ${isOpen ? transitHTML + qualGroupsHTML : ''}
       </div>`;
   }).join('');
+}
+
+function toggleInvView() {
+  invViewMode = invViewMode === 'ore' ? 'location' : 'ore';
+  openInvGroups.clear();
+  const btn = document.getElementById('inv-view-toggle');
+  if (btn) btn.textContent = invViewMode === 'ore' ? '📍 By Location' : '📦 By Ore';
+  renderInventory();
 }
 
 function toggleInvGroup(key) {
@@ -3362,13 +3670,72 @@ async function moveOreAtLocation(name, quality, fromLoc, toLoc) {
   renderInventory();
 }
 
-async function toggleInTransit(name, quality, loc) {
-  const qualStr = String(quality);
-  const matches = craftInventory.filter(it =>
-    it.name === name && String(it.quality ?? '') === qualStr && (it.location || '') === loc
+async function markSelectedInTransit(indices) {
+  const toMark = indices.filter(i => selectedInvBoxes.has(i) && craftInventory[i] && !craftInventory[i].inTransit);
+  if (!toMark.length) return;
+  toMark.forEach(i => { craftInventory[i].inTransit = true; craftInventory[i].location = 'In Transit'; selectedInvBoxes.delete(i); });
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+
+function selectAllTransitAtLoc(indices) {
+  const allSelected = indices.every(i => selectedInvBoxes.has(i));
+  indices.forEach(i => allSelected ? selectedInvBoxes.delete(i) : selectedInvBoxes.add(i));
+  renderInventory();
+}
+
+function onTransitMoveSel(sel) {
+  const bar = sel.closest('[style]').parentElement.querySelector('.transit-move-custom') ||
+              sel.parentElement.querySelector('.transit-move-custom');
+  const input = sel.parentElement.querySelector('.transit-move-custom');
+  if (input) { input.hidden = sel.value !== '__custom__'; if (!input.hidden) input.focus(); }
+}
+
+async function moveSelectedFromTransit(btn, indices) {
+  const bar = btn.parentElement;
+  const sel = bar.querySelector('.transit-move-sel');
+  const custom = bar.querySelector('.transit-move-custom');
+  const toLoc = sel.value === '__custom__' ? (custom?.value.trim() || '') : sel.value;
+  if (!toLoc) return;
+  const toMove = indices.filter(i => selectedInvBoxes.has(i));
+  if (!toMove.length) return;
+  toMove.forEach(i => {
+    if (!craftInventory[i]) return;
+    craftInventory[i].location = toLoc;
+    delete craftInventory[i].inTransit;
+    selectedInvBoxes.delete(i);
+  });
+  if (sel.value === '__custom__' && toLoc) {
+    const saved = (await api.getStore('customLocations')) || [];
+    if (!saved.includes(toLoc)) { saved.push(toLoc); await api.setStore('customLocations', saved); }
+  }
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+
+async function sellSelectedTransit(name, indices) {
+  const toSell = indices.filter(i => selectedInvBoxes.has(i) && craftInventory[i]?.inTransit && (!name || craftInventory[i].name === name));
+  if (!toSell.length) return;
+  const toSellSet = new Set(toSell);
+  craftInventory = craftInventory.filter((_, i) => !toSellSet.has(i));
+  selectedInvBoxes.clear();
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+
+async function clearTransitAtLoc(name, loc) {
+  craftInventory.forEach(it => {
+    if (it.name === name && (it.location || '') === loc && it.inTransit) delete it.inTransit;
+  });
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+
+async function sellTransitAtLoc(name, loc) {
+  craftInventory = craftInventory.filter(it =>
+    !(it.name === name && (it.location || '') === loc && it.inTransit)
   );
-  const nowInTransit = !matches.some(it => it.inTransit);
-  matches.forEach(it => { if (nowInTransit) it.inTransit = true; else delete it.inTransit; });
+  selectedInvBoxes.clear();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }

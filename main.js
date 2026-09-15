@@ -392,12 +392,39 @@ autoUpdater.on('update-downloaded', () => {
 });
 autoUpdater.on('error', (err) => {
   console.error('[AutoUpdater]', err.message);
+  mainWindow?.webContents.send('updater:error', { message: err.message });
 });
 
 ipcMain.handle('app:getVersion', () => CURRENT_VERSION);
 ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate());
 ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall(); });
 ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
+
+// ─── IPC: Bug report ──────────────────────────────────────────────────────────
+const BUG_WEBHOOK = 'https://discord.com/api/webhooks/1549166537305362532/ygN4GsizQ21ibHHCnCn1wahjgQvgFJ9aZ5ctZj8N9IhChRZSNMLNIEshbDPPyWZEDaVK';
+ipcMain.handle('bug:report', async (_, { description }) => {
+  const payload = JSON.stringify({
+    embeds: [{
+      title: '🐛 Bug Report',
+      description,
+      color: 0xE8AC3C,
+      fields: [
+        { name: 'Version', value: CURRENT_VERSION, inline: true },
+        { name: 'Platform', value: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim(), inline: true }
+      ],
+      timestamp: new Date().toISOString()
+    }]
+  });
+  return new Promise((resolve, reject) => {
+    const url = new URL(BUG_WEBHOOK);
+    const req = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+});
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
 const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];

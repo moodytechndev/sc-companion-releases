@@ -1,113 +1,110 @@
 # SC Companion
 
-A compact Electron overlay for Star Citizen — keeps mission-critical data visible while you play without alt-tabbing.
+Star Citizen companion overlay — refinery timers, commodity prices, mining tools, and inventory tracking.
+
+> **Download the latest release** from the [Releases page](https://github.com/moodytechndev/sc-companion-releases/releases/latest).
 
 ---
 
 ## Features
 
-| Tab | What it does |
-|-----|-------------|
-| **Timers** | Refinery job countdown timers with auto-detection from the game log |
-| **Prices** | Live buy/sell commodity prices from UEX Corp; pre-loaded at startup |
-| **Inventory** | Ore cargo valuation — shows best sell price and terminal per group |
-| **Mining** | Per-ore location data with share % and signature counts (always visible) |
-| **Aaron Halo** | QT drop calculator — picks the exact HUD distance to cut engines for any band |
-| **Crafting** | Planned |
+- **Refinery Timers** — track active refinery jobs with countdown timers and completion alerts
+- **Commodity Prices** — live buy/sell prices from UEX Corp; filter by inventory or search by name
+- **Mining Tools** — ore location lookup, Aaron Halo scanner, and yield calculators
+- **Inventory** — track mined/crafted stock, mark items in transit, and view by ore or location
+- **Always-on-top overlay** — stays visible over Star Citizen with adjustable opacity
+- **Auto-updater** — notifies you when a new version is available
 
 ---
 
-## Tech Stack
+## How to Use
 
-- **Electron 31** — `contextIsolation: true`, `nodeIntegration: false`
-- **electron-store 8.2** — persistent key-value store (jobs, price cache, settings)
-- **electron-updater 6** — GitHub Releases auto-update
-- **electron-builder 26** — NSIS installer, `--win x64`
-- **UEX Corp API v2.0** — `https://api.uexcorp.space/2.0/` (commodities, prices)
-- No frontend framework — single-page vanilla JS in `renderer/index.html`
+### Installation
+
+1. Download `SC Companion Setup x.x.x.exe` from the [latest release](https://github.com/moodytechndev/sc-companion-releases/releases/latest)
+2. Run the installer — choose your install location
+3. Launch **SC Companion** from the desktop shortcut or Start menu
+
+### Show / Hide the Overlay
+
+- Use the keyboard shortcut (default: shown in **Settings → Shortcut**) to toggle the overlay at any time
+- Click the tray icon to show or hide the window
+- Right-click the tray icon for quick options including Quit
+
+### Refinery Timers
+
+1. Click **+** to add a new job — enter the station, ore, method, and duration
+2. Jobs count down live; a desktop notification fires when a job completes
+3. Click the job row to expand details; use the trash icon to remove finished jobs
+
+### Commodity Prices
+
+- Browse all tradeable commodities with best sell and buy prices
+- Use the **filter chips** at the top to narrow to:
+  - **All** — every commodity
+  - **Favorites** — starred commodities
+  - **In Transit** — items currently marked in-transit in your inventory
+- Click any commodity row to see the top terminals and a buy/sell breakdown
+- Prices refresh automatically on launch; click **Refresh** to update manually
+
+### Mining Tools
+
+- **Ore Locations** — look up which rocks carry a specific ore
+- **Scanner** — Aaron Halo reference cards by commodity type
+- **Yield Calculator** — estimate refined output from raw SCU
+
+### Inventory
+
+Track your mined or crafted stock across locations.
+
+**Adding items:**
+1. Click **+ Add** at the top of the Inventory tab
+2. Enter ore name, quantity, unit (SCU / cSCU), quality %, and location
+
+**Organizing:**
+- Items are grouped by **ore type** by default; toggle **By Location** to group by station
+- Expand a group to see individual boxes; each box is editable in place
+
+**Moving to transit:**
+1. Expand an ore or location card
+2. Check the boxes you want to move
+3. Click the **🚚 / 🚀** transit button in the action bar — items move to the *In Transit* container
+4. From the *In Transit* card, select items and either **Move out** to a new location or **💰 Sell** to remove them
+
+### Settings
+
+| Setting | What it does |
+|---|---|
+| Shortcut | Global hotkey to show/hide the overlay |
+| Opacity | Window transparency (10–100%) |
+| Always on top | Keep overlay above other windows |
+| Resizable | Allow window resize |
+| Close behavior | Minimize to tray or quit on close |
+| Price Data Source | UEX Corp (active); SC Trader (coming soon) |
+| In-Transit Icon | Choose 🚚 Truck or 🚀 Rocket for transit items |
+| Log Path | Path to your Star Citizen `game.log` for auto-detection |
+| Bug Report | Send a report directly to the development Discord |
 
 ---
 
-## Quick Start
+## Building from Source
 
 ```bash
+# Install dependencies
 npm install
-npm start          # dev — opens window immediately
-npm run dist       # production build → dist/
+
+# Run in development mode
+npm run dev
+
+# Build Windows installer
+npm run dist
 ```
 
-> **Note:** The first `npm run dist` takes a while — it downloads the Electron binary if not cached.
+Requires Node.js 18+ and a Windows environment for the installer build.
 
 ---
 
-## Directory Structure
+## License
 
-```
-SC-Companion/
-├── main.js              # Main process: BrowserWindow, IPC, fetch, auto-updater
-├── preload.js           # contextBridge — exposes window.api to renderer
-├── renderer/
-│   └── index.html       # Entire UI (single file, vanilla JS + inline CSS)
-├── build/
-│   └── installer.nsh    # NSIS custom installer script
-├── dist/                # Build output (gitignored except archive/)
-│   └── archive/         # Previous release installers
-├── icon.png
-└── package.json
-```
-
----
-
-## Architecture Notes
-
-### IPC Pattern
-All renderer→main communication goes through `preload.js`:
-```js
-// preload.js
-contextBridge.exposeInMainWorld('api', {
-  getCommodities: () => ipcRenderer.invoke('api:getCommodities'),
-  // ...
-});
-
-// renderer calls:
-const data = await api.getCommodities();
-```
-
-### Price Caching (Stale-While-Revalidate)
-Prices are loaded from `electron-store` at startup so the Prices tab is populated instantly. A background fetch via `api:getBulkPrices` (UEX bulk endpoint → typed fallback → per-commodity batch) overwrites the cache and re-renders silently.
-
-### KeyHook.exe
-`KeyHook.exe` is a native binary for the global shortcut toggle. It **must** be listed under `asarUnpacked` in `package.json` — it cannot run from inside the asar archive.
-
-### Window Behavior
-The overlay is frameless, always-on-top (configurable), and draggable via `-webkit-app-region: drag` on the titlebar. Opacity is adjustable per-session.
-
----
-
-## Build & Release
-
-1. Make your changes to `renderer/index.html`, `main.js`, or `preload.js`
-2. Bump `version` in `package.json`
-3. Move the previous installer from `dist/` → `dist/archive/vX.X.X/`
-4. Run `npm run dist`
-5. New installer appears in `dist/SC Companion Setup X.X.X.exe`
-6. Create a GitHub Release tagged `vX.X.X` and upload the `.exe` — auto-updater picks it up
-
----
-
-## API Reference
-
-| Endpoint | Used for |
-|----------|---------|
-| `GET /commodities` | Full commodity list (name, id, type) |
-| `GET /commodities_prices` | Bulk price rows (sell + buy) |
-| `GET /commodities_prices?id_commodity=N` | Single commodity prices |
-
----
-
-## Dev Notes
-
-- `npm start` vs `npm run dev` — both work; `dev` sets `--dev` flag (no auto-updater check)
-- The renderer is intentionally one file for easy distribution inside the asar
-- `electron-store` data lives in `%APPDATA%\sc-companion\` on Windows
-- HUD GM distances are computed via ray-sphere intersection math against UEX station coordinates
+MIT — see [LICENSE](LICENSE) for details.  
+© 2026 Moody Technical Development Solutions
