@@ -170,16 +170,25 @@ function startLogWatcher(filePath) {
   }
 }
 
-function fetchJson(url) {
+function fetchJson(url, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'SC-Companion/1.0' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'SC-Companion/1.0' } }, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume(); // drain so the socket can be reused
+        reject(new Error(`Request failed with status ${res.statusCode}`));
+        return;
+      }
       let data = '';
       res.on('data', chunk => (data += chunk));
       res.on('end', () => {
         try { resolve(JSON.parse(data)); }
         catch (e) { reject(new Error('Invalid JSON response')); }
       });
-    }).on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
+    });
   });
 }
 
@@ -259,7 +268,11 @@ app.whenReady().then(() => {
   const logPath = store.get('logPath') || detectLogPath();
   startLogWatcher(logPath);
 
+  const UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
   setTimeout(() => autoUpdater.checkForUpdates(), 5000);
+  setInterval(() => {
+    if (!_updateAvailable) autoUpdater.checkForUpdates();
+  }, UPDATE_CHECK_INTERVAL_MS);
 });
 
 app.on('window-all-closed', () => {
@@ -290,6 +303,15 @@ ipcMain.handle('api:getCommodityPrices', async (_, { id, type }) => {
     return await fetchJson(
       `https://api.uexcorp.space/2.0/commodities_prices?id_commodity=${id}&type=${type || 'sell'}`
     );
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getTerminals', async () => {
+  try {
+    const res = await fetchJson('https://api.uexcorp.space/2.0/terminals?id_star_system=68');
+    return { status: 'ok', data: res.data || [] };
   } catch (e) {
     return { status: 'error', error: e.message };
   }
@@ -381,7 +403,10 @@ ipcMain.handle('log:getStatus', () => ({
 }));
 
 // ─── Auto-updater ────────────────────────────────────────────────────────────
+let _updateAvailable = false;
+
 autoUpdater.on('update-available', (info) => {
+  _updateAvailable = true;
   mainWindow?.webContents.send('updater:available', { version: info.version });
 });
 autoUpdater.on('download-progress', (progress) => {
@@ -406,7 +431,7 @@ ipcMain.handle('bug:report', async (_, { description }) => {
   const payload = JSON.stringify({
     embeds: [{
       title: '🐛 Bug Report',
-      description,
+      description: String(description || '').slice(0, 1500),
       color: 0xE8AC3C,
       fields: [
         { name: 'Version', value: CURRENT_VERSION, inline: true },
@@ -427,7 +452,7 @@ ipcMain.handle('bug:report', async (_, { description }) => {
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftAssets', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -436,10 +461,11 @@ const VK_RE = /^[0-9a-fA-F]{2}$/;
 function validateImport(data) {
   if (data.jobs !== undefined && !Array.isArray(data.jobs)) return 'jobs must be an array';
   if (data.craftInventory !== undefined && !Array.isArray(data.craftInventory)) return 'craftInventory must be an array';
+  if (data.craftAssets !== undefined && !Array.isArray(data.craftAssets)) return 'craftAssets must be an array';
   if (data.craftingOwned !== undefined && (typeof data.craftingOwned !== 'object' || Array.isArray(data.craftingOwned))) return 'craftingOwned must be an object';
   if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
   if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';
-  if (data.logPath !== undefined && typeof data.logPath !== 'string') return 'logPath must be a string';
+  if (data.logPath !== undefined && (typeof data.logPath !== 'string' || data.logPath.length > 500 || /[\x00-\x1f]/.test(data.logPath))) return 'logPath must be a plain file path string';
   if (data.language !== undefined && !VALID_LANGS.has(data.language)) return 'language must be en, de, fr, or es';
   return null;
 }

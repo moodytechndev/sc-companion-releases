@@ -289,7 +289,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 .inv-qty  { font-size:12px; color:var(--accent); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .inv-loc  { font-size:11px; color:var(--text-dim); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .inv-qual { font-size:10px; padding:2px 7px; border-radius:10px; white-space:nowrap; flex-shrink:0; background:var(--accent-dim); color:var(--accent); }
-.inv-group-hdr { padding:6px 10px 3px; font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.08em; display:flex; justify-content:space-between; border-top:1px solid var(--border); margin-top:2px; }
+.inv-group-hdr { padding:6px 10px 3px; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; display:flex; justify-content:space-between; border-top:1px solid var(--border); margin-top:2px; }
 .inv-group-hdr:first-child { border-top:none; margin-top:0; }
 .inv-group-hdr span { color:var(--text-dim); text-transform:none; letter-spacing:0; }
 .inv-total-bar { padding:7px 12px; border-top:1px solid var(--border); display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); flex-shrink:0; }
@@ -400,8 +400,30 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <div id="mining-view-scanner" style="display:none;flex-direction:column;flex:1;min-height:0">
         <div style="padding:8px 10px;border-bottom:1px solid var(--border)">
           <div class="filter-chips" id="scanner-mode-chips" style="margin-top:0;margin-bottom:8px">
-            <div class="chip active" onclick="setScannerMode('scan',this)">🔍 Scan</div>
             <div class="chip" onclick="setScannerMode('ref',this)">📋 Reference</div>
+            <div class="chip active" onclick="setScannerMode('scan',this)">🔍 Scan</div>
+          </div>
+          <!-- Reference mode filters -->
+          <div id="scanner-ref-filters" style="display:none;flex-direction:column;gap:5px;margin-bottom:8px">
+            <div class="filter-chips" id="scanner-tier-chips" style="margin:0;flex-wrap:wrap">
+              <div class="chip active" onclick="setScannerTierFilter('all',this)">All</div>
+              <div class="chip" onclick="setScannerTierFilter('legendary',this)" style="color:#ff9500">Legendary</div>
+              <div class="chip" onclick="setScannerTierFilter('epic',this)" style="color:#b464ff">Epic</div>
+              <div class="chip" onclick="setScannerTierFilter('rare',this)" style="color:#4da6ff">Rare</div>
+              <div class="chip" onclick="setScannerTierFilter('uncommon',this)" style="color:#4dff91">Uncommon</div>
+              <div class="chip" onclick="setScannerTierFilter('common',this)">Common</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">Location</span>
+              <select id="scanner-loc-select" onchange="setScannerLocFilter(this.value)"
+                style="flex:1;padding:3px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none">
+                <option value="all">All locations</option>
+              </select>
+            </div>
+            <div id="scanner-ore-sel-row" style="display:none;align-items:center;gap:6px">
+              <span id="scanner-ore-sel-label" style="font-size:10px;color:var(--accent);flex:1"></span>
+              <button onclick="clearMiningOreSelect()" style="font-size:10px;padding:1px 6px;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Clear</button>
+            </div>
           </div>
           <!-- Scan mode input -->
           <div id="scanner-input-row" style="display:flex;gap:6px;align-items:center">
@@ -479,16 +501,28 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <!-- PRICES -->
     <div class="panel" id="panel-prices">
       <div class="panel-header">
-        <div class="search-bar">
+        <div class="filter-chips" id="prices-view-chips" style="margin-top:0;margin-bottom:4px">
+          <div class="chip active" onclick="switchPricesView('commodity',this)">Commodity</div>
+          <div class="chip" onclick="switchPricesView('station',this)">Station</div>
+        </div>
+        <div id="com-search-bar" class="search-bar">
           <span class="ico">🔍</span>
           <input type="text" id="com-search" data-i18n="prices.search" data-i18n-prop="placeholder" placeholder="Search commodities..." oninput="filterComs()">
         </div>
-        <div class="filter-chips" id="price-chips">
-          <div class="chip active" onclick="setFilter('all',this)" data-i18n="prices.all">All</div>
-          <div class="chip" onclick="setFilter('mineral',this)" data-i18n="prices.minerals">Minerals</div>
-          <div class="chip" onclick="setFilter('raw',this)" data-i18n="prices.rawOre">Raw Ore</div>
-          <div class="chip" onclick="setFilter('refined',this)" data-i18n="prices.refined">Refined</div>
-          <div class="chip" onclick="setFilter('inventory',this)" data-i18n="prices.inInventory">In Inventory</div>
+        <div id="price-type-filters">
+          <div class="filter-chips" id="price-chips">
+            <div class="chip active" onclick="setFilter('all',this)" data-i18n="prices.all">All</div>
+            <div class="chip" onclick="setFilter('mineral',this)" data-i18n="prices.minerals">Minerals</div>
+            <div class="chip" onclick="setFilter('raw',this)" data-i18n="prices.rawOre">Raw Ore</div>
+            <div class="chip" onclick="setFilter('refined',this)" data-i18n="prices.refined">Refined</div>
+            <div class="chip" onclick="setFilter('inventory',this)" data-i18n="prices.inInventory">In Inventory</div>
+          </div>
+        </div>
+        <div id="station-select-row" style="display:none">
+          <select id="prices-station-select" onchange="onStationSelect(this)"
+            style="width:100%;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+            <option value="">Select a station…</option>
+          </select>
         </div>
       </div>
       <div class="scroll-area" id="com-list">
@@ -862,6 +896,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
   </div>
 </div>
 
+<!-- ── Station Sell Modal ── -->
+<div id="station-sell-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeStationSellModal()">
+  <div class="modal" style="width:320px;max-height:75vh;display:flex;flex-direction:column;padding:16px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;flex-shrink:0">
+      <div id="ssm-title" style="font-size:13px;font-weight:700;color:var(--text-bright)"></div>
+      <button onclick="closeStationSellModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;margin-left:8px">✕</button>
+    </div>
+    <div id="ssm-body" style="overflow-y:auto;flex:1"></div>
+  </div>
+</div>
+
 <!-- ── Kiosk Detected Toast ── -->
 <div id="kiosk-toast" data-i18n="toast.kiosk">⛏ Refinery kiosk detected — timer ready!</div>
 <!-- ── Job Complete Toast ── -->
@@ -1011,7 +1056,7 @@ const ORE_DATA = {
     { location: 'Aaron Halo', share: '≤0.71%', sigs: 3840 },
     { location: 'Magda', share: '≤0.71%', sigs: 3855 },
   ],
-  'Aluminium': [
+  'Aluminum': [
     { location: 'Hurston', share: '≤39.6%', sigs: 4285 },
     { location: 'Magda', share: '≤31.32%', sigs: 4285 },
     { location: 'Ita', share: '≤31.23%', sigs: 4285 },
@@ -1074,7 +1119,7 @@ const ORE_DATA = {
     { location: 'Yela Asteroid Belt', share: '≤1.43%', sigs: 3855 },
     { location: 'Terminus (Pyro VI)', share: '≤0.71%', sigs: 3885 },
   ],
-  'Beradon': [
+  'Beradom': [
     { location: 'Bloom (Pyro III)', share: '≤100%', sigs: 4000 },
     { location: 'Fairo (Pyro 5D)', share: '≤100%', sigs: 4000 },
     { location: 'Pyro I', share: '≤100%', sigs: 4000 },
@@ -1416,7 +1461,7 @@ const ORE_DATA = {
     { location: 'Hurston', share: '≤9%', sigs: 3370 },
     { location: 'Yela Asteroid Belt', share: '≤9%', sigs: 3370 },
   ],
-  'Quantanium': [
+  'Quantainium': [
     { location: 'Calliope', share: '≤1.8%', sigs: 3170 },
     { location: 'Aaron Halo', share: '≤1.8%', sigs: 3170 },
     { location: 'Aberdeen', share: '≤1.8%', sigs: 3170 },
@@ -1641,21 +1686,21 @@ function switchTab(name) {
 // ════════════════════════════════════════════════════════════════════
 const STATION_BONUSES = {
   'ARC-L1': [
-    { material:'Aluminium',    yield:-5 }, { material:'Beryl',       yield: 7 },
+    { material:'Aluminum',    yield:-5 }, { material:'Beryl',       yield: 7 },
     { material:'Corundum',     yield:-4 }, { material:'Hephaestanite',yield:-4 },
     { material:'Iron',         yield: 1 }, { material:'Laranite',    yield:-2 },
-    { material:'Quantanium',   yield: 3 }, { material:'Quartz',      yield:11 },
+    { material:'Quantainium',   yield: 3 }, { material:'Quartz',      yield:11 },
     { material:'Taranite',     yield:-6 }, { material:'Titanium',    yield: 5 },
   ],
   'ARC-L2': [
     { material:'Bexalite',     yield: 2 }, { material:'Borase',      yield: 2 },
     { material:'Copper',       yield: 6 }, { material:'Corundum',    yield:-3 },
     { material:'Gold',         yield: 7 }, { material:'Hephaestanite',yield:-8 },
-    { material:'Quantanium',   yield: 3 }, { material:'Titanium',    yield: 3 },
+    { material:'Quantainium',   yield: 3 }, { material:'Titanium',    yield: 3 },
     { material:'Tungsten',     yield:-6 },
   ],
   'ARC-L4': [
-    { material:'Agricium',     yield:-4 }, { material:'Aluminium',   yield:-3 },
+    { material:'Agricium',     yield:-4 }, { material:'Aluminum',   yield:-3 },
     { material:'Beryl',        yield:-4 }, { material:'Copper',      yield:-4 },
     { material:'Corundum',     yield:-9 }, { material:'Gold',        yield:-4 },
     { material:'Hephaestanite',yield:-5 }, { material:'Quartz',      yield:-2 },
@@ -1670,21 +1715,21 @@ const STATION_BONUSES = {
     { material:'Tungsten',     yield: 2 },
   ],
   'HUR-L1': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'HUR-L2': [
     { material:'Agricium',     yield:-2 }, { material:'Beryl',       yield: 1 },
     { material:'Copper',       yield:-3 }, { material:'Corundum',    yield: 1 },
     { material:'Gold',         yield: 1 }, { material:'Laranite',    yield:-1 },
-    { material:'Quantanium',   yield: 2 }, { material:'Taranite',    yield:-3 },
+    { material:'Quantainium',   yield: 2 }, { material:'Taranite',    yield:-3 },
   ],
   'MIC-L1': [
-    { material:'Agricium',     yield: 8 }, { material:'Aluminium',   yield: 7 },
+    { material:'Agricium',     yield: 8 }, { material:'Aluminum',   yield: 7 },
     { material:'Beryl',        yield:-6 }, { material:'Copper',      yield: 4 },
     { material:'Corundum',     yield: 2 }, { material:'Gold',        yield: 1 },
     { material:'Laranite',     yield: 2 }, { material:'Quartz',      yield:-3 },
@@ -1693,7 +1738,7 @@ const STATION_BONUSES = {
     { material:'Beryl',        yield:-8 }, { material:'Bexalite',    yield: 9 },
     { material:'Borase',       yield:-3 }, { material:'Copper',      yield: 2 },
     { material:'Corundum',     yield: 6 }, { material:'Gold',        yield: 9 },
-    { material:'Laranite',     yield:-1 }, { material:'Quantanium',  yield: 1 },
+    { material:'Laranite',     yield:-1 }, { material:'Quantainium',  yield: 1 },
     { material:'Quartz',       yield:-5 }, { material:'Titanium',    yield: 6 },
     { material:'Tungsten',     yield: 9 },
   ],
@@ -1705,10 +1750,10 @@ const STATION_BONUSES = {
     { material:'Titanium',     yield:13 }, { material:'Torite',      yield: 8 },
   ],
   'Nyx Gateway (Stanton)': [
-    { material:'Aluminium',    yield:-5 }, { material:'Beryl',       yield: 7 },
+    { material:'Aluminum',    yield:-5 }, { material:'Beryl',       yield: 7 },
     { material:'Corundum',     yield:-4 }, { material:'Hephaestanite',yield:-4 },
     { material:'Iron',         yield: 1 }, { material:'Laranite',    yield:-2 },
-    { material:'Quantanium',   yield: 3 }, { material:'Quartz',      yield:11 },
+    { material:'Quantainium',   yield: 3 }, { material:'Quartz',      yield:11 },
     { material:'Taranite',     yield:-6 }, { material:'Titanium',    yield: 5 },
   ],
   'Pyro Gateway (Stanton)': [
@@ -1719,77 +1764,77 @@ const STATION_BONUSES = {
     { material:'Tungsten',     yield: 2 },
   ],
   'Terra Gateway (Stanton)': [
-    { material:'Agricium',     yield: 8 }, { material:'Aluminium',   yield: 7 },
+    { material:'Agricium',     yield: 8 }, { material:'Aluminum',   yield: 7 },
     { material:'Beryl',        yield:-6 }, { material:'Copper',      yield: 4 },
     { material:'Corundum',     yield: 2 }, { material:'Gold',        yield: 1 },
     { material:'Laranite',     yield: 2 }, { material:'Quartz',      yield:-3 },
   ],
   'Checkmate': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'Nyx Gateway (Pyro)': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'Orbituary': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'Ruin Station': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'Stanton Gateway (Pyro)': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'Levski': [
-    { material:'Agricium',     yield: 8 }, { material:'Aluminium',   yield: 8 },
+    { material:'Agricium',     yield: 8 }, { material:'Aluminum',   yield: 8 },
     { material:'Beryl',        yield: 8 }, { material:'Bexalite',    yield: 8 },
     { material:'Borase',       yield: 8 }, { material:'Copper',      yield: 8 },
     { material:'Corundum',     yield: 8 }, { material:'Gold',        yield: 5 },
     { material:'Hephaestanite',yield: 8 }, { material:'Iron',        yield: 8 },
     { material:'Laranite',     yield: 7 }, { material:'Lindinium',   yield: 4 },
-    { material:'Quantanium',   yield: 5 }, { material:'Quartz',      yield: 8 },
+    { material:'Quantainium',   yield: 5 }, { material:'Quartz',      yield: 8 },
     { material:'Savrilium',    yield: 1 }, { material:'Taranite',    yield: 8 },
     { material:'Titanium',     yield: 8 }, { material:'Torite',      yield: 1 },
     { material:'Tungsten',     yield: 8 },
   ],
   'Pyro Gateway (Nyx)': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
   'Stanton Gateway (Nyx)': [
-    { material:'Agricium',     yield:-8 }, { material:'Aluminium',   yield:-4 },
+    { material:'Agricium',     yield:-8 }, { material:'Aluminum',   yield:-4 },
     { material:'Bexalite',     yield:-2 }, { material:'Borase',      yield: 1 },
     { material:'Copper',       yield:-5 }, { material:'Corundum',    yield:-5 },
     { material:'Gold',         yield:-3 }, { material:'Iron',        yield:-5 },
-    { material:'Laranite',     yield: 2 }, { material:'Quantanium',  yield: 2 },
+    { material:'Laranite',     yield: 2 }, { material:'Quantainium',  yield: 2 },
     { material:'Tungsten',     yield: 4 },
   ],
 };
@@ -1857,6 +1902,21 @@ function fmtSigs(sigs) {
   return sigs + ' sigs';
 }
 
+const selectedMiningOres = new Set();
+
+function toggleMiningOreSelect(ore) {
+  if (selectedMiningOres.has(ore)) selectedMiningOres.delete(ore);
+  else selectedMiningOres.add(ore);
+  renderMining();
+  if (scannerMode === 'ref') renderScannerRef();
+}
+
+function clearMiningOreSelect() {
+  selectedMiningOres.clear();
+  renderMining();
+  if (scannerMode === 'ref') renderScannerRef();
+}
+
 function renderMining(query) {
   const q = (query || document.getElementById('mining-search')?.value || '').toLowerCase().trim();
   const list = document.getElementById('mining-list');
@@ -1871,9 +1931,10 @@ function renderMining(query) {
     const filtered = q ? locs.filter(l =>
       ore.toLowerCase().includes(q) || l.location.toLowerCase().includes(q)
     ) : locs;
+    const isSel = selectedMiningOres.has(ore);
     return `
-    <div class="mining-row">
-      <div class="mining-ore">${esc(ore)}</div>
+    <div class="mining-row" data-ore="${esc(ore)}" onclick="toggleMiningOreSelect(this.dataset.ore)" style="cursor:pointer;${isSel ? 'background:var(--accent-dim);outline:1px solid rgba(100,180,255,0.25);' : ''}">
+      <div class="mining-ore" style="${isSel ? 'color:var(--accent)' : ''}">${esc(ore)}</div>
       <div class="mining-locs">${filtered.map(l => {
         const tier = shareTier(l.share);
         const meta = [l.share, fmtSigs(l.sigs)].filter(Boolean).join(' · ');
@@ -2244,6 +2305,9 @@ function rowLocation(p) {
   return p.terminal_name + (place ? ` · ${place}` : '');
 }
 
+const terminalIndex = {};
+let terminalsLoaded = false;
+
 function applyPriceRows(rows) {
   const bestSell    = {};  // id -> price
   const bestSellRow = {};  // id -> row (for terminal name)
@@ -2275,7 +2339,7 @@ function applyPriceRows(rows) {
 }
 
 function refreshPriceViews() {
-  renderComs();
+  if (pricesView === 'station') renderStations(); else renderComs();
   if (craftingView === 'inventory' && document.getElementById('crafting-view-inventory')?.style.display !== 'none') {
     renderInventory();
   }
@@ -2308,6 +2372,248 @@ async function fetchBulkProfits() {
   refreshPriceViews();
 }
 
+let pricesView = 'commodity';
+
+function switchPricesView(view, el) {
+  pricesView = view;
+  document.querySelectorAll('#prices-view-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('price-type-filters').style.display = view === 'commodity' ? '' : 'none';
+  document.getElementById('com-search-bar').style.display     = view === 'commodity' ? '' : 'none';
+  document.getElementById('station-select-row').style.display = view === 'station'   ? '' : 'none';
+  closePriceDetail();
+  if (view === 'station') renderStations(); else renderComs();
+}
+
+function clearStationContent() {
+  document.getElementById('com-list')
+    .querySelectorAll('.commodity-item,.empty-state,.station-price-table,.station-spinner').forEach(e => e.remove());
+}
+
+async function renderStations() {
+  const sel  = document.getElementById('prices-station-select');
+  const list = document.getElementById('com-list');
+  document.getElementById('com-loading').style.display = 'none';
+  clearStationContent();
+
+  if (!terminalsLoaded) {
+    sel.innerHTML = '<option value="">Loading stations…</option>';
+    try {
+      const res = await api.getTerminals();
+      if (res.status === 'ok') {
+        (res.data || []).filter(t => t.is_available && t.type === 'commodity').forEach(t => {
+          const loc = [t.city_name || t.outpost_name, t.moon_name, t.planet_name]
+            .filter(Boolean).join(' · ') || t.space_station_name || t.star_system_name || '';
+          terminalIndex[t.id] = { id_terminal: t.id, terminal_name: t.name, loc };
+        });
+        terminalsLoaded = true;
+      }
+    } catch (err) {}
+  }
+
+  const terminals = Object.values(terminalIndex)
+    .sort((a, b) => a.terminal_name.localeCompare(b.terminal_name));
+
+  if (!terminals.length) {
+    sel.innerHTML = '<option value="">Select a station…</option>';
+    const em = document.createElement('div');
+    em.className = 'empty-state';
+    em.innerHTML = '<div class="lbl">Could not load station list.<br><span style="font-size:10px">Check your connection and try again.</span></div>';
+    list.appendChild(em);
+    return;
+  }
+
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Select a station…</option>' +
+    terminals.map(t =>
+      `<option value="${esc(String(t.id_terminal))}"${String(t.id_terminal) === prev ? ' selected' : ''}>${esc(t.terminal_name)}${t.loc ? ` · ${esc(t.loc)}` : ''}</option>`
+    ).join('');
+
+  if (prev && sel.value === prev) {
+    const t = terminalIndex[prev];
+    if (t) selectStation(t);
+  }
+}
+
+function onStationSelect(selectEl) {
+  const t = terminalIndex[selectEl.value];
+  if (t) selectStation(t);
+  else clearStationContent();
+}
+
+async function selectStation(t) {
+  const list = document.getElementById('com-list');
+  clearStationContent();
+  const loadDiv = document.createElement('div');
+  loadDiv.className = 'station-spinner loading';
+  loadDiv.innerHTML = '<div class="spinner"></div>Fetching…';
+  list.appendChild(loadDiv);
+
+  try {
+    const res = await api.getTerminalPrices(t.id_terminal);
+    if (res.status !== 'ok') throw new Error(res.error || 'API error');
+
+    const rows = res.data || [];
+    const byName = {};
+    rows.forEach(r => {
+      const name = r.commodity_name || r.name || '?';
+      if (!byName[name]) byName[name] = { name, sell: null, buy: null };
+      if (r.price_sell > 0) byName[name].sell = r.price_sell;
+      if (r.price_buy  > 0) byName[name].buy  = r.price_buy;
+    });
+
+    clearStationContent();
+
+    const items = Object.values(byName).sort((a, b) => a.name.localeCompare(b.name));
+    if (!items.length) {
+      const em = document.createElement('div');
+      em.className = 'empty-state';
+      em.innerHTML = '<div class="lbl">No commodity data for this station.</div>';
+      list.appendChild(em);
+      return;
+    }
+
+    const stationLoc = t.terminal_name;
+    // Fixed pixel widths (not 'auto') on every row's own independent grid —
+    // each <div grid> here is a separate grid container, so 'auto'/'1fr' tracks
+    // are sized per-row from that row's own content and never line up with the
+    // header or with each other. Fixed widths make every grid resolve identically.
+    const gridCols = '1fr 64px 58px 116px';
+    const table = document.createElement('div');
+    table.className = 'station-price-table';
+    table.innerHTML = `
+      <div style="display:grid;grid-template-columns:${gridCols};gap:6px;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;padding:5px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-card);z-index:1">
+        <span>Commodity</span><span style="text-align:right">Sell</span><span style="text-align:right">Buy</span><span></span>
+      </div>
+      ${items.map(it => `
+        <div style="display:grid;grid-template-columns:${gridCols};gap:6px;padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center">
+          <span style="font-size:11px;color:var(--text-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</span>
+          <span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--success);text-align:right">${it.sell ? it.sell.toLocaleString() : '<span style="color:var(--text-dim)">—</span>'}</span>
+          <span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--accent);text-align:right">${it.buy ? it.buy.toLocaleString() : '<span style="color:var(--text-dim)">—</span>'}</span>
+          <span class="station-row-actions" style="display:flex;gap:4px;justify-content:flex-end;align-items:center">${stationActionsHTML(it.name, stationLoc, !!it.buy, !!it.sell, it.sell || 0)}</span>
+        </div>`).join('')}`;
+    list.appendChild(table);
+  } catch (e) {
+    clearStationContent();
+    const err = document.createElement('div');
+    err.className = 'empty-state';
+    err.innerHTML = `<div class="lbl" style="color:var(--danger)">Error: ${esc(e.message)}</div>`;
+    list.appendChild(err);
+  }
+}
+
+// ── Station Buy / Sell wiring ──────────────────────────────────────────────────
+// canBuy/canSell reflect whether this terminal actually trades the commodity in
+// that direction (no buy price = they don't sell it to you; no sell price =
+// they won't buy it from you) — the disabled button is darkened and inert.
+function stationActionsHTML(name, location, canBuy, canSell, sellPrice) {
+  const buyBtn = canBuy
+    ? `<button onclick="buyAtStation('${esc(name)}','${esc(location)}')" style="font-size:9px;padding:2px 7px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:3px;color:var(--accent);cursor:pointer;white-space:nowrap">Buy</button>`
+    : `<button disabled title="Not sold at this station" style="font-size:9px;padding:2px 7px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:3px;color:var(--text-dim);opacity:0.4;cursor:not-allowed;white-space:nowrap">Buy</button>`;
+  const sellBtn = canSell
+    ? `<button onclick="sellAtStation(this,'${esc(name)}','${esc(location)}',${canBuy},${sellPrice || 0})" style="font-size:9px;padding:2px 7px;background:rgba(220,50,50,0.12);border:1px solid var(--danger,#dc3545);border-radius:3px;color:var(--danger,#dc3545);cursor:pointer;white-space:nowrap">Sell</button>`
+    : `<button disabled title="Not bought by this station" style="font-size:9px;padding:2px 7px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:3px;color:var(--text-dim);opacity:0.4;cursor:not-allowed;white-space:nowrap">Sell</button>`;
+  return buyBtn + '\n    ' + sellBtn;
+}
+
+let _addInventoryAsTransit = false;
+
+function buyAtStation(name, location) {
+  openAddInventory();
+  _addInventoryAsTransit = true;
+  const sel = document.getElementById('inv-name-input');
+  if (sel) {
+    if (![...sel.options].some(o => o.value === name)) {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      sel.appendChild(opt);
+    }
+    sel.value = name;
+  }
+  populateLocSelect(location);
+}
+
+function sellAtStation(btn, name, location, canBuy, sellPrice) {
+  const cell = btn.parentElement;
+  // Only in-transit boxes are eligible, wherever they actually are — items marked
+  // in-transit from the Inventory tab get location:'In Transit' (a generic bucket,
+  // not this station's name), so we match on name+inTransit only, not location.
+  const matches = craftInventory
+    .map((item, i) => ({ item, i }))
+    .filter(({ item }) => item.name === name && item.inTransit);
+
+  if (!matches.length) {
+    cell.innerHTML = `<span style="font-size:9px;color:var(--text-dim);white-space:nowrap">None in transit</span>`;
+    setTimeout(() => { cell.innerHTML = stationActionsHTML(name, location, canBuy, true, sellPrice); }, 1500);
+    return;
+  }
+
+  openStationSellModal(name, sellPrice, matches);
+}
+
+let _stationSaleIndices = [];
+
+function openStationSellModal(name, sellPrice, matches) {
+  _stationSaleIndices = matches.map(m => m.i);
+  const totalSCU = matches.reduce((s, { item }) => s + itemSCU(item), 0);
+  const proceeds = Math.round(totalSCU * (sellPrice || 0));
+
+  const byLoc = {};
+  matches.forEach(({ item }) => {
+    const loc = item.location || '(unspecified)';
+    byLoc[loc] = (byLoc[loc] || 0) + itemSCU(item);
+  });
+
+  document.getElementById('ssm-title').textContent = `Sell ${name}`;
+  document.getElementById('ssm-body').innerHTML = `
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">In transit, awaiting sale:</div>
+    ${Object.entries(byLoc).map(([loc, scu]) => `
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="color:var(--text)">${esc(loc)}</span>
+        <span style="color:var(--accent);font-variant-numeric:tabular-nums">${fmtSCULabel(scu)}</span>
+      </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:12px">
+      <span style="color:var(--text-dim)">Total</span>
+      <span style="color:var(--text-bright);font-weight:700;font-variant-numeric:tabular-nums">${fmtSCULabel(totalSCU)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:2px 0 10px;font-size:12px">
+      <span style="color:var(--text-dim)">Price</span>
+      <span style="color:var(--text)">${sellPrice ? sellPrice.toLocaleString() : '0'} aUEC/SCU</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(0,204,102,0.08);border:1px solid var(--success);border-radius:var(--r);margin-bottom:14px">
+      <span style="color:var(--success);font-weight:700;font-size:11px">Est. proceeds</span>
+      <span style="color:var(--success);font-weight:700;font-variant-numeric:tabular-nums">${proceeds.toLocaleString()} aUEC</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1" onclick="confirmStationSale('${esc(name)}',${proceeds},${totalSCU})">✓ Confirm Sale</button>
+      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeStationSellModal()">Cancel</button>
+    </div>`;
+  document.getElementById('station-sell-modal-overlay').style.display = 'flex';
+}
+
+function closeStationSellModal() {
+  document.getElementById('station-sell-modal-overlay').style.display = 'none';
+  _stationSaleIndices = [];
+}
+
+async function confirmStationSale(name, proceeds, totalSCU) {
+  const idxSet = new Set(_stationSaleIndices);
+  craftInventory = craftInventory.filter((_, i) => !idxSet.has(i));
+  selectedInvBoxes.clear();
+  clearExpandedGroups();
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+
+  document.getElementById('ssm-title').textContent = 'Sale Complete';
+  document.getElementById('ssm-body').innerHTML = `
+    <div style="text-align:center;padding:20px 6px">
+      <div style="font-size:28px;margin-bottom:10px">💰</div>
+      <div style="font-size:13px;color:var(--text-bright);line-height:1.6">You made <strong style="color:var(--success)">${proceeds.toLocaleString()} aUEC</strong> from selling <strong>${fmtSCULabel(totalSCU)}</strong> of <strong>${esc(name)}</strong>.</div>
+    </div>
+    <button class="btn btn-full" onclick="closeStationSellModal()">Done</button>`;
+  _stationSaleIndices = [];
+}
+
 function setFilter(f, el) {
   comFilter = f;
   document.querySelectorAll('#price-chips .chip').forEach(c => c.classList.remove('active'));
@@ -2315,12 +2621,14 @@ function setFilter(f, el) {
   renderComs();
 }
 
-function filterComs() { renderComs(); }
+function filterComs() {
+  if (pricesView === 'station') renderStations(); else renderComs();
+}
 
 function renderComs() {
   const list = document.getElementById('com-list');
   document.getElementById('com-loading').style.display = 'none';
-  list.querySelectorAll('.commodity-item,.empty-state').forEach(e => e.remove());
+  clearStationContent(); // also removes any leftover station table/spinner from Station view
 
   const q = document.getElementById('com-search').value.toLowerCase();
   let filtered = commodities.filter(c => {
@@ -2705,8 +3013,9 @@ async function submitBugReport() {
   const input = document.getElementById('bug-report-input');
   const btn = document.getElementById('bug-report-btn');
   const msg = document.getElementById('bug-report-msg');
-  const text = (input.value || '').trim();
+  let text = (input.value || '').trim();
   if (!text) { msg.textContent = 'Please describe the bug first.'; msg.style.color = 'var(--danger)'; return; }
+  text = text.slice(0, 1500);
   btn.disabled = true;
   msg.textContent = 'Sending…';
   msg.style.color = 'var(--text-dim)';
@@ -3110,6 +3419,199 @@ function invRowHtml(item, origIdx) {
   </div>`;
 }
 
+// ── Shared condensed-box-group renderer ───────────────────────────────────────
+// Builds the split/merge/condense UI for one unit+qty group of boxes.
+// variant: 'location' (Location view row) | 'transit' (in-transit sub-rows in Ore view)
+//        | 'nontransit' (regular sub-rows in Ore view)
+const INVBOX_SCHEME_ACCENT = {
+  checkbox: 'var(--accent)', badgeColor: 'var(--accent)', badgeBg: 'var(--accent-dim)',
+  badgeBorder: 'rgba(100,180,255,0.4)', confirmBg: 'var(--accent-dim)', confirmBorder: 'var(--accent)',
+  confirmColor: 'var(--accent)', hover: 'var(--accent)', condensedBg: 'rgba(255,255,255,0.02)',
+};
+const INVBOX_SCHEME_WARN = {
+  checkbox: 'var(--warn,#e8ac3c)', badgeColor: 'var(--warn)', badgeBg: 'rgba(255,180,0,0.18)',
+  badgeBorder: 'rgba(255,180,0,0.4)', confirmBg: 'rgba(255,180,0,0.15)', confirmBorder: 'var(--warn)',
+  confirmColor: 'var(--warn)', hover: 'var(--warn)', condensedBg: 'rgba(255,180,0,0.05)',
+};
+
+function renderBoxGroup(fullKey, grp, variant) {
+  const isLocation = variant === 'location';
+  const isTransit  = variant === 'transit';
+  const scheme = isTransit ? INVBOX_SCHEME_WARN : INVBOX_SCHEME_ACCENT;
+  const keyLetter = isLocation ? 'l' : isTransit ? 't' : 'o';
+  const rowBorderBottom = 'border-bottom:1px solid var(--border);';
+
+  const firstItem = grp[0].item;
+  const expanded = Math.min(expandedGroupCounts[fullKey] || 0, grp.length);
+  const remaining = grp.slice(expanded);
+
+  // Box size is fixed at creation (Add Inventory / refinery delivery) — shown, not editable.
+  const unitLabel = (unitStr) => `<span style="font-size:10px;color:var(--text-dim);flex-shrink:0;white-space:nowrap;min-width:44px;text-align:center">${unitStr === '0.01' ? '1 cSCU' : `${unitStr} SCU`}</span>`;
+
+  // Fill % is derived from qty — read-only display. Editing happens via the remainder
+  // (absolute SCU) input below, which is the only way to change how full a box is.
+  const pctLabel = (item, width) => `<span style="font-size:11px;color:var(--text-dim);font-variant-numeric:tabular-nums;flex-shrink:0;text-align:center;width:${width}" title="Fill % — edit via the SCU amount instead">${Math.round((Number(item.qty) || 0) * 100)}%</span>`;
+
+  const qualTagFor = (item) => {
+    if (isLocation) return item.quality ? `<span style="font-size:10px;color:var(--text-dim);flex-shrink:0">${item.quality}%</span>` : '';
+    if (isTransit)  return item.quality ? `<span style="font-size:9px;color:var(--warn);opacity:0.7;flex-shrink:0">${item.quality}%</span>` : '';
+    return '';
+  };
+
+  const singleRow = ({ item, i }) => {
+    const unitStr = String(item.unit);
+    const isSel = selectedInvBoxes.has(i);
+    const qualTag = qualTagFor(item);
+    const transitTag = (isLocation && item.inTransit) ? `<span style="font-size:9px;color:var(--warn);flex-shrink:0">${getTransitIcon()}</span>` : '';
+    const nameSpan = isLocation ? `<span style="font-size:11px;font-weight:600;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>` : '';
+
+    if (isLocation) {
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 8px;${rowBorderBottom}${isSel ? 'background:var(--accent-dim)' : ''}">
+        <input type="checkbox" ${isSel ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})" style="flex-shrink:0;cursor:pointer;accent-color:var(--accent);width:13px;height:13px">
+        ${transitTag}
+        ${nameSpan}
+        ${qualTag}
+        ${pctLabel(item, '38px')}
+        ${unitLabel(unitStr)}
+        <input type="number" min="0.01" max="${item.unit}" step="0.01" value="${itemSCU(item)}" onchange="updateInvBoxSCU(${i},this.value,'${esc(String(item.unit))}')" onfocus="this.style.borderColor='${scheme.hover}'" onblur="this.style.borderColor='var(--border)'" style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:${scheme.hover};font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex-shrink:0">
+        <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+      </div>`;
+    }
+
+    // transit / nontransit share the same singleRow shape (SCU-conversion input, no name)
+    const checkboxAccent = isTransit ? 'var(--warn,#e8ac3c)' : 'var(--accent)';
+    const selBg = isSel
+      ? (isTransit ? 'background:rgba(255,180,0,0.12);border-radius:3px;padding-left:4px' : 'background:var(--accent-dim);border-radius:3px;padding-left:4px')
+      : '';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;${rowBorderBottom}${selBg}">
+        <input type="checkbox" ${isSel ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})" style="flex-shrink:0;cursor:pointer;accent-color:${checkboxAccent};width:13px;height:13px">${isTransit ? `
+        ${qualTag}` : ''}
+        ${pctLabel(item, '40px')}
+        ${unitLabel(unitStr)}
+        <input type="number" min="0.01" max="${item.unit}" step="0.01" value="${itemSCU(item)}" onchange="updateInvBoxSCU(${i},this.value,'${esc(String(item.unit))}')" onfocus="this.style.borderColor='${scheme.hover}'" onblur="this.style.borderColor='var(--border)'" style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:${scheme.hover};font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex:1">
+        <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">SCU</span>
+        <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+      </div>`;
+  };
+
+  const indJSON = JSON.stringify(remaining.map(e => e.i));
+  const allCondSel = remaining.every(e => selectedInvBoxes.has(e.i));
+  const unitStr = String(firstItem.unit);
+  const splitInputId = `split-${keyLetter}-${fullKey.replace(/[^a-z0-9]/gi,'_')}`;
+  const showingSplit = _activeSplitKey === fullKey;
+  const qualTag = qualTagFor(firstItem);
+  const transitTag = (isLocation && firstItem.inTransit) ? `<span style="font-size:9px;color:var(--warn);flex-shrink:0">${getTransitIcon()}</span>` : '';
+  const nameSpan = isLocation ? `<span style="font-size:11px;font-weight:600;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(firstItem.name)}</span>` : '';
+
+  const splitControlsHTML = showingSplit
+    ? `<input id="${splitInputId}" type="number" min="1" max="${remaining.length - 1}" value="1" style="width:36px;padding:2px 4px;background:var(--bg-input);border:1px solid ${scheme.hover};border-radius:3px;color:var(--text);font-size:11px;outline:none">
+          <button onclick="confirmSplit(this.closest('[data-ckey]').dataset.ckey,'${splitInputId}')" style="font-size:10px;padding:1px 5px;background:${scheme.confirmBg};border:1px solid ${scheme.confirmBorder};border-radius:3px;color:${scheme.confirmColor};cursor:pointer">✓</button>
+          <button onclick="_activeSplitKey=null;renderInventory()" style="font-size:10px;padding:1px 5px;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);cursor:pointer">✕</button>`
+    : `<button onclick="showSplitUI(this.parentElement.dataset.ckey)" style="font-size:10px;padding:1px 5px;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);cursor:pointer" onmouseover="this.style.borderColor='${scheme.hover}';this.style.color='${scheme.hover}'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Split</button>`;
+
+  let condensedRow;
+  if (remaining.length >= 2) {
+    if (isLocation) {
+      const removeBtn = `<button onclick="removeCondensedBoxes(this.parentElement.dataset.cindices)" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>`;
+      condensedRow = `
+      <div data-ckey="${esc(fullKey)}" data-cindices="${esc(indJSON)}" style="display:flex;align-items:center;gap:6px;padding:4px 8px;${rowBorderBottom}background:${scheme.condensedBg}">
+        <input type="checkbox" ${allCondSel ? 'checked' : ''} onclick="toggleCondensedSelect(this.parentElement.dataset.cindices)" style="flex-shrink:0;cursor:pointer;accent-color:var(--accent);width:13px;height:13px">
+        ${transitTag}
+        ${nameSpan}
+        ${qualTag}
+        ${pctLabel(firstItem, '38px')}
+        ${unitLabel(unitStr)}
+        <input type="number" min="0.01" max="${firstItem.unit}" step="0.01" value="${itemSCU(firstItem)}" onchange="updateCondensedBoxesSCU(this.parentElement.dataset.cindices,this.value,'${esc(unitStr)}')" onfocus="this.style.borderColor='${scheme.hover}'" onblur="this.style.borderColor='var(--border)'" style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:${scheme.hover};font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex-shrink:0">
+        <span style="font-size:9px;font-weight:700;color:${scheme.badgeColor};background:${scheme.badgeBg};border:1px solid ${scheme.badgeBorder};border-radius:3px;padding:1px 4px;flex-shrink:0">×${remaining.length}</span>
+        ${splitControlsHTML}
+        ${removeBtn}
+      </div>`;
+    } else {
+      const scuOnChange = `updateCondensedBoxesSCU(this.parentElement.dataset.cindices,this.value,'${esc(unitStr)}')`;
+      const removeBtn = `<button onclick="removeCondensedBoxes(this.parentElement.dataset.cindices)" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;margin-left:auto" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>`;
+      const checkboxAccent = isTransit ? 'var(--warn,#e8ac3c)' : 'var(--accent)';
+      condensedRow = `
+      <div data-ckey="${esc(fullKey)}" data-cindices="${esc(indJSON)}" style="display:flex;align-items:center;gap:6px;padding:3px 0;${rowBorderBottom}background:${scheme.condensedBg}">
+        <input type="checkbox" ${allCondSel ? 'checked' : ''} onclick="toggleCondensedSelect(this.parentElement.dataset.cindices)" style="flex-shrink:0;cursor:pointer;accent-color:${checkboxAccent};width:13px;height:13px">
+        ${pctLabel(firstItem, '40px')}
+        ${unitLabel(unitStr)}
+        <input type="number" min="0.01" max="${firstItem.unit}" step="0.01" value="${itemSCU(firstItem)}" onchange="${scuOnChange}" onfocus="this.style.borderColor='${scheme.hover}'" onblur="this.style.borderColor='var(--border)'" style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:${scheme.hover};font-size:11px;outline:none;font-variant-numeric:tabular-nums">
+        <span style="font-size:9px;font-weight:700;color:${scheme.badgeColor};background:${scheme.badgeBg};border:1px solid ${scheme.badgeBorder};border-radius:3px;padding:1px 4px;flex-shrink:0">×${remaining.length}</span>
+        ${splitControlsHTML}
+        ${removeBtn}
+      </div>`;
+    }
+  } else if (remaining.length === 1) {
+    condensedRow = singleRow(remaining[0]);
+  } else {
+    condensedRow = '';
+  }
+
+  const splitItems = grp.slice(0, expanded);
+  const splitRow = (() => {
+    if (!splitItems.length) return '';
+    if (splitItems.length === 1) return singleRow(splitItems[0]);
+    const sIndJSON = JSON.stringify(splitItems.map(e => e.i));
+    const allSSel = splitItems.every(e => selectedInvBoxes.has(e.i));
+    const badge = `<span style="font-size:9px;font-weight:700;color:#4dffa0;background:rgba(77,255,160,0.12);border:1px solid rgba(77,255,160,0.35);border-radius:3px;padding:1px 4px;flex-shrink:0">×${splitItems.length}</span>`;
+
+    if (isLocation) {
+      return `<div data-ckey="${esc(fullKey+'|sp')}" data-cindices="${esc(sIndJSON)}" style="display:flex;align-items:center;gap:6px;padding:4px 8px;${rowBorderBottom}background:rgba(77,255,160,0.04)">
+        <input type="checkbox" ${allSSel?'checked':''} onclick="toggleCondensedSelect(this.parentElement.dataset.cindices)" style="flex-shrink:0;cursor:pointer;accent-color:var(--accent);width:13px;height:13px">
+        ${transitTag}
+        ${nameSpan}
+        ${qualTag}
+        ${pctLabel(firstItem, '38px')}
+        ${unitLabel(unitStr)}
+        <input type="number" min="0.01" max="${firstItem.unit}" step="0.01" value="${itemSCU(firstItem)}" onchange="updateCondensedBoxesSCU(this.parentElement.dataset.cindices,this.value,'${esc(unitStr)}')" style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:${scheme.hover};font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex-shrink:0">
+        ${badge}
+        <button onclick="removeCondensedBoxes(this.parentElement.dataset.cindices)" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+      </div>`;
+    }
+
+    const checkboxAccent = isTransit ? 'var(--warn,#e8ac3c)' : 'var(--accent)';
+    const scuColor = isTransit ? 'var(--warn)' : 'var(--accent)';
+    return `<div data-ckey="${esc(fullKey+'|sp')}" data-cindices="${esc(sIndJSON)}" style="display:flex;align-items:center;gap:6px;padding:3px 0;${rowBorderBottom}background:rgba(77,255,160,0.04)">
+        <input type="checkbox" ${allSSel?'checked':''} onclick="toggleCondensedSelect(this.parentElement.dataset.cindices)" style="flex-shrink:0;cursor:pointer;accent-color:${checkboxAccent};width:13px;height:13px">
+        ${pctLabel(firstItem, '40px')}
+        ${unitLabel(unitStr)}
+        <input type="number" min="0.01" max="${firstItem.unit}" step="0.01" value="${itemSCU(firstItem)}" onchange="updateCondensedBoxesSCU(this.parentElement.dataset.cindices,this.value,'${esc(unitStr)}')" style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:${scuColor};font-size:11px;outline:none;font-variant-numeric:tabular-nums">
+        ${badge}
+        <button onclick="removeCondensedBoxes(this.parentElement.dataset.cindices)" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;margin-left:auto" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+      </div>`;
+  })();
+
+  const mergeBtn = expanded > 0 ? `<div data-ckey="${esc(fullKey)}" style="display:flex;align-items:center;gap:4px;padding:2px ${isLocation ? '8px' : '4px'} 3px">
+      <button onclick="mergeBackGroup(this.parentElement.dataset.ckey)" style="font-size:9px;padding:1px 5px;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);cursor:pointer" onmouseover="this.style.borderColor='${scheme.hover}';this.style.color='${scheme.hover}'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">↩ Merge</button>
+    </div>` : '';
+
+  return splitRow + mergeBtn + condensedRow;
+}
+
+// Column header for a box list — aligns with the %/Size/Remainder cells that
+// renderBoxGroup() produces per row. variant matches renderBoxGroup's.
+// Location rows have a flexible name column pushing value cells right, so the
+// header uses a matching flex:1 spacer. Transit/nontransit rows have no name
+// column — their cells pack left right after the checkbox — so the header
+// skips the spacer and lines up directly behind a checkbox-width gap instead.
+function boxGroupHeaderHTML(variant) {
+  const isLocation = variant === 'location';
+  const pctWidth = isLocation ? '38px' : '40px';
+  const labels = `
+    <span style="width:${pctWidth};text-align:center;flex-shrink:0">%</span>
+    <span style="min-width:44px;text-align:center;flex-shrink:0">Size</span>
+    <span style="width:54px;text-align:center;flex-shrink:0">Remainder</span>`;
+  if (isLocation) {
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 8px 0;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);opacity:0.75">
+    <span style="flex:1"></span>${labels}
+    <span style="width:14px;flex-shrink:0"></span>
+  </div>`;
+  }
+  return `<div style="display:flex;align-items:center;gap:6px;padding:2px 0 0;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);opacity:0.75">
+    <span style="width:13px;flex-shrink:0"></span>${labels}
+  </div>`;
+}
+
 function renderInventory() {
   const q       = (document.getElementById('inv-search')?.value || '').toLowerCase().trim();
   const srt     = document.getElementById('inv-sort')?.value || 'name-asc';
@@ -3164,32 +3666,15 @@ function renderInventory() {
       const locAllSel = locIndices.length > 0 && locIndices.every(i => selectedInvBoxes.has(i));
       const locAnySel = locSelCount > 0;
 
-      const rows = isOpen ? entries.map(({ item, i }) => {
-        const unitStr = String(item.unit);
-        const allUnits = SCU_SIZES.includes(unitStr) ? SCU_SIZES : [...SCU_SIZES, unitStr];
-        const unitOpts = allUnits.map(v => {
-          const label = v === '0.01' ? '1 cSCU' : `${v} SCU`;
-          return `<option value="${v}"${unitStr === v ? ' selected' : ''}>${label}</option>`;
-        }).join('');
-        const isSelected = selectedInvBoxes.has(i);
-        const qualTag = item.quality ? `<span style="font-size:10px;color:var(--text-dim);flex-shrink:0">${item.quality}%</span>` : '';
-        const transitTag = item.inTransit ? `<span style="font-size:9px;color:var(--warn);flex-shrink:0">${getTransitIcon()}</span>` : '';
-        return `
-          <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--border);${isSelected ? 'background:var(--accent-dim)' : ''}">
-            <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})"
-              style="flex-shrink:0;cursor:pointer;accent-color:var(--accent);width:13px;height:13px">
-            ${transitTag}
-            <span style="font-size:11px;font-weight:600;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>
-            ${qualTag}
-            <input type="number" min="0.01" step="0.01" value="${esc(String(item.qty))}"
-              onchange="updateInvBox(${i},'qty',this.value)"
-              style="width:44px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex-shrink:0">
-            <select onchange="updateInvBox(${i},'unit',this.value)"
-              style="padding:3px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;flex-shrink:0">${unitOpts}</select>
-            <span style="font-size:10px;color:var(--accent);font-variant-numeric:tabular-nums;flex-shrink:0">${fmtSCULabel(itemSCU(item))}</span>
-            <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
-          </div>`;
-      }).join('') : '';
+      const rows = isOpen ? boxGroupHeaderHTML('location') + (() => {
+        const cMap = {}; const cOrder = [];
+        entries.forEach(({ item, i }) => {
+          const ck = `${item.name}|${item.quality ?? ''}|${item.unit}|${item.qty}`;
+          if (!cMap[ck]) { cMap[ck] = []; cOrder.push(ck); }
+          cMap[ck].push({ item, i });
+        });
+        return cOrder.map(ck => renderBoxGroup(`l|${loc}||${ck}`, cMap[ck], 'location')).join('');
+      })() : '';
 
       const isTransitLoc = loc === 'In Transit';
       return `
@@ -3203,7 +3688,8 @@ function renderInventory() {
             <span class="inv-ore-scu" style="${isTransitLoc ? 'color:var(--warn,#e8ac3c)' : ''}">${fmtSCULabel(locSCU)}</span>
           </div>
           ${isOpen ? `
-            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 8px;background:rgba(0,0,0,0.2);border-top:1px solid var(--border)">
+            <div style="max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 8px;background:var(--bg-card);border-top:1px solid var(--border);position:sticky;top:0;z-index:5">
               <input type="checkbox" ${locAllSel ? 'checked' : ''} onclick="selectAllInQual(${locIndicesJSON})"
                 style="flex-shrink:0;cursor:pointer;accent-color:${isTransitLoc ? 'var(--warn,#e8ac3c)' : 'var(--accent)'};width:13px;height:13px">
               <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">${locAllSel ? 'Deselect All' : 'Select All'}</span>
@@ -3228,7 +3714,8 @@ function renderInventory() {
                   ${getTransitIcon()}${locAnySel ? ` (${locSelCount})` : ''}
                 </button>`}
             </div>
-            <div>${rows}</div>` : ''}
+            <div>${rows}</div>
+            </div>` : ''}
         </div>`;
     }).join('');
     return;
@@ -3324,33 +3811,19 @@ function renderInventory() {
           const locAnySelected = locIndices.some(i => selectedInvBoxes.has(i));
           const locAllSelected = locIndices.length > 0 && locIndices.every(i => selectedInvBoxes.has(i));
           const locSelCount = locIndices.filter(i => selectedInvBoxes.has(i)).length;
-          const boxRows = entries.map(({ item, i }) => {
-            const unitStr  = String(item.unit);
-            const allUnits = SCU_SIZES.includes(unitStr) ? SCU_SIZES : [...SCU_SIZES, unitStr];
-            const unitOpts = allUnits.map(v => {
-              const label = v === '0.01' ? '1 cSCU' : `${v} SCU`;
-              return `<option value="${v}"${unitStr === v ? ' selected' : ''}>${label}</option>`;
+          const boxRows = boxGroupHeaderHTML('transit') + (() => {
+            // Group by unit+qty for condensing
+            const cMap = {}; const cOrder = [];
+            entries.forEach(({ item, i }) => {
+              const ck = `${item.unit}|${item.qty}`;
+              if (!cMap[ck]) { cMap[ck] = []; cOrder.push(ck); }
+              cMap[ck].push({ item, i });
+            });
+            return cOrder.map(ck => {
+              const grp = cMap[ck];
+              return renderBoxGroup(`t|${grp[0].item.name}||${loc}||${ck}`, grp, 'transit');
             }).join('');
-            const qualLabel = item.quality ? `<span style="font-size:9px;color:var(--warn);opacity:0.7;flex-shrink:0">${item.quality}%</span>` : '';
-            const isSelected = selectedInvBoxes.has(i);
-            return `
-              <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);${isSelected ? 'background:rgba(255,180,0,0.12);border-radius:3px;padding-left:4px' : ''}">
-                <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})"
-                  style="flex-shrink:0;cursor:pointer;accent-color:var(--warn,#e8ac3c);width:13px;height:13px">
-                ${qualLabel}
-                <input type="number" min="0.01" step="0.01" value="${esc(String(item.qty))}"
-                  onchange="updateInvBox(${i},'qty',this.value)"
-                  style="width:48px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;font-variant-numeric:tabular-nums">
-                <select onchange="updateInvBox(${i},'unit',this.value)"
-                  style="padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none">${unitOpts}</select>
-                <input type="number" min="0.01" step="0.01" value="${itemSCU(item)}"
-                  onchange="updateInvBoxSCU(${i}, this.value, '${esc(String(item.unit))}')"
-                  onfocus="this.style.borderColor='var(--warn)'" onblur="this.style.borderColor='var(--border)'"
-                  style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--warn);font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex:1">
-                <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">SCU</span>
-                <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
-              </div>`;
-          }).join('');
+          })();
           return `
             <div class="inv-manifest-row" style="flex-direction:column;align-items:stretch;gap:0;background:rgba(255,180,0,0.06);border-radius:4px;padding:0">
               <div style="display:flex;align-items:center;gap:6px;padding:4px 6px">
@@ -3359,7 +3832,8 @@ function renderInventory() {
                 <div class="inv-manifest-loc" style="color:var(--warn)">${esc(loc || '(no location)')}</div>
                 <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtSCULabel(locSCU)}</span>
               </div>
-              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:3px 6px 4px;background:rgba(0,0,0,0.15);border-radius:0 0 4px 4px">
+              <div style="max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
+              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:3px 6px 4px;background:var(--bg-card);border-radius:0;position:sticky;top:0;z-index:5">
                 <select class="transit-move-sel" onchange="onTransitMoveSel(this)"
                   style="flex:1;min-width:80px;font-size:10px;padding:2px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:${locAnySelected ? 'var(--text)' : 'var(--text-dim)'};outline:none">
                   <option value="">Move out to…</option>${buildMoveOptGroups('')}
@@ -3376,6 +3850,7 @@ function renderInventory() {
                 </button>
               </div>
               <div style="padding:0 6px 4px">${boxRows}</div>
+              </div>
             </div>`;
         }).join('')}</div>
       </div>` : '';
@@ -3407,32 +3882,18 @@ function renderInventory() {
           if (!nonTransitEntries.length) return '';
           const locSCU = nonTransitEntries.reduce((s, { item }) => s + itemSCU(item), 0);
           const locEsc = esc(loc);
-          const boxRows = nonTransitEntries.map(({ item, i }) => {
-            const unitStr  = String(item.unit);
-            const allUnits = SCU_SIZES.includes(unitStr) ? SCU_SIZES : [...SCU_SIZES, unitStr];
-            const unitOpts = allUnits.map(v => {
-              const label = v === '0.01' ? '1 cSCU' : `${v} SCU`;
-              return `<option value="${v}"${unitStr === v ? ' selected' : ''}>${label}</option>`;
+          const boxRows = boxGroupHeaderHTML('nontransit') + (() => {
+            const cMap = {}; const cOrder = [];
+            nonTransitEntries.forEach(({ item, i }) => {
+              const ck = `${item.unit}|${item.qty}`;
+              if (!cMap[ck]) { cMap[ck] = []; cOrder.push(ck); }
+              cMap[ck].push({ item, i });
+            });
+            return cOrder.map(ck => {
+              const grp = cMap[ck];
+              return renderBoxGroup(`o|${grp[0].item.name}||${qual}||${loc}||${ck}`, grp, 'nontransit');
             }).join('');
-            const isSelected = selectedInvBoxes.has(i);
-            return `
-              <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);${isSelected ? 'background:var(--accent-dim);border-radius:3px;padding-left:4px' : ''}">
-                <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="toggleInvBoxSelect(${i})"
-                  style="flex-shrink:0;cursor:pointer;accent-color:var(--accent);width:13px;height:13px">
-                <input type="number" min="0.01" step="0.01" value="${esc(String(item.qty))}"
-                  onchange="updateInvBox(${i},'qty',this.value)"
-                  style="width:48px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none;font-variant-numeric:tabular-nums">
-                <select onchange="updateInvBox(${i},'unit',this.value)"
-                  style="padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none">${unitOpts}</select>
-                <input type="number" min="0.01" step="0.01" value="${itemSCU(item)}"
-                  title="Edit remaining SCU in this box"
-                  onchange="updateInvBoxSCU(${i}, this.value, '${esc(String(item.unit))}')"
-                  onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
-                  style="width:54px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--accent);font-size:11px;outline:none;font-variant-numeric:tabular-nums;flex:1">
-                <span style="font-size:10px;color:var(--text-dim);flex-shrink:0">SCU</span>
-                <button onclick="removeInvBox(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
-              </div>`;
-          }).join('');
+          })();
           return `
             <div class="inv-manifest-row" style="flex-direction:column;align-items:stretch;gap:4px">
               <div style="display:flex;align-items:center;gap:8px">
@@ -3444,7 +3905,7 @@ function renderInventory() {
         }).filter(Boolean).join('') : '';
 
         const moveBar = isQualOpen ? `
-          <div class="qual-move-bar" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 8px;background:rgba(0,0,0,0.2);border-bottom:1px solid var(--border)">
+          <div class="qual-move-bar" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px 8px;background:var(--bg-card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5">
             <button onclick="selectAllInQual(${indicesJSON})"
               style="font-size:10px;padding:2px 7px;background:${allSelected ? 'var(--accent-dim)' : 'var(--bg-hover)'};border:1px solid ${allSelected ? 'var(--accent)' : 'var(--border)'};border-radius:var(--r);color:${allSelected ? 'var(--accent)' : 'var(--text-dim)'};cursor:pointer;flex-shrink:0;white-space:nowrap">
               ${allSelected ? '☑ Deselect All' : '☐ Select All'}
@@ -3476,7 +3937,7 @@ function renderInventory() {
                 style="font-size:10px;padding:1px 6px;background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--text-dim);cursor:pointer;flex-shrink:0"
                 onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">+ Add</button>
             </div>
-            ${isQualOpen ? `${moveBar}<div class="inv-manifest">${locRows}</div>` : ''}
+            ${isQualOpen ? `<div style="max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent">${moveBar}<div class="inv-manifest">${locRows}</div></div>` : ''}
           </div>`;
       }).filter(Boolean).join('') : '';
 
@@ -3545,6 +4006,7 @@ async function doMoveSelectedQual(btn, indices) {
   const toMove = indices.filter(i => selectedInvBoxes.has(i));
   if (!toMove.length) return;
   toMove.forEach(i => { if (craftInventory[i]) craftInventory[i].location = toLoc; selectedInvBoxes.delete(i); });
+  clearExpandedGroups();
   if (sel.value === '__custom__' && toLoc) {
     const saved = (await api.getStore('customLocations')) || [];
     if (!saved.includes(toLoc)) { saved.push(toLoc); await api.setStore('customLocations', saved); }
@@ -3555,14 +4017,18 @@ async function doMoveSelectedQual(btn, indices) {
 
 async function updateInvBox(i, field, val) {
   if (!craftInventory[i]) return;
+  if (field === 'qty') {
+    const u = parseFloat(craftInventory[i].unit) || 1;
+    val = String(Math.min(parseFloat(val) || 0, 1));
+  }
   craftInventory[i][field] = val;
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
 
 async function updateInvBoxSCU(i, scuVal, unit) {
-  const scu = parseFloat(scuVal);
   const u   = parseFloat(unit) || 1;
+  const scu = Math.min(parseFloat(scuVal) || 0, u);
   if (!scu || !craftInventory[i]) return;
   craftInventory[i].qty = String(Math.round((scu / u) * 10000) / 10000);
   await api.setStore('craftInventory', craftInventory);
@@ -3572,7 +4038,68 @@ async function updateInvBoxSCU(i, scuVal, unit) {
 async function removeInvBox(i) {
   craftInventory.splice(i, 1);
   selectedInvBoxes.clear();
+  clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+
+// ── Condensed box group helpers ───────────────────────────────────────────────
+const expandedGroupCounts = {};
+let _activeSplitKey = null;
+
+// expandedGroupCounts tracks a split as "first N boxes of this group" — a position,
+// not an identity. Any operation that moves/removes boxes changes group membership,
+// so a stale count would silently re-split different boxes on the next render.
+function clearExpandedGroups() {
+  for (const k in expandedGroupCounts) delete expandedGroupCounts[k];
+  _activeSplitKey = null;
+}
+
+async function updateCondensedBoxes(indicesJSON, field, val) {
+  const indices = JSON.parse(indicesJSON);
+  if (field === 'qty') val = String(Math.min(parseFloat(val) || 0, 1));
+  indices.forEach(i => { if (craftInventory[i]) craftInventory[i][field] = val; });
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+async function updateCondensedBoxesSCU(indicesJSON, scuVal, unit) {
+  const indices = JSON.parse(indicesJSON);
+  const u = parseFloat(unit) || 1;
+  const scu = Math.min(parseFloat(scuVal) || 0, u);
+  if (!scu) return;
+  const qty = String(Math.round((scu / u) * 10000) / 10000);
+  indices.forEach(i => { if (craftInventory[i]) craftInventory[i].qty = qty; });
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+async function removeCondensedBoxes(indicesJSON) {
+  const toRemove = new Set(JSON.parse(indicesJSON));
+  craftInventory = craftInventory.filter((_, i) => !toRemove.has(i));
+  selectedInvBoxes.clear();
+  clearExpandedGroups();
+  await api.setStore('craftInventory', craftInventory);
+  renderInventory();
+}
+function toggleCondensedSelect(indicesJSON) {
+  const indices = JSON.parse(indicesJSON);
+  const allSel = indices.every(i => selectedInvBoxes.has(i));
+  if (allSel) indices.forEach(i => selectedInvBoxes.delete(i));
+  else indices.forEach(i => selectedInvBoxes.add(i));
+  renderInventory();
+}
+function showSplitUI(key) {
+  _activeSplitKey = (_activeSplitKey === key) ? null : key;
+  renderInventory();
+}
+function mergeBackGroup(key) {
+  delete expandedGroupCounts[key];
+  _activeSplitKey = null;
+  renderInventory();
+}
+function confirmSplit(key, inputId) {
+  const count = Math.max(1, parseInt(document.getElementById(inputId)?.value) || 1);
+  expandedGroupCounts[key] = (expandedGroupCounts[key] || 0) + count;
+  _activeSplitKey = null;
   renderInventory();
 }
 
@@ -3630,6 +4157,7 @@ async function doMoveBox(btn, idx, fromLoc) {
     if (destIdx >= 0) {
       craftInventory[destIdx].qty = String(Number(craftInventory[destIdx].qty) + storedQty);
       craftInventory.splice(idx, 1);
+      selectedInvBoxes.clear(); // indices shift after splice
     } else {
       item.location = toLoc;
     }
@@ -3642,6 +4170,7 @@ async function doMoveBox(btn, idx, fromLoc) {
       craftInventory.push({ name: item.name, quality: item.quality, qty: String(moveQty), unit: item.unit, location: toLoc });
     }
   }
+  clearExpandedGroups();
 
   if (sel.value === '__custom__' && toLoc) {
     const saved = (await api.getStore('customLocations')) || [];
@@ -3653,6 +4182,7 @@ async function doMoveBox(btn, idx, fromLoc) {
 
 async function moveOreAtLocation(name, quality, fromLoc, toLoc) {
   const qualStr = String(quality);
+  let anyDeleted = false;
   craftInventory.forEach(item => {
     if (item.name !== name || String(item.quality ?? '') !== qualStr || (item.location || '') !== fromLoc) return;
     const destIdx = craftInventory.findIndex(it =>
@@ -3661,11 +4191,14 @@ async function moveOreAtLocation(name, quality, fromLoc, toLoc) {
     if (destIdx >= 0) {
       craftInventory[destIdx].qty = String(Number(craftInventory[destIdx].qty) + Number(item.qty));
       item._delete = true;
+      anyDeleted = true;
     } else {
       item.location = toLoc;
     }
   });
   craftInventory = craftInventory.filter(it => !it._delete);
+  if (anyDeleted) selectedInvBoxes.clear(); // indices shift after filter
+  clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
@@ -3674,6 +4207,7 @@ async function markSelectedInTransit(indices) {
   const toMark = indices.filter(i => selectedInvBoxes.has(i) && craftInventory[i] && !craftInventory[i].inTransit);
   if (!toMark.length) return;
   toMark.forEach(i => { craftInventory[i].inTransit = true; craftInventory[i].location = 'In Transit'; selectedInvBoxes.delete(i); });
+  clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
@@ -3705,6 +4239,7 @@ async function moveSelectedFromTransit(btn, indices) {
     delete craftInventory[i].inTransit;
     selectedInvBoxes.delete(i);
   });
+  clearExpandedGroups();
   if (sel.value === '__custom__' && toLoc) {
     const saved = (await api.getStore('customLocations')) || [];
     if (!saved.includes(toLoc)) { saved.push(toLoc); await api.setStore('customLocations', saved); }
@@ -3719,6 +4254,7 @@ async function sellSelectedTransit(name, indices) {
   const toSellSet = new Set(toSell);
   craftInventory = craftInventory.filter((_, i) => !toSellSet.has(i));
   selectedInvBoxes.clear();
+  clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
@@ -3727,6 +4263,7 @@ async function clearTransitAtLoc(name, loc) {
   craftInventory.forEach(it => {
     if (it.name === name && (it.location || '') === loc && it.inTransit) delete it.inTransit;
   });
+  clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
@@ -3736,6 +4273,7 @@ async function sellTransitAtLoc(name, loc) {
     !(it.name === name && (it.location || '') === loc && it.inTransit)
   );
   selectedInvBoxes.clear();
+  clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
 }
@@ -3878,7 +4416,7 @@ function closeDeliverModal() {
 const RAW_ORES = [
   'Agricium','Aluminum','Beryl','Bexalite','Borase','Carbon','Chlorine',
   'Copper','Corundum','Diamond','Fluorine','Gold','Hadanite','Hephaestanite',
-  'Hydrogen','Ice','Inertite','Iron','Laranite','Quantanium','Quartz',
+  'Hydrogen','Ice','Inertite','Iron','Laranite','Quantainium','Quartz',
   'Silicon','Stileron','Taranite','Tin','Titanium','Tungsten'
 ];
 
@@ -3981,7 +4519,7 @@ const SIGNATURE_DATA = [
   { name: 'Corundum',    sig: 4225, tier: 'common'    },
   { name: 'Silicon',     sig: 4255, tier: 'common'    },
   { name: 'Iron',        sig: 4270, tier: 'common'    },
-  { name: 'Aluminium',   sig: 4285, tier: 'common'    },
+  { name: 'Aluminum',   sig: 4285, tier: 'common'    },
   { name: 'Ice',         sig: 4300, tier: 'common'    },
 ];
 
@@ -4050,26 +4588,73 @@ function setScannerMode(mode, chipEl) {
   document.querySelectorAll('#scanner-mode-chips .chip').forEach(c => c.classList.remove('active'));
   chipEl.classList.add('active');
   document.getElementById('scanner-input-row').style.display = mode === 'scan' ? 'flex' : 'none';
+  document.getElementById('scanner-ref-filters').style.display = mode === 'ref' ? 'flex' : 'none';
   if (mode === 'scan') {
     runScanner();
   } else {
+    populateScannerLocSelect();
     renderScannerRef();
   }
+}
+
+let _scannerTierFilter = 'all';
+let _scannerLocFilter = 'all';
+
+function setScannerTierFilter(tier, chipEl) {
+  _scannerTierFilter = tier;
+  document.querySelectorAll('#scanner-tier-chips .chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  renderScannerRef();
+}
+
+function setScannerLocFilter(loc) {
+  _scannerLocFilter = loc;
+  renderScannerRef();
+}
+
+function populateScannerLocSelect() {
+  const sel = document.getElementById('scanner-loc-select');
+  if (!sel) return;
+  const locs = new Set();
+  Object.values(ORE_DATA).forEach(entries => entries.forEach(e => locs.add(e.location)));
+  const sorted = [...locs].sort((a, b) => a.localeCompare(b));
+  const current = sel.value;
+  sel.innerHTML = `<option value="all">All locations</option>` +
+    sorted.map(l => `<option value="${esc(l)}"${current === l ? ' selected' : ''}>${esc(l)}</option>`).join('');
 }
 
 function renderScannerRef() {
   const resultsEl = document.getElementById('scanner-results');
   const tierOrder = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
+  const activeTiers = _scannerTierFilter === 'all' ? tierOrder : [_scannerTierFilter];
   const byTier = {};
   tierOrder.forEach(t => { byTier[t] = []; });
-  SIGNATURE_DATA.forEach(m => { (byTier[m.tier] || byTier.common).push(m); });
+  const oreNamesAtLoc = _scannerLocFilter === 'all' ? null
+    : new Set(Object.entries(ORE_DATA)
+        .filter(([, entries]) => entries.some(e => e.location === _scannerLocFilter))
+        .map(([name]) => name));
+  const selRow = document.getElementById('scanner-ore-sel-row');
+  const selLabel = document.getElementById('scanner-ore-sel-label');
+  if (selRow) selRow.style.display = selectedMiningOres.size > 0 ? 'flex' : 'none';
+  if (selLabel && selectedMiningOres.size > 0) {
+    const names = [...selectedMiningOres].join(', ');
+    selLabel.textContent = `Ore Locations: ${names}`;
+  }
 
-  resultsEl.innerHTML = tierOrder.map(tier => {
+  SIGNATURE_DATA.forEach(m => {
+    if (oreNamesAtLoc && !oreNamesAtLoc.has(m.name)) return;
+    if (selectedMiningOres.size > 0 && !selectedMiningOres.has(m.name)) return;
+    (byTier[m.tier] || byTier.common).push(m);
+  });
+
+  const MULTS = [2, 3, 4, 5, 6];
+
+  resultsEl.innerHTML = activeTiers.map(tier => {
     const minerals = byTier[tier];
     if (!minerals.length) return '';
     const color = SIG_TIER_COLOR[tier] || 'var(--text-dim)';
     const rows = minerals.map(m => {
-      const rockCols = [1, 2, 3, 5, 10].map(r =>
+      const rockCols = MULTS.map(r =>
         `<td style="text-align:right;font-variant-numeric:tabular-nums;padding:2px 4px;font-size:10px;color:var(--text)">${(m.sig * r).toLocaleString()}</td>`
       ).join('');
       return `<tr style="border-top:1px solid rgba(255,255,255,0.04)">
@@ -4089,11 +4674,7 @@ function renderScannerRef() {
             <tr style="border-bottom:1px solid var(--border)">
               <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:left">Mineral</th>
               <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">Base</th>
-              <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">×1</th>
-              <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">×2</th>
-              <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">×3</th>
-              <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">×5</th>
-              <th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">×10</th>
+              ${MULTS.map(r => `<th style="padding:3px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);text-align:right">×${r}</th>`).join('')}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -4171,6 +4752,7 @@ function openEditInventory(i) {
 
 function closeInvModal() {
   document.getElementById('inv-modal-overlay').style.display = 'none';
+  _addInventoryAsTransit = false;
 }
 
 async function saveInventoryItem() {
@@ -4181,6 +4763,9 @@ async function saveInventoryItem() {
     ? document.getElementById('inv-loc-custom').value.trim()
     : locSel;
   if (!name) return;
+
+  const markTransit = _addInventoryAsTransit;
+  _addInventoryAsTransit = false;
 
   const rowEls = Array.from(document.querySelectorAll('#inv-rows-container [data-row]'));
   const rows = rowEls.map(el => ({
@@ -4197,9 +4782,9 @@ async function saveInventoryItem() {
       const whole = Math.floor(qty);
       const frac  = Math.round((qty - whole) * 10000) / 10000;
       for (let b = 0; b < whole; b++)
-        craftInventory.push({ name, quality, qty: '1', unit: row.unit, location });
+        craftInventory.push({ name, quality, qty: '1', unit: row.unit, location, ...(markTransit ? { inTransit: true } : {}) });
       if (frac > 0)
-        craftInventory.push({ name, quality, qty: String(frac), unit: row.unit, location });
+        craftInventory.push({ name, quality, qty: String(frac), unit: row.unit, location, ...(markTransit ? { inTransit: true } : {}) });
     }
   }
 
@@ -4218,7 +4803,7 @@ async function deleteInventoryItem(i) {
 // Aaron Halo Navigator
 // ════════════════════════════════════════════════════════════════════
 const HALO_BANDS = [
-  {band:1,name:'Band 1',inner:19673e3,center:19702e3,outer:19715e3,width:42e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminium'],desc:'Inner edge of the Aaron Halo'},
+  {band:1,name:'Band 1',inner:19673e3,center:19702e3,outer:19715e3,width:42e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminum'],desc:'Inner edge of the Aaron Halo'},
   {band:2,name:'Band 2',inner:19815e3,center:19887e3,outer:19914e3,width:99e3,tier:'Medium',hotspot:false,ores:['Titanium','Tungsten','Beryl','Diamond'],desc:'Moderate density'},
   {band:3,name:'Band 3',inner:19914e3,center:19995e3,outer:19995e3,width:81e3,tier:'Medium',hotspot:false,ores:['Titanium','Tungsten','Beryl','Diamond'],desc:'Good density, often grouped with Band 2'},
   {band:4,name:'Band 4',inner:20071e3,center:20188e3,outer:20179e3,width:108e3,tier:'High',hotspot:false,ores:['Bexalite','Taranite','Gold','Agricium'],desc:'Transition zone'},
@@ -4227,7 +4812,7 @@ const HALO_BANDS = [
   {band:7,name:'Band 7',inner:20540e3,center:20962e3,outer:20881e3,width:341e3,tier:'High',hotspot:false,tag:'WIDEST BAND',ores:['Laranite','Agricium','Bexalite','Gold'],desc:'Widest band, excellent density'},
   {band:8,name:'Band 8',inner:20881e3,center:20968e3,outer:21046e3,width:165e3,tier:'High',hotspot:false,ores:['Bexalite','Taranite','Gold','Agricium'],desc:'Moderate density'},
   {band:9,name:'Band 9',inner:21046e3,center:21062e3,outer:21132e3,width:86e3,tier:'Ultra',hotspot:true,tag:'OUTER HOTSPOT',ores:['Quantainium','Bexalite','Taranite','Laranite'],desc:'Prime outer hotspot'},
-  {band:10,name:'Band 10',inner:21132e3,center:21207e3,outer:21298e3,width:166e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminium'],desc:'Outer edge of the Aaron Halo'},
+  {band:10,name:'Band 10',inner:21132e3,center:21207e3,outer:21298e3,width:166e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminum'],desc:'Outer edge of the Aaron Halo'},
 ];
 
 const HALO_STATIONS = [
