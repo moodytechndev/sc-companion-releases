@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('api', {
   onRefineryKioskDetected: (cb) => ipcRenderer.on('log:refineryKioskDetected', cb),
   onRefineryJobComplete: (cb) => ipcRenderer.on('log:refineryJobComplete', cb),
 
+  // Refinery job screen capture (OCR) — takes several shots a few seconds apart
+  // so a materials list longer than the screen can be captured by scrolling
+  // between shots; onRefineryCaptureProgress fires once per shot taken.
+  captureRefineryJob: () => ipcRenderer.invoke('refinery:captureAndParse'),
+  isGameRunning: () => ipcRenderer.invoke('game:isRunning'),
+  onRefineryCaptureProgress: (cb) => ipcRenderer.on('refinery:captureProgress', (_, info) => cb(info)),
+
   // Data backup
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),

@@ -450,8 +450,9 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       </div>
       <!-- Jobs view -->
       <div id="refinery-view-jobs" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        <div class="panel-header" style="padding-top:0">
-          <button class="btn btn-full" onclick="openAddJob()" data-i18n="refinery.addJob">+ Add Refinery Job</button>
+        <div class="panel-header" style="padding-top:0;display:flex;gap:6px">
+          <button class="btn" style="flex:1" onclick="openAddJob()" data-i18n="refinery.addJob">+ Add Refinery Job</button>
+          <button id="capture-job-btn" class="btn" style="flex-shrink:0;display:none" onclick="captureRefineryJob()" title="Screenshot the refinery screen and try to pre-fill a job">📷 Capture</button>
         </div>
         <div class="scroll-area" id="jobs-list">
           <div class="empty-state" id="no-jobs">
@@ -719,6 +720,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </select>
         </div>
 
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Refinery Job Capture <span style="font-size:9px;font-weight:700;color:var(--warn);background:rgba(255,180,0,0.15);border:1px solid var(--warn);border-radius:3px;padding:1px 5px;vertical-align:middle;letter-spacing:0.04em">EXPERIMENTAL</span></div>
+            <div class="setting-desc">Screenshot + OCR the refinery screen to pre-fill a new job, or type it in yourself</div>
+          </div>
+          <select id="refinery-capture-select" onchange="saveRefineryCaptureMode()"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
+            <option value="manual">Manual entry</option>
+            <option value="auto">Auto-detect on capture</option>
+          </select>
+        </div>
+
         <div class="setting-row" style="margin-top:12px">
           <div>
             <div class="setting-label" data-i18n="settings.clearCompleted">Clear Completed Jobs</div>
@@ -921,6 +934,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <div id="modal-overlay">
   <div class="modal">
     <h3 id="modal-title" data-i18n="modal.addJob.title">⛏ Add Refinery Job</h3>
+    <div id="modal-capture-debug" style="display:none;font-size:11px;color:var(--text-dim);margin:-8px 0 10px;word-break:break-all"></div>
     <div class="form-group">
       <label data-i18n="modal.addJob.oreMaterials">Ore / Materials</label>
       <div id="ore-rows"></div>
@@ -1955,9 +1969,28 @@ function filterMining() {
 // Refinery — job management
 // ════════════════════════════════════════════════════════════════════
 // ── Ore row helpers ──────────────────────────────────────────────────
+// Refinery jobs aren't limited to mined ore — ship cargo/salvage like Construction
+// Pieces is a valid job input too, but it has no rock locations/signatures, so it
+// doesn't belong in ORE_DATA (which backs the Ore Locations tab, Scanner Reference
+// cross-filtering, and Aaron Halo). Kept as a small separate list instead.
+const EXTRA_REFINABLE_MATERIALS = ['Construction Pieces', 'Construction Rubble', 'Construction Salvage'];
+
+// Construction Rubble/Pieces/Salvage are unrefined salvage grades picked up with
+// a salvage ship — UEX only lists "Construction Materials" as an actual tradeable
+// commodity, not the raw grades, because a refinery job collapses all three into
+// that one refined output. Everything else keeps its own name through refining.
+const REFINED_OUTPUT_NAME = {
+  'Construction Rubble': 'Construction Materials',
+  'Construction Pieces': 'Construction Materials',
+  'Construction Salvage': 'Construction Materials',
+};
+function refinedOutputName(ore) { return REFINED_OUTPUT_NAME[ore] || ore; }
+
 function buildOreDropdown(input, dropdown) {
   const q = input.value.toLowerCase();
-  const all = Object.keys(ORE_DATA);
+  // EXTRA_REFINABLE_MATERIALS is appended after ORE_DATA's keys, so without an
+  // explicit sort it always lands at the bottom regardless of alphabetical order.
+  const all = [...Object.keys(ORE_DATA), ...EXTRA_REFINABLE_MATERIALS].sort((a, b) => a.localeCompare(b));
   const filtered = q ? all.filter(o => o.toLowerCase().includes(q)) : all;
   dropdown.innerHTML = filtered.map(o =>
     `<div class="ore-option">${esc(o)}</div>`
@@ -2053,6 +2086,9 @@ function openAddJob() {
   editingJobId = null;
   document.getElementById('modal-title').textContent = t('modal.addJob.title');
   document.getElementById('modal-submit').textContent = t('modal.addJob.start');
+  const debugEl = document.getElementById('modal-capture-debug');
+  debugEl.style.display = 'none';
+  debugEl.textContent = '';
   resetOreRows();
   document.getElementById('modal-overlay').classList.add('show');
   setTimeout(() => document.querySelector('#ore-rows .ore-input')?.focus(), 50);
@@ -2960,6 +2996,127 @@ function getTransitIcon() {
   return _transitIcon === 'rocket' ? '🚀' : '🚚';
 }
 
+async function initRefineryCaptureMode() {
+  const mode = (await api.getStore('refineryCaptureMode')) || 'manual';
+  document.getElementById('refinery-capture-select').value = mode;
+  document.getElementById('capture-job-btn').style.display = mode === 'auto' ? '' : 'none';
+}
+async function saveRefineryCaptureMode() {
+  const mode = document.getElementById('refinery-capture-select').value;
+  await api.setStore('refineryCaptureMode', mode);
+  document.getElementById('capture-job-btn').style.display = mode === 'auto' ? '' : 'none';
+}
+
+// Screenshots + OCRs the screen and pre-fills the Add Job form for review — never
+// creates the job directly. Best-effort: whatever isn't recognized is just left
+// blank for the user to fill in as normal.
+//
+// Takes several shots a couple seconds apart (see main.js) rather than one, so a
+// materials list longer than the screen can still be captured in full — scroll
+// the in-game list between shots and the button's countdown tells you how long
+// you have. onRefineryCaptureProgress (registered once, at startup) drives the
+// live "Capturing 2/4…" text during that window.
+let _captureBtnBusy = false;
+function onRefineryCaptureProgressTick(info) {
+  if (!_captureBtnBusy) return;
+  const btn = document.getElementById('capture-job-btn');
+  if (btn) btn.textContent = `📷 ${info.current}/${info.total} — scroll now!`;
+}
+
+async function captureRefineryJob() {
+  const btn = document.getElementById('capture-job-btn');
+  const originalText = btn.textContent;
+  _captureBtnBusy = true;
+  btn.disabled = true;
+  btn.textContent = '📷 1/4…';
+
+  let res;
+  try {
+    res = await api.captureRefineryJob();
+  } catch (e) {
+    res = { status: 'error', error: e.message };
+  }
+  _captureBtnBusy = false;
+  btn.disabled = false;
+
+  if (res.status !== 'ok') {
+    const notRunning = /doesn.t appear to be running/i.test(res.error || '');
+    if (notRunning) {
+      // Don't bother opening the form — nothing to capture, no point in the
+      // manual-entry fallback either since that's always one click away anyway.
+      btn.textContent = '⚠ Game not running';
+      setTimeout(() => { btn.textContent = originalText; }, 2000);
+      return;
+    }
+    // Some other capture/OCR failure — still hand off to manual entry.
+    btn.textContent = originalText;
+    openAddJob();
+    document.getElementById('modal-title').textContent = 'Capture failed — enter job details manually';
+    return;
+  }
+
+  btn.textContent = originalText;
+
+  // Extraction is anchored on exact label text ("MATERIALS SELECTED", "REFINEMENT
+  // CENTER", etc.) that was verified against hand-typed text, not real OCR output —
+  // logging what Tesseract actually produced makes it possible to see exactly where
+  // a real screen's OCR text diverges from those assumptions.
+  if (res.rawTexts) {
+    console.log('[refinery capture] parsed result:', { method: res.method, duration: res.duration, location: res.location, materials: res.materials });
+    res.rawTexts.forEach((t, i) => console.log(`[refinery capture] raw OCR text — shot ${i + 1}/${res.rawTexts.length}:\n${t}`));
+  }
+
+  openAddJob();
+
+  if (res.debugPath) {
+    const debugEl = document.getElementById('modal-capture-debug');
+    debugEl.textContent = `Raw OCR text saved to: ${res.debugPath}`;
+    debugEl.style.display = '';
+  }
+
+  const materials = res.materials || [];
+  if (materials.length) {
+    resetOreRows(
+      materials.map(m => m.name),
+      materials.map(m => m.quality ?? ''),
+      materials.map(m => m.yield ?? '')
+    );
+  }
+  if (res.method) {
+    const methodSel = document.getElementById('job-method');
+    if ([...methodSel.options].some(o => o.value === res.method)) methodSel.value = res.method;
+  }
+  if (res.duration) {
+    document.getElementById('job-h').value = res.duration.h || '';
+    document.getElementById('job-m').value = res.duration.m || '';
+    document.getElementById('job-s').value = res.duration.s || '';
+  }
+  const matchedLoc = matchJobLocation(res.location);
+  if (matchedLoc) document.getElementById('job-location').value = matchedLoc;
+
+  const foundAnything = materials.length || res.method || res.duration || matchedLoc;
+  document.getElementById('modal-title').textContent = foundAnything
+    ? 'Review Captured Job — check before starting'
+    : 'Nothing recognized — enter job details manually';
+}
+
+// main.js only extracts the raw station-name text — it has no notion of this
+// modal's curated location list. Matching against that list (the definitive
+// source) happens here instead, so there's only one place that list is defined.
+function matchJobLocation(rawLocation) {
+  if (!rawLocation) return null;
+  const sel = document.getElementById('job-location');
+  const normalize = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const target = normalize(rawLocation);
+  if (!target) return null;
+  for (const opt of sel.options) {
+    if (!opt.value) continue;
+    const optNorm = normalize(opt.value);
+    if (optNorm && (target.includes(optNorm) || optNorm.includes(target))) return opt.value;
+  }
+  return null;
+}
+
 async function saveCloseBehavior() {
   const val = document.getElementById('close-behavior-select').value;
   await api.setStore('closeBehavior', val);
@@ -3141,6 +3298,7 @@ initLogWatcher();
 initCloseBehavior();
 initPriceSource();
 initTransitIcon();
+initRefineryCaptureMode();
 initLanguage();
 initUpdateCheck();
 if (api.onRefineryKioskDetected) {
@@ -3153,6 +3311,9 @@ if (api.onRefineryJobComplete) {
     switchRefineryView('jobs');
     renderJobs();
   });
+}
+if (api.onRefineryCaptureProgress) {
+  api.onRefineryCaptureProgress(onRefineryCaptureProgressTick);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -4359,11 +4520,15 @@ function deliverJob(id) {
     } else {
       boxRowsHTML = deliverBoxRowHTML();
     }
+    const outputName = refinedOutputName(ore);
+    const nameHTML = outputName === ore
+      ? esc(ore)
+      : `${esc(outputName)} <span style="font-weight:400;font-size:10px;color:var(--text-dim)">(refined from ${esc(ore)})</span>`;
     return `
     <div class="deliver-ore-row" data-ore="${esc(ore)}" data-ore-idx="${i}"
       style="padding:10px 0;border-top:1px solid var(--border)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(ore)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${nameHTML}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
           <input type="number" class="deliver-quality" placeholder="Quality" min="0" max="100" step="0.1"
             value="${esc(String(qualities[i] || ''))}"
@@ -4390,7 +4555,7 @@ async function confirmDelivery() {
   const job = jobs.find(j => j.id === deliveryJobId);
   const location = job?.location || '';
   document.querySelectorAll('#deliver-ore-list .deliver-ore-row').forEach(section => {
-    const ore     = section.dataset.ore;
+    const ore     = refinedOutputName(section.dataset.ore);
     const quality = section.querySelector('.deliver-quality').value.trim();
     section.querySelectorAll('.deliver-box-row').forEach(row => {
       const qty  = row.querySelector('.deliver-qty').value.trim();
@@ -4415,9 +4580,11 @@ function closeDeliverModal() {
 
 const RAW_ORES = [
   'Agricium','Aluminum','Beryl','Bexalite','Borase','Carbon','Chlorine',
-  'Copper','Corundum','Diamond','Fluorine','Gold','Hadanite','Hephaestanite',
-  'Hydrogen','Ice','Inertite','Iron','Laranite','Quantainium','Quartz',
-  'Silicon','Stileron','Taranite','Tin','Titanium','Tungsten'
+  'Construction Materials','Construction Pieces','Construction Rubble',
+  'Construction Salvage','Copper','Corundum','Diamond','Fluorine','Gold',
+  'Hadanite','Hephaestanite','Hydrogen','Ice','Inertite','Iron','Laranite',
+  'Quantainium','Quartz','Recycled Material Composite','Silicon','Stileron',
+  'Taranite','Tin','Titanium','Tungsten'
 ];
 
 function populateOreSelect(currentVal) {

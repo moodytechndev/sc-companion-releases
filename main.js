@@ -1,8 +1,12 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu, dialog, shell, desktopCapturer, screen } = require('electron');
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 const Store = require('electron-store');
+const { createWorker } = require('tesseract.js');
 
 const store = new Store();
 let mainWindow;
@@ -281,6 +285,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (_ocrWorker) { _ocrWorker.terminate().catch(() => {}); }
 });
 
 // ─── IPC: Store ───────────────────────────────────────────────────────────────
@@ -401,6 +406,288 @@ ipcMain.handle('log:getStatus', () => ({
   watching: !!logWatcher,
   path: logWatchPath,
 }));
+
+// ─── IPC: Refinery job screen capture (OCR) ────────────────────────────────────
+// No reliable log-based signal exists for job start (SC doesn't emit it), so this
+// is a manual, user-triggered alternative: grab the screen, OCR it, and best-effort
+// parse out job fields. The renderer always treats this as a pre-fill, never a
+// silent auto-submit — the user reviews/edits the Add Job form before starting it.
+let _ocrWorker = null;
+async function getOcrWorker() {
+  if (!_ocrWorker) {
+    _ocrWorker = await createWorker('eng');
+  }
+  return _ocrWorker;
+}
+
+// Parsing rules, tuned against real refinery-terminal screenshots (setup screen,
+// after a processing method is chosen — that's the state that actually shows a
+// duration and cost; the pre-selection state shows "--" for both).
+//
+// Two lessons from those screenshots drive the approach here:
+// 1. The station's left-hand "Material Specializations" sidebar lists ~6 ore
+//    names totally unrelated to the active job (it's the station's general yield
+//    bonus table). A blind whole-screen search for known ore names picks those up
+//    as false positives. So material extraction is anchored on the "MATERIALS
+//    SELECTED" label, which only appears in the job panel, never the sidebar.
+// 2. Refinery jobs aren't limited to mined ore — one real job had "Construction
+//    Pieces" (ship salvage) as the material. A closed ore whitelist misses that
+//    entirely, so matching now covers a broader material list, and duration uses
+//    the in-game "32m 0s" letter-suffixed format, not HH:MM:SS.
+const REFINERY_METHODS = [
+  'Cormack Method', 'Dinyx Solventation', 'Electrostarolysis', 'Ferron Exchange',
+  'Gaskin Process', 'Kazen Winnowing', 'Pyrometric Chromalysis',
+  'Thermonatic Deposition', 'XCR Reaction',
+];
+const KNOWN_MATERIALS = [
+  'Agricium', 'Aluminum', 'Beryl', 'Bexalite', 'Borase', 'Carbon', 'Chlorine',
+  'Copper', 'Corundum', 'Diamond', 'Fluorine', 'Gold', 'Hadanite', 'Hephaestanite',
+  'Hydrogen', 'Ice', 'Inertite', 'Iron', 'Laranite', 'Quantainium', 'Quartz',
+  'Silicon', 'Stileron', 'Taranite', 'Tin', 'Titanium', 'Tungsten',
+  'Construction Pieces', 'Construction Rubble', 'Construction Salvage',
+  'Construction Materials', 'Scrap', 'Waste',
+  'Recycled Material Composite', 'Inert Materials',
+];
+
+// Method names are safe to substring-match across the whole screen — unlike ore
+// names, they don't also appear in the sidebar.
+function extractMethod(lowerText) {
+  for (const m of REFINERY_METHODS) {
+    if (lowerText.includes(m.toLowerCase())) return m;
+  }
+  return null;
+}
+
+// Column headers/labels are two or three words wide (e.g. "MATERIALS SELECTED"),
+// and a column narrower than the label can make Tesseract wrap it onto its own
+// line — the literal character between the words then becomes a newline instead
+// of a space, which an exact-substring search (`indexOf('materials selected')`)
+// would silently fail to find. Every multi-word anchor below matches on flexible
+// whitespace (`\s+`, which matches newlines too) instead, for that reason.
+function findLabel(lowerText, pattern, fromIndex = 0) {
+  const m = lowerText.slice(fromIndex).match(pattern);
+  if (!m) return null;
+  const start = fromIndex + m.index;
+  return { start, end: start + m[0].length };
+}
+
+// In-game format is "32m 0s" / "1h 5m 30s" (letters, not colons). This used to
+// anchor on the "PROCESSING TIME" label, but real captures show that label is
+// almost never OCR'd intact ("iis TIME", "EROGESSING JHE") even when the actual
+// duration digits right next to it come through fine — so this searches the
+// whole text for an h+m(+s) or m+s cluster instead of requiring the label.
+// Requiring two adjacent units (not just a lone "12m") is what keeps this from
+// matching an unrelated stray number elsewhere on screen.
+function extractDuration(text) {
+  let m = text.match(/(\d{1,3})\s*h[^a-zA-Z0-9]{0,6}(\d{1,2})\s*m(?:[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s)?\b/i);
+  if (m) return { h: parseInt(m[1], 10), m: parseInt(m[2], 10), s: m[3] ? parseInt(m[3], 10) : 0 };
+  m = text.match(/(\d{1,3})\s*m[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s\b/i);
+  if (m) return { h: 0, m: parseInt(m[1], 10), s: parseInt(m[2], 10) };
+  return null;
+}
+
+// The "MATERIALS SELECTED / QUALITY / QTY / YIELD / REFINE" column headers sit on
+// the same visual row as (and sometimes the same OCR line as) "MATERIALS SELECTED"
+// itself, so anchoring there and taking "whatever comes next" risks grabbing the
+// header remainder instead of the actual material row. "REFINE" is the last header
+// column — anchor past *that* instead, so the search always starts at the data row.
+function materialRowStart(lowerText, fromIdx) {
+  const refine = findLabel(lowerText, /refine/, fromIdx);
+  return refine ? refine.end : fromIdx;
+}
+
+// Anchored on "MATERIALS SELECTED" (unique to the job panel) rather than a blind
+// scan, to avoid the sidebar false-positive problem. Handles a materials list
+// longer than one screen the same way a single row is handled: each line in the
+// block is tried independently, so a frame that only shows rows 3-5 (because the
+// user scrolled the in-game list before this shot) still contributes those rows —
+// see the burst-capture loop below, which merges rows found across several shots.
+// A real material row's line isn't just the name — OCR glues on neighboring UI
+// noise ("bie ae CONSTRUCTIONPI", "oil ADDED. TT  TRUCTION PIECES"), and the name
+// itself can be clipped at either end (missing "CONS" prefix, or missing "ECES"
+// suffix). Whole-line containment breaks on the first, and exact-name containment
+// breaks on the second — so this checks whether any long contiguous chunk of the
+// known name (spaces stripped from both sides) shows up anywhere in the line.
+function fuzzyChunkIncludes(lineCompact, nameCompact) {
+  if (lineCompact.includes(nameCompact)) return true;
+  const minLen = Math.max(6, Math.floor(nameCompact.length * 0.6));
+  for (let len = nameCompact.length; len >= minLen; len--) {
+    for (let start = 0; start + len <= nameCompact.length; start++) {
+      if (lineCompact.includes(nameCompact.slice(start, start + len))) return true;
+    }
+  }
+  return false;
+}
+
+function extractMaterialRows(text, lowerText) {
+  const label = findLabel(lowerText, /materials\s+selected/);
+  if (!label) return [];
+  const from = materialRowStart(lowerText, label.start);
+  const totalCost = findLabel(lowerText, /total\s+cost/, from);
+  const to = totalCost ? totalCost.start : from + 500; // generous cap for a long scrolled list
+  const lines = text.slice(from, to).split('\n').map(s => s.trim()).filter(Boolean);
+
+  const rows = [];
+  for (const line of lines) {
+    const nums = line.match(/\d+(?:\.\d+)?/g) || [];
+    if (nums.length < 3) continue; // not a data row — [QUALITY, QTY, YIELD] per row
+    const lineCompact = line.replace(/[^a-zA-Z]/g, '').toLowerCase();
+    if (lineCompact.length < 3) continue;
+    const match = KNOWN_MATERIALS.find(name => fuzzyChunkIncludes(lineCompact, name.toLowerCase().replace(/[^a-z]/g, '')));
+    if (!match) continue;
+    const tail = nums.slice(-3); // last 3 numbers on the line = quality, qty, yield
+    rows.push({ name: match, quality: tail[0], yield: tail[2] });
+  }
+  return rows;
+}
+
+// Real capture confirms the station name sits on the SAME OCR line as the anchor
+// ("1 AMBITIOUS DREAM STATION REFINEMENT CENTER"), immediately before "STATION" —
+// and that "CENTER" itself is frequently clipped ("REFINEMENT C"), so the anchor
+// only requires "refinement". Pulling single/double-letter OCR noise tokens
+// ("|", "V7", "1", "§") off that line via a letters-only word filter is what
+// isolates the real name — grabbing the whole line (or two) as one blob, as this
+// used to, pulls in unrelated UI fragments from earlier on the same line.
+function extractNameWords(segment) {
+  const words = segment.match(/[a-zA-Z]{3,}/g) || [];
+  while (words.length && /^(station|refinement|center)$/i.test(words[words.length - 1])) {
+    words.pop();
+  }
+  return words;
+}
+
+// Returned as raw cleaned text, not matched against a location list: the renderer
+// owns the definitive station list (the Add Job modal's own dropdown), so it does
+// the fuzzy-matching itself rather than main.js duplicating that list.
+//
+// No same-line-above fallback: an icon frequently overlaps the station name
+// entirely (OCR reads it as a single "©" glyph), and when that happens the
+// previous line is just unrelated UI text — a real capture proved this by
+// returning "pad aie proses TEREST" from two lines up. Returning nothing here
+// is safer than returning confident-looking garbage.
+function extractLocation(text, lowerText) {
+  const label = findLabel(lowerText, /refinement(\s+center)?/);
+  if (!label) return null;
+  const lineStart = text.lastIndexOf('\n', label.start - 1) + 1;
+  const words = extractNameWords(text.slice(lineStart, label.start));
+  const candidate = words.slice(-4).join(' ');
+  return candidate.length >= 3 ? candidate : null;
+}
+
+function parseRefineryOcrText(text) {
+  const lowerText = text.toLowerCase();
+  return {
+    method: extractMethod(lowerText),
+    duration: extractDuration(text),
+    materials: extractMaterialRows(text, lowerText),
+    location: extractLocation(text, lowerText),
+    rawText: text,
+  };
+}
+
+// Live client process name — RSI's launcher is a separate process we don't care about.
+const GAME_PROCESS_NAME = 'StarCitizen.exe';
+
+async function isGameRunning() {
+  try {
+    const { stdout } = await execAsync(`tasklist /FI "IMAGENAME eq ${GAME_PROCESS_NAME}" /FO CSV /NH`);
+    return stdout.toLowerCase().includes(GAME_PROCESS_NAME.toLowerCase());
+  } catch {
+    return false; // tasklist failing shouldn't crash the capture flow — just assume not running
+  }
+}
+ipcMain.handle('game:isRunning', () => isGameRunning());
+
+// Prefer capturing just the game's own window — keeps other monitors/apps out of the
+// screenshot (privacy + less OCR noise) and out of any raw text we keep around for
+// debugging. Exclusive-fullscreen games sometimes aren't enumerable as a window by
+// the OS compositor, so this can come back empty; the caller falls back to full-screen.
+async function getGameWindowSource(thumbnailSize) {
+  const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize });
+  return sources.find(s => s.name.toLowerCase().includes('star citizen')) || null;
+}
+
+async function captureOneFrame() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.size;
+  const scale = primaryDisplay.scaleFactor || 1;
+  const thumbnailSize = { width: Math.round(width * scale), height: Math.round(height * scale) };
+
+  let source = await getGameWindowSource(thumbnailSize);
+  let capturedWindow = true;
+  if (!source) {
+    // Fallback: game window wasn't enumerable (likely exclusive fullscreen) —
+    // capture the whole primary display instead.
+    capturedWindow = false;
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize });
+    if (!sources.length) throw new Error('No screen source available to capture');
+    source = sources.find(s => s.display_id === String(primaryDisplay.id)) || sources[0];
+  }
+
+  const dataUrl = source.thumbnail.toDataURL();
+  if (!dataUrl || source.thumbnail.isEmpty()) throw new Error('Captured image was empty');
+
+  const worker = await getOcrWorker();
+  const { data } = await worker.recognize(dataUrl);
+  return { capturedWindow, ...parseRefineryOcrText(data.text || '') };
+}
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Takes several shots a couple seconds apart instead of one, so a materials list
+// longer than the screen can be captured by scrolling between shots. Method and
+// duration don't change mid-scroll, so the first frame that finds them wins;
+// materials are unioned across all frames, deduped by name (first sighting's
+// quality/yield kept — scrolling back over an already-seen row shouldn't matter).
+const BURST_SHOTS = 4;
+const BURST_INTERVAL_MS = 2000;
+
+ipcMain.handle('refinery:captureAndParse', async () => {
+  try {
+    const running = await isGameRunning();
+    if (!running) {
+      return { status: 'error', error: 'Star Citizen doesn\'t appear to be running.' };
+    }
+
+    let method = null;
+    let duration = null;
+    let location = null;
+    let capturedWindow = true;
+    const materialsByName = new Map();
+    const rawTexts = []; // kept so the renderer can log/inspect actual OCR output when extraction misses
+
+    for (let i = 0; i < BURST_SHOTS; i++) {
+      const frame = await captureOneFrame();
+      capturedWindow = frame.capturedWindow;
+      if (!method && frame.method) method = frame.method;
+      if (!duration && frame.duration) duration = frame.duration;
+      if (!location && frame.location) location = frame.location;
+      for (const row of frame.materials) {
+        if (!materialsByName.has(row.name)) materialsByName.set(row.name, row);
+      }
+      rawTexts.push(frame.rawText);
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('refinery:captureProgress', { current: i + 1, total: BURST_SHOTS });
+      }
+      if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
+    }
+
+    // Written every capture so the user can just open the file and paste its
+    // contents back to us, instead of fishing text out of the DevTools console.
+    const debugPath = path.join(app.getPath('userData'), 'refinery-ocr-debug.txt');
+    try {
+      const debugContents = rawTexts
+        .map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`)
+        .join('\n\n');
+      fs.writeFileSync(debugPath, debugContents, 'utf8');
+    } catch { /* debug file is a convenience, never block the capture on it */ }
+
+    return { status: 'ok', capturedWindow, method, duration, location, materials: [...materialsByName.values()], rawTexts, debugPath };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
 
 // ─── Auto-updater ────────────────────────────────────────────────────────────
 let _updateAvailable = false;
