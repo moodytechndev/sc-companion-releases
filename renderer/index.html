@@ -889,6 +889,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
   </div>
 </div>
 
+<!-- ── Blueprint Details Modal (quality effects + mission drops) ── -->
+<div id="bp-details-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center" onclick="if(event.target===this)closeBpDetailsModal()">
+  <div class="modal" style="width:420px">
+    <h3 id="bp-details-title">Blueprint</h3>
+    <div id="bp-details-body"></div>
+    <div class="modal-actions">
+      <button class="btn" style="background:none;border-color:var(--border);flex:1" onclick="closeBpDetailsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Terminal Prices Modal ── -->
 <div id="terminal-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeTerminalModal()">
   <div class="modal" style="width:320px;max-height:70vh;display:flex;flex-direction:column;padding:16px">
@@ -3516,13 +3527,13 @@ function renderOwned() {
     const ings = bp.ingredients || [];
     const craftable = ings.length > 0 && ings.every(ing => stocked.has(ing.name));
     return `
-    <div class="craft-card${craftable ? ' craftable' : ''}">
+    <div class="craft-card${craftable ? ' craftable' : ''}" style="cursor:pointer" onclick="openBpDetails('${esc(bp.blueprint_id)}')" title="Click for quality effects and mission drops">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
           <div class="craft-name">${esc(bp.name)}</div>
           <div class="craft-cat">${esc(bp.category || '')}</div>
         </div>
-        <button class="craft-owned-btn ${owned ? 'owned' : ''}" onclick="toggleOwned('${esc(bp.blueprint_id)}')">
+        <button class="craft-owned-btn ${owned ? 'owned' : ''}" onclick="event.stopPropagation(); toggleOwned('${esc(bp.blueprint_id)}')">
           ${owned ? '✓ Owned' : '+ Own'}
         </button>
       </div>
@@ -3536,6 +3547,228 @@ async function toggleOwned(id) {
   else ownedBlueprints[id] = true;
   await api.setStore('craftingOwned', ownedBlueprints);
   renderOwned();
+}
+
+// ── Blueprint details: quality-vs-stat modifiers + mission drops ─────────────
+// sc-craft.tools's own API (the same one craftingCache already pulls from) gives
+// a modifier range per ingredient per stat, but the stat names ("Integrity",
+// "Max. Shield Strength", etc.) don't reliably map to a base number anywhere
+// else in the data except armor's temperature resistance — so only that gets a
+// computed final value. Everywhere else this shows the honest modifier curve
+// instead of a fabricated absolute stat.
+let bpQualityState = {}; // { [blueprint_id]: { [ingredientIndex]: raw quality 0-999 } }
+
+function qualityModifierAt(qualityEffect, quality) {
+  const raw = Math.max(0, Math.min(999, quality));
+  const brackets = (qualityEffect.ranges && qualityEffect.ranges.length) ? qualityEffect.ranges : [qualityEffect];
+  const b = brackets.find(r => raw >= r.quality_min && raw <= r.quality_max) || brackets[brackets.length - 1];
+  const span = b.quality_max - b.quality_min;
+  const t = span > 0 ? (raw - b.quality_min) / span : 0;
+  return b.modifier_at_min + t * (b.modifier_at_max - b.modifier_at_min);
+}
+
+function bpCombinedModifier(bp, state, statName) {
+  let product = 1;
+  (bp.ingredients || []).forEach((ing, i) => {
+    (ing.quality_effects || []).forEach(qe => {
+      if (qe.stat === statName) product *= qualityModifierAt(qe, state[i]);
+    });
+  });
+  return product;
+}
+
+// Signed percent deviation from the ×1 baseline — matches how sc-craft.tools
+// itself displays a quality effect (verified against a real screenshot of their
+// modal: our ×1.076/×1.0186/×1.0374 modifiers for this exact blueprint show as
+// their "+7.6% / +1.86% / +3.74%").
+function fmtModPct(modifier) {
+  const pct = Math.round((modifier - 1) * 10000) / 100;
+  return `${pct >= 0 ? '+' : ''}${pct}%`;
+}
+
+function fmtNum(n) {
+  return String(Math.round(n * 100) / 100);
+}
+
+// A quality_effects "stat" name (e.g. "Impact Force", "Integrity") is a generic
+// game stat label that doesn't reliably correspond to a field anywhere else in
+// this item_stats blob — except these specific cases, confirmed against a real
+// sc-craft.tools screenshot: weapon "Impact Force" lines up exactly with
+// fire_modes[0].damage_multiplier (base 1 × our combined modifier reproduced
+// their displayed "1.06"), and armor's "Max Temp"/"Min Temp" line up with
+// temperature_resistance. Everywhere else there's no verified base number, so
+// the stat table shows the relative % change instead of a fabricated absolute.
+function bpStatBaseValue(stats, statName) {
+  if (!stats) return null;
+  if (stats.type === 'weapon') {
+    const fm = (stats.fire_modes || [])[0];
+    if (fm) {
+      if (statName === 'Impact Force' && fm.damage_multiplier != null) return fm.damage_multiplier;
+      if (statName === 'Fire Rate' && fm.fire_rate != null) return fm.fire_rate;
+    }
+  }
+  if (stats.type === 'armor' && stats.temperature_resistance) {
+    if (statName === 'Max Temp') return stats.temperature_resistance.max;
+    if (statName === 'Min Temp') return stats.temperature_resistance.min;
+  }
+  return null;
+}
+
+function bpStatTableHtml(bp, state) {
+  const statNames = [...new Set((bp.ingredients || []).flatMap(ing => (ing.quality_effects || []).map(qe => qe.stat)))];
+  if (!statNames.length) return '<div style="font-size:12px;color:var(--text-dim)">No quality-affected stats for this blueprint.</div>';
+  const rows = statNames.map(name => {
+    const modifier = bpCombinedModifier(bp, state, name);
+    const base = bpStatBaseValue(bp.item_stats, name);
+    const baseText = base != null ? fmtNum(base) : '—';
+    const craftedText = base != null ? fmtNum(base * modifier) : fmtModPct(modifier);
+    return `<tr>
+      <td style="padding:3px 0;color:var(--text-dim)">${esc(name)}</td>
+      <td style="padding:3px 0;text-align:right;color:var(--text-dim)">${esc(baseText)}</td>
+      <td style="padding:3px 0;text-align:right;font-weight:600">${esc(craftedText)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="text-transform:uppercase;font-size:9px;color:var(--text-dim);letter-spacing:.05em">
+        <th style="text-align:left;padding-bottom:4px;border-bottom:1px solid var(--border)">Stat</th>
+        <th style="text-align:right;padding-bottom:4px;border-bottom:1px solid var(--border)">Base</th>
+        <th style="text-align:right;padding-bottom:4px;border-bottom:1px solid var(--border)">Crafted</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// Raw mission names sometimes contain unresolved localization placeholders like
+// "~mission(Location)" — sc-craft.tools's data doesn't fill in the actual value,
+// so this just makes the placeholder read cleanly instead of showing the markup.
+function cleanMissionName(name) {
+  return (name || '').replace(/~mission\(([^)]+)\)/g, '[$1]');
+}
+
+function renderBpDetailsBody(bp) {
+  const state = bpQualityState[bp.blueprint_id];
+  const ings = bp.ingredients || [];
+
+  const ingHtml = ings.map((ing, i) => {
+    const quality = state[i];
+    const qeHtml = (ing.quality_effects || []).map((qe, qi) => `
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim)">
+        <span>${esc(qe.stat)}</span>
+        <span id="bp-mod-${i}-${qi}">${fmtModPct(qualityModifierAt(qe, quality))}</span>
+      </div>`).join('');
+    return `
+    <div class="bp-ing-row" style="padding:8px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700">
+        <span>${esc(ing.name)}</span>
+        <span style="color:var(--text-dim);font-weight:400">${esc(fmtSCU(ing.quantity_scu))}</span>
+      </div>
+      ${qeHtml || '<div style="font-size:11px;color:var(--text-dim)">No quality effect on this material.</div>'}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <input type="range" id="bp-qual-slider-${i}" min="0" max="999" step="1" value="${quality}"
+          oninput="updateBpIngQuality('${esc(bp.blueprint_id)}', ${i}, this.value)" style="flex:1">
+        <span id="bp-qual-label-${i}" style="font-size:11px;width:38px;text-align:right">${quality}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const missions = bp.missions || [];
+  const missionsHtml = missions.length
+    ? missions.map(m => `
+      <div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0">
+        <span>${esc(cleanMissionName(m.name))}</span>
+        <span style="color:var(--text-dim)">${Math.round(parseFloat(m.drop_chance) * 100)}%</span>
+      </div>`).join('')
+    : '<div style="font-size:12px;color:var(--text-dim)">No known mission drops for this blueprint.</div>';
+
+  return `
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">${esc(bp.category || '')}</div>
+
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:4px">Global Quality</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <input type="range" id="bp-global-quality" min="0" max="999" step="1" value="500"
+        oninput="updateBpGlobalQuality('${esc(bp.blueprint_id)}', this.value)" style="flex:1">
+      <span id="bp-global-quality-label" style="font-size:12px;width:38px;text-align:right">500</span>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;margin-bottom:4px">Parts</div>
+    ${ingHtml || '<div style="font-size:12px;color:var(--text-dim)">No ingredients listed.</div>'}
+
+    <div style="font-size:12px;font-weight:700;margin:14px 0 4px">Stat</div>
+    <div id="bp-stat-table">${bpStatTableHtml(bp, state)}</div>
+
+    <div style="font-size:12px;font-weight:700;margin:14px 0 4px">Drops (${missions.length} missions)</div>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Mission names and drop chance only — exact locations aren't in this data source.</div>
+    ${missionsHtml}
+  `;
+}
+
+function openBpDetails(blueprintId) {
+  const bp = allBlueprints.find(b => b.blueprint_id === blueprintId);
+  if (!bp) return;
+  if (!bpQualityState[blueprintId]) {
+    bpQualityState[blueprintId] = {};
+    (bp.ingredients || []).forEach((_, i) => { bpQualityState[blueprintId][i] = 500; });
+  }
+  document.getElementById('bp-details-title').textContent = bp.name;
+  document.getElementById('bp-details-body').innerHTML = renderBpDetailsBody(bp);
+  document.getElementById('bp-details-modal-overlay').style.display = 'flex';
+}
+
+function closeBpDetailsModal() {
+  document.getElementById('bp-details-modal-overlay').style.display = 'none';
+}
+
+// Updates only the specific numbers a slider move affects, rather than
+// re-rendering the whole modal body — replacing the <input type="range"> itself
+// mid-drag would interrupt the browser's own drag/mouse-capture on that element.
+function updateBpIngQuality(blueprintId, ingIdx, val) {
+  const quality = parseInt(val, 10);
+  bpQualityState[blueprintId][ingIdx] = quality;
+  const bp = allBlueprints.find(b => b.blueprint_id === blueprintId);
+  if (!bp) return;
+
+  const label = document.getElementById(`bp-qual-label-${ingIdx}`);
+  if (label) label.textContent = `${quality}`;
+
+  const ing = (bp.ingredients || [])[ingIdx];
+  (ing.quality_effects || []).forEach((qe, qi) => {
+    const span = document.getElementById(`bp-mod-${ingIdx}-${qi}`);
+    if (span) span.textContent = fmtModPct(qualityModifierAt(qe, quality));
+  });
+
+  // The stat table has no interactive elements of its own, so a full innerHTML
+  // refresh is safe here (unlike the per-part sliders, which must be targeted
+  // individually to avoid interrupting a drag in progress).
+  const statTable = document.getElementById('bp-stat-table');
+  if (statTable) statTable.innerHTML = bpStatTableHtml(bp, bpQualityState[blueprintId]);
+}
+
+// Sets every part to the same quality at once, mirroring sc-craft.tools's own
+// "Global Quality" control — moving it afterward re-syncs every per-part slider
+// and label, then the sliders can still be fine-tuned individually.
+function updateBpGlobalQuality(blueprintId, val) {
+  const quality = parseInt(val, 10);
+  const bp = allBlueprints.find(b => b.blueprint_id === blueprintId);
+  if (!bp) return;
+
+  const globalLabel = document.getElementById('bp-global-quality-label');
+  if (globalLabel) globalLabel.textContent = `${quality}`;
+
+  (bp.ingredients || []).forEach((ing, i) => {
+    bpQualityState[blueprintId][i] = quality;
+    const slider = document.getElementById(`bp-qual-slider-${i}`);
+    if (slider) slider.value = quality;
+    const label = document.getElementById(`bp-qual-label-${i}`);
+    if (label) label.textContent = `${quality}`;
+    (ing.quality_effects || []).forEach((qe, qi) => {
+      const span = document.getElementById(`bp-mod-${i}-${qi}`);
+      if (span) span.textContent = fmtModPct(qualityModifierAt(qe, quality));
+    });
+  });
+
+  const statTable = document.getElementById('bp-stat-table');
+  if (statTable) statTable.innerHTML = bpStatTableHtml(bp, bpQualityState[blueprintId]);
 }
 
 // ── Inventory ──────────────────────────────────────────────────────
