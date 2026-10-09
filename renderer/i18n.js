@@ -3,7 +3,7 @@ const TRANSLATIONS = {
     'tab.refinery': '⛏ Refinery',
     'tab.mining': '⛰ Mining',
     'tab.prices': '📈 Prices',
-    'tab.craft': '🔧 Craft',
+    'tab.craft': '🚀 Hangar',
 
     'refinery.addJob': '+ Add Refinery Job',
     'refinery.empty.line1': 'No active refinery jobs.',
@@ -120,7 +120,7 @@ const TRANSLATIONS = {
     'tab.refinery': '⛏ Raffinerie',
     'tab.mining': '⛰ Bergbau',
     'tab.prices': '📈 Preise',
-    'tab.craft': '🔧 Handwerk',
+    'tab.craft': '🚀 Hangar',
 
     'refinery.addJob': '+ Raffinerieauftrag hinzufügen',
     'refinery.empty.line1': 'Keine aktiven Raffinerieaufträge.',
@@ -237,7 +237,7 @@ const TRANSLATIONS = {
     'tab.refinery': '⛏ Raffinerie',
     'tab.mining': '⛰ Minage',
     'tab.prices': '📈 Prix',
-    'tab.craft': '🔧 Craft',
+    'tab.craft': '🚀 Hangar',
 
     'refinery.addJob': '+ Ajouter une tâche',
     'refinery.empty.line1': 'Aucune tâche active.',
@@ -354,7 +354,7 @@ const TRANSLATIONS = {
     'tab.refinery': '⛏ Refinería',
     'tab.mining': '⛰ Minería',
     'tab.prices': '📈 Precios',
-    'tab.craft': '🔧 Fabricar',
+    'tab.craft': '🚀 Hangar',
 
     'refinery.addJob': '+ Agregar trabajo de refinería',
     'refinery.empty.line1': 'No hay trabajos activos.',

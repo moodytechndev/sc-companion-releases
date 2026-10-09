@@ -15,7 +15,7 @@ Star Citizen companion overlay — refinery timers, commodity prices with statio
   - [Mining](#mining)
   - [Refinery](#refinery)
   - [Prices](#prices)
-  - [Craft](#craft)
+  - [Hangar](#hangar)
 - [Settings — Full Reference](#settings--full-reference)
 - [Status Bar](#status-bar)
 - [Data & Privacy](#data--privacy)
@@ -91,7 +91,7 @@ The Mining tab has three views, switchable via the chips at the top.
 
 Jobs count down live in the list. When a job's timer hits zero, you get a desktop notification and the card turns green with a **Delivered** button.
 
-**Collecting a finished job**: click **Delivered** on a ready job. A modal lets you record the actual box sizes and quantities you pulled from the cargo elevator for each ore in that job (pre-filled with a suggested box breakdown if you entered an expected yield when creating the job). Confirming adds those boxes straight into your **Craft → Inventory**, automatically tagged with the job's location and marked **in-transit**, and removes the completed job from the list.
+**Collecting a finished job**: click **Delivered** on a ready job. A modal lets you record the actual box sizes and quantities you pulled from the cargo elevator for each ore in that job (pre-filled with a suggested box breakdown if you entered an expected yield when creating the job). Confirming adds those boxes straight into your **Hangar → Inventory**, automatically tagged with the job's location and marked **in-transit**, and removes the completed job from the list.
 
 **Station Bonuses**
 - Pick a station from the dropdown to see its refinery yield bonus/penalty per material, sorted best to worst — useful for choosing where to refine a given ore
@@ -111,14 +111,14 @@ Two views, toggled via the **Commodity** / **Station** chips at the top.
 - **Buy**: opens the Add Inventory form pre-filled with the commodity and this station as the location — fill in quality/box size/quantity and save. The item is automatically marked **in-transit**
 - **Sell**: only works on stock you've marked in-transit (from a Buy here, or from the 🚚/🚀 button in Inventory). If you have some, a modal shows a breakdown of where it's sitting, the total SCU, the price per SCU, and the estimated total payout — confirm to remove it from your tracked inventory and see exactly what you made
 
-### Craft
+### Hangar
 
-Three views: **My Blueprints**, **Inventory**, and **Assets**.
+Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 
 **My Blueprints**
 - Browse craftable item blueprints (sourced from an external blueprint database, cached locally after first load)
 - Toggle each one as **Owned** to track your collection
-- Filter by Owned/Missing/All, by category, search by name, and sort alphabetically or by craft time
+- Ship components show a size badge (**S0**–**S6**). Filter by Owned/Missing/All, by category, or by size, search by name, and sort alphabetically, by craft time, or by size (blueprints with no size, like armor, sort last)
 
 **Inventory** — the core stock tracker
 - **+ Add** opens a form: pick the ore/material, its quality %, one or more box sizes (SCU), and a location (pick from known Star Citizen stations or type a custom one)
@@ -130,7 +130,19 @@ Three views: **My Blueprints**, **Inventory**, and **Assets**.
 - The bottom bar shows total SCU and an estimated aUEC value, calculated from the best known sell price for each ore you're holding
 
 **Assets**
-- A simple tracker for ships, vehicles, and components: name, type, location, and free-text notes
+- A tracker for everything you own or craft — ship components, armor, weapons, gear, vehicles: name, type, optional size (for ship components), location, and free-text notes. Assets added from a blueprint show a **crafted** tag with the material qualities and stats you chose
+- An asset that's installed on a ship shows an **Installed on …** tag. Installing is done from the Ships page, not here
+
+**Ships**
+- Two sub-tabs: **My Ships** and **Erkul DPS Calculator**
+- **My Ships** is your owned-ship list. **+ Add** opens a searchable picker of every ship and vehicle from UEX Corp's database; pick one and optionally add a nickname, location, and notes
+- **Click a ship** to open its components. The app pulls the ship's stock loadout (weapons, shields, power plants, coolers, quantum drives, radar, mining lasers, salvage heads) from the Star Citizen Wiki API and caches it on the ship. Each slot shows the stock item, and a dropdown lets you swap in one of your assets — matching assets are listed first, other assets below. An asset can only be installed in one slot at a time; pick **Stock** to revert. Each slot shows its size, and assets whose type and size fit are listed first (an asset with no size recorded is assumed to fit). You can still pick a mismatched part from the other group, but the slot will flag it in red. **↻ Refresh stock data** re-downloads the loadout
+- The ship's modal also has a **Livery** section. **Change ▼** lists every livery that fits that ship (pulled from the Star Citizen Wiki API, with how it's obtained — Subscriber, Luminalia, etc.), with a search box and a **Preview** image for each. Pick **Use** to record which livery the ship wears, or **Stock livery** to clear it. The choice shows on the ship card. This is a note-keeping field — it doesn't change anything in the game
+- **Erkul DPS Calculator** runs the real [erkul.games](https://erkul.games/calculator) calculator inside the app. Erkul only renders its calculator on a wide screen (about 1000px+), so the overlay automatically widens while this tab is open and returns to its previous size when you leave. Erkul is a separate site with its own data — the app can't read your loadout out of it
+- Deleting a ship leaves your assets alone; deleting an installed asset puts that slot back to stock
+
+**Crafting → Assets**
+- In a blueprint's details view, **＋ Add as crafted asset** saves the item to Assets using the quality values currently set on the sliders (install it on a ship afterwards from the Ships page)
 
 ---
 
@@ -147,7 +159,7 @@ Three views: **My Blueprints**, **Inventory**, and **Assets**.
 | **Clear Completed Jobs** | Removes every refinery job whose timer has already finished, keeping active ones |
 | **Clear All Jobs** | Removes every tracked refinery job, finished or not |
 | **Game Log Path** | Points the app at your Star Citizen `game.log` so it can watch it in the background. It currently tracks your last-known in-game station, laying the groundwork for future automation like auto-detecting refinery completions. The app looks for the log automatically at Star Citizen's default install path if you haven't set one yourself; the status dot shows whether a watcher is currently attached |
-| **Backup & Restore** | **Export** saves all your jobs, inventory, assets, blueprint ownership, and settings to a JSON file you choose. **Import** loads one back in, overwriting the matching data — useful for moving to a new PC or recovering after a reinstall |
+| **Backup & Restore** | **Export** saves all your jobs, inventory, assets, ships, blueprint ownership, and settings to a JSON file you choose. **Import** loads one back in, overwriting the matching data — useful for moving to a new PC or recovering after a reinstall |
 | **Report a Bug** | Sends a short description straight to the developer's Discord via a webhook, along with your app version and OS — no account or email needed |
 
 The bottom of the Settings tab also shows the current app version and a reminder that prices come from UEX Corp, a community-maintained trade database.
@@ -167,7 +179,7 @@ The bar along the bottom of the window (always visible) shows:
 
 ## Data & Privacy
 
-Everything you track — jobs, inventory, assets, blueprint ownership, and settings — is stored **locally only**, on your own machine, via Electron's local storage. Nothing is uploaded anywhere except:
+Everything you track — jobs, inventory, assets, ships, blueprint ownership, and settings — is stored **locally only**, on your own machine, via Electron's local storage. Nothing is uploaded anywhere except:
 
 - **Commodity/station prices**: fetched live from the public [UEX Corp](https://uexcorp.space) API
 - **Blueprint data**: fetched from an external blueprint database and cached locally after the first load

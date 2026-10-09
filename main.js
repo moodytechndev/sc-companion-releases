@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu, dialog, shell, desktopCapturer, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu, dialog, shell, desktopCapturer, screen, session } = require('electron');
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
@@ -176,7 +176,7 @@ function startLogWatcher(filePath) {
 
 function fetchJson(url, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': 'SC-Companion/1.0' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'SC-Companion/1.0', 'Accept': 'application/json' } }, (res) => {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume(); // drain so the socket can be reused
         reject(new Error(`Request failed with status ${res.statusCode}`));
@@ -196,7 +196,12 @@ function fetchJson(url, timeoutMs = 15000) {
   });
 }
 
+// While the Erkul view has the overlay widened, the temporary size must not be
+// persisted as the user's real window size.
+let preErkulBounds = null;
+
 function saveBounds() {
+  if (preErkulBounds) return;
   if (mainWindow && !mainWindow.isDestroyed()) {
     store.set('windowBounds', mainWindow.getBounds());
   }
@@ -220,6 +225,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true, // only used for the locked-down Erkul view; see will-attach-webview below
     },
   });
 
@@ -255,7 +261,42 @@ function registerShortcut(vkHex) {
   }
 }
 
+// ─── Erkul embed lockdown ─────────────────────────────────────────────────────
+// The renderer hosts erkul.games in a <webview>. That guest is untrusted web
+// content: no preload, no Node, sandboxed, pinned to erkul.games, no permission
+// grants, and anything that tries to open elsewhere goes to the system browser.
+const ERKUL_PARTITION = 'persist:erkul';
+const ERKUL_HOSTS = new Set(['erkul.games', 'www.erkul.games']);
+function isErkulUrl(u) {
+  try {
+    const p = new URL(u);
+    return p.protocol === 'https:' && ERKUL_HOSTS.has(p.hostname);
+  } catch { return false; }
+}
+
+app.on('web-contents-created', (_, contents) => {
+  contents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    if (!isErkulUrl(params.src) || params.partition !== ERKUL_PARTITION) event.preventDefault();
+  });
+  if (contents.getType() === 'webview') {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (/^https:\/\//i.test(url)) shell.openExternal(url);
+      return { action: 'deny' };
+    });
+    contents.on('will-navigate', (e, url) => {
+      if (isErkulUrl(url)) return;
+      e.preventDefault();
+      if (/^https:\/\//i.test(url)) shell.openExternal(url);
+    });
+  }
+});
+
 app.whenReady().then(() => {
+  session.fromPartition(ERKUL_PARTITION).setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   createWindow();
   buildTray();
 
@@ -298,6 +339,108 @@ ipcMain.handle('store:set', (_, key, val) => { store.set(key, val); });
 ipcMain.handle('api:getCommodities', async () => {
   try {
     return await fetchJson('https://api.uexcorp.space/2.0/commodities');
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getVehicles', async () => {
+  try {
+    return await fetchJson('https://api.uexcorp.space/2.0/vehicles');
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+// ─── IPC: ship stock loadouts (Star Citizen Wiki API) ─────────────────────────
+// UEX's vehicle slug/uuid match the Wiki API's, so a ship picked from UEX can be
+// looked up directly. Only the swappable component types a player can actually
+// craft are kept, flattened into a small slot list (the raw payload is ~200 KB).
+const SHIP_SLOT_KINDS = {
+  Shield: 'shield', Cooler: 'cooler', PowerPlant: 'power', QuantumDrive: 'quantum',
+  Radar: 'radar', WeaponGun: 'weapon', WeaponMining: 'mining', SalvageHead: 'salvage',
+};
+const SLOT_GENERIC_NAME = /^hardpoint[_ ]?(class[_ ]?\d+|weapon|gun|mining|salvage)?$/i;
+
+function prettyPortName(name) {
+  const raw = String(name || '').replace(/^hardpoint[_ ]?/i, '').replace(/[_]+/g, ' ').trim();
+  // "weapon gun class1 right wing" -> "right wing": the weapon/gun/class tokens just echo the slot kind and size.
+  const t = raw.replace(/^((weapon|gun)\s+)+/i, '').replace(/class\s?\d+\s*/i, '').trim() || raw;
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Slot';
+}
+
+function extractShipSlots(vehicle) {
+  const slots = [];
+  const walk = (ports, parent, parentKey) => {
+    for (const p of ports || []) {
+      const key = parentKey ? `${parentKey}/${p.name}` : p.name;
+      const kind = SHIP_SLOT_KINDS[p.type];
+      const item = p.equipped_item;
+      if (kind && p.editable && item) {
+        const useParent = parent && SLOT_GENERIC_NAME.test(p.name);
+        slots.push({
+          key,
+          kind,
+          label: prettyPortName(useParent ? parent.name : p.name),
+          size: p.sizes?.max ?? item.size ?? null,
+          sizeMin: p.sizes?.min ?? null,
+          stock: {
+            name: item.name,
+            size: item.size ?? null,
+            grade: typeof item.grade === 'string' ? item.grade : null,
+            maker: item.manufacturer?.name && item.manufacturer.name !== 'Unknown' ? item.manufacturer.name : '',
+          },
+        });
+      }
+      walk(p.ports, p, key);
+    }
+  };
+  walk(vehicle.ports, null, '');
+  return slots;
+}
+
+// The ship's paint port lists which paints fit it via required_tags
+// (e.g. ["Paint_Avenger"]); every paint item carries the same tag.
+function extractPaintTag(vehicle) {
+  const port = (vehicle.ports || []).find(p => p.name === 'hardpoint_paint' || p.category_label === 'Paints');
+  const tag = port?.required_tags?.[0];
+  return typeof tag === 'string' && /^[A-Za-z0-9_]+$/.test(tag) ? tag : '';
+}
+
+ipcMain.handle('api:getShipLiveries', async (_, tag) => {
+  try {
+    if (typeof tag !== 'string' || !/^[A-Za-z0-9_]+$/.test(tag)) return { status: 'error', error: 'Invalid livery tag' };
+    const out = [];
+    for (let page = 1; page <= 6; page++) {
+      const res = await fetchJson(
+        `https://api.star-citizen.wiki/api/v2/items?filter%5Btype%5D=Paints&filter%5Btags%5D=${encodeURIComponent(tag)}&page%5Bsize%5D=100&page%5Bnumber%5D=${page}`);
+      for (const it of res.data || []) {
+        const img = (it.images || [])[0];
+        const image = img?.thumbnail_url || img?.original_url || '';
+        const desc = typeof it.description === 'string' ? it.description : (it.description?.en_EN || '');
+        out.push({
+          uuid: it.uuid,
+          name: it.name,
+          source: Array.isArray(it.event_source) ? it.event_source.join(', ') : '',
+          image: /^https:\/\//i.test(image) ? image : '',
+          description: String(desc).slice(0, 600),
+        });
+      }
+      if (page >= (res.meta?.last_page || 1)) break;
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    return { status: 'ok', liveries: out };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+
+ipcMain.handle('api:getShipLoadout', async (_, slug) => {
+  try {
+    if (typeof slug !== 'string' || !/^[a-z0-9-]+$/i.test(slug)) return { status: 'error', error: 'Invalid ship id' };
+    const res = await fetchJson(`https://api.star-citizen.wiki/api/v2/vehicles/${encodeURIComponent(slug)}`);
+    const vehicle = res.data || res;
+    return { status: 'ok', slots: extractShipSlots(vehicle), paintTag: extractPaintTag(vehicle) };
   } catch (e) {
     return { status: 'error', error: e.message };
   }
@@ -376,6 +519,27 @@ ipcMain.handle('window:close', () => {
 });
 ipcMain.handle('window:setOpacity', (_, opacity) => mainWindow?.setOpacity(opacity));
 ipcMain.handle('window:setAlwaysOnTop', (_, v) => mainWindow?.setAlwaysOnTop(v));
+
+// Erkul's calculator refuses to render below ~1000px wide (it redirects to its
+// Component Finder), so the Erkul view widens the overlay and restores the
+// previous size when the user leaves it.
+ipcMain.handle('window:expandForEmbed', (_, width) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
+  if (!preErkulBounds) preErkulBounds = mainWindow.getBounds();
+  const b = mainWindow.getBounds();
+  const area = screen.getDisplayMatching(b).workArea;
+  const w = Math.min(Math.max(Number(width) || 0, b.width), area.width);
+  const x = Math.min(Math.max(b.x, area.x), area.x + area.width - w);
+  mainWindow.setBounds({ x, y: b.y, width: w, height: b.height });
+  return { ok: true, width: w };
+});
+
+ipcMain.handle('window:restoreFromEmbed', () => {
+  if (!mainWindow || mainWindow.isDestroyed() || !preErkulBounds) return { ok: false };
+  mainWindow.setBounds(preErkulBounds);
+  preErkulBounds = null;
+  return { ok: true };
+});
 ipcMain.handle('window:setResizable', (_, v) => {
   if (!mainWindow) return;
   mainWindow.setResizable(v);
@@ -739,7 +903,7 @@ ipcMain.handle('bug:report', async (_, { description }) => {
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftAssets', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -749,6 +913,7 @@ function validateImport(data) {
   if (data.jobs !== undefined && !Array.isArray(data.jobs)) return 'jobs must be an array';
   if (data.craftInventory !== undefined && !Array.isArray(data.craftInventory)) return 'craftInventory must be an array';
   if (data.craftAssets !== undefined && !Array.isArray(data.craftAssets)) return 'craftAssets must be an array';
+  if (data.craftShips !== undefined && !Array.isArray(data.craftShips)) return 'craftShips must be an array';
   if (data.craftingOwned !== undefined && (typeof data.craftingOwned !== 'object' || Array.isArray(data.craftingOwned))) return 'craftingOwned must be an object';
   if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
   if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';

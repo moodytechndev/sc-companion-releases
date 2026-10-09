@@ -332,7 +332,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <div class="tab active" data-tab="mining" data-i18n="tab.mining">⛰ Mining</div>
     <div class="tab" data-tab="refinery" data-i18n="tab.refinery">⛏ Refinery</div>
     <div class="tab" data-tab="prices" data-i18n="tab.prices">📈 Prices</div>
-    <div class="tab" data-tab="crafting" data-i18n="tab.craft">🔧 Craft</div>
+    <div class="tab" data-tab="crafting" data-i18n="tab.craft">🚀 Hangar</div>
   </div>
 
   <!-- ── Content ── -->
@@ -551,6 +551,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           <div class="chip active" onclick="switchCraftingView('owned',this)" data-i18n="craft.myBlueprints">My Blueprints</div>
           <div class="chip" onclick="switchCraftingView('inventory',this)" data-i18n="craft.inventory">Inventory</div>
           <div class="chip" onclick="switchCraftingView('assets',this)">📦 Assets</div>
+          <div class="chip" onclick="switchCraftingView('ships',this)">🛸 Ships</div>
         </div>
       </div>
 
@@ -572,11 +573,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <select id="owned-cat-filter" onchange="renderOwned()" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;min-width:0">
               <option value="" data-i18n="craft.allCategories">All Categories</option>
             </select>
+            <select id="owned-size-filter" onchange="renderOwned()" title="Component size" style="padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;flex-shrink:0">
+              <option value="">All sizes</option>
+              <option value="0">S0</option><option value="1">S1</option><option value="2">S2</option><option value="3">S3</option>
+              <option value="4">S4</option><option value="5">S5</option><option value="6">S6</option>
+            </select>
             <select id="owned-sort" onchange="renderOwned()" style="padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;flex-shrink:0">
               <option value="name-asc" data-i18n="craft.sortAZ">A → Z</option>
               <option value="name-desc" data-i18n="craft.sortZA">Z → A</option>
               <option value="time-asc" data-i18n="craft.sortTimeAsc">Craft Time ↑</option>
               <option value="time-desc" data-i18n="craft.sortTimeDesc">Craft Time ↓</option>
+              <option value="size-asc">Size ↑</option>
+              <option value="size-desc">Size ↓</option>
             </select>
           </div>
         </div>
@@ -638,6 +646,38 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <div class="ico">📦</div>
             <div class="lbl">No assets tracked yet.<br>Add ships, vehicles, and components.</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Ships view -->
+      <div id="crafting-view-ships" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div style="padding:8px 10px 0">
+          <div class="filter-chips" style="margin-top:0">
+            <div class="chip active" id="ships-sub-list" onclick="switchShipsSub('list')">My Ships</div>
+            <div class="chip" id="ships-sub-erkul" onclick="switchShipsSub('erkul')">Erkul DPS Calculator</div>
+          </div>
+        </div>
+
+        <div id="ships-pane-list" style="display:flex;flex-direction:column;flex:1;min-height:0">
+          <div style="padding:8px 10px 4px;display:flex;gap:6px;align-items:center">
+            <div class="search-bar" style="flex:1">
+              <span class="ico">🔍</span>
+              <input type="text" id="ships-search" placeholder="Search my ships…" oninput="renderShips()">
+            </div>
+            <button class="btn btn-sm" onclick="openAddShip()" style="flex-shrink:0">+ Add</button>
+          </div>
+          <div class="scroll-area" id="ships-list"></div>
+        </div>
+
+        <div id="ships-pane-erkul" style="display:none;flex-direction:column;flex:1;min-height:0">
+          <div style="padding:6px 10px;display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--border)">
+            <button class="craft-owned-btn" onclick="erkulNav('back')" title="Back">←</button>
+            <button class="craft-owned-btn" onclick="erkulNav('forward')" title="Forward">→</button>
+            <button class="craft-owned-btn" onclick="erkulNav('reload')" title="Reload">⟳</button>
+            <span style="flex:1;font-size:10px;color:var(--text-dim);text-align:center">erkul.games · the overlay widens while this tab is open</span>
+            <button class="craft-owned-btn" onclick="erkulNav('browser')" title="Open this page in your browser">Browser ↗</button>
+          </div>
+          <div id="erkul-host" style="flex:1;min-height:0;display:flex"></div>
         </div>
       </div>
     </div>
@@ -832,6 +872,14 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <input id="asset-type-input" type="text" placeholder="e.g. Ship, Vehicle, Component…">
     </div>
     <div class="form-group">
+      <label>Size <span style="color:var(--text-dim);font-weight:400">(optional — ship components)</span></label>
+      <select id="asset-size-input" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
+        <option value="">—</option>
+        <option value="0">S0</option><option value="1">S1</option><option value="2">S2</option><option value="3">S3</option>
+        <option value="4">S4</option><option value="5">S5</option><option value="6">S6</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>Location</label>
       <input id="asset-location-input" type="text" placeholder="e.g. New Babbage, Port Olisar…">
     </div>
@@ -842,6 +890,47 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <div class="modal-actions">
       <button class="btn btn-full" onclick="saveAsset()">Save Asset</button>
       <button class="btn btn-full" onclick="closeAddAsset()" style="background:none;border-color:var(--border);color:var(--text-dim)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Ship Modal ── -->
+<div id="add-ship-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
+  <div class="modal">
+    <h3>Add Ship</h3>
+    <div class="form-group">
+      <label>Ship</label>
+      <input id="ship-pick-search" type="text" placeholder="Search ships and vehicles…" oninput="renderShipPicker()">
+      <div id="ship-pick-list" style="margin-top:6px;max-height:190px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)"></div>
+      <div id="ship-pick-selected" style="font-size:11px;color:var(--accent);margin-top:4px;min-height:14px"></div>
+    </div>
+    <div class="form-group">
+      <label>Nickname</label>
+      <input id="ship-nick-input" type="text" placeholder="Optional">
+    </div>
+    <div class="form-group">
+      <label>Location</label>
+      <input id="ship-location-input" type="text" placeholder="e.g. Lorville, Everus Harbor…">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input id="ship-notes-input" type="text" placeholder="Optional notes…">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-full" onclick="saveShip()">Save Ship</button>
+      <button class="btn btn-full" onclick="closeAddShip()" style="background:none;border-color:var(--border);color:var(--text-dim)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Ship Components Modal ── -->
+<div id="ship-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center" onclick="if(event.target===this)closeShipModal()">
+  <div class="modal" style="width:430px">
+    <h3 id="ship-modal-title">Ship</h3>
+    <div id="ship-modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="refreshShipSlots()" title="Re-download the stock loadout for this ship" style="background:none;border-color:var(--border);color:var(--text-dim)">↻ Refresh stock data</button>
+      <button class="btn" style="background:none;border-color:var(--border);flex:1" onclick="closeShipModal()">Close</button>
     </div>
   </div>
 </div>
@@ -894,7 +983,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
   <div class="modal" style="width:420px">
     <h3 id="bp-details-title">Blueprint</h3>
     <div id="bp-details-body"></div>
-    <div class="modal-actions">
+    <div id="bp-craft-note" style="font-size:10px;color:var(--text-dim);margin-top:12px"></div>
+    <div style="margin-top:6px">
+      <button class="btn btn-full" id="bp-add-asset-btn" onclick="addCraftedToAssets()">＋ Add as crafted asset</button>
+    </div>
+    <div class="modal-actions" style="margin-top:8px">
       <button class="btn" style="background:none;border-color:var(--border);flex:1" onclick="closeBpDetailsModal()">Close</button>
     </div>
   </div>
@@ -1046,6 +1139,7 @@ let allBlueprints = [];
 let ownedBlueprints = {};
 let craftInventory = [];
 let craftAssets    = [];
+let craftShips     = [];
 let craftingInitialized = false;
 let editingInvId = null;
 const openInvGroups     = new Set();
@@ -1704,6 +1798,7 @@ function switchTab(name) {
   if (name === 'mining')   { if (miningView === 'halo') initHalo(); else renderMining(); }
   if (name === 'refinery') { if (refineryView === 'bonuses') renderBonuses(); }
   if (name === 'crafting') initCrafting();
+  syncErkulWindow();
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -3359,29 +3454,454 @@ function switchCraftingView(view, chipEl) {
   document.getElementById('crafting-view-owned').style.display     = view === 'owned'     ? 'flex' : 'none';
   document.getElementById('crafting-view-inventory').style.display = view === 'inventory' ? 'flex' : 'none';
   document.getElementById('crafting-view-assets').style.display    = view === 'assets'    ? 'flex' : 'none';
+  document.getElementById('crafting-view-ships').style.display     = view === 'ships'     ? 'flex' : 'none';
   if (view === 'owned')     renderOwned();
   if (view === 'inventory') renderInventory();
   if (view === 'assets')    renderAssets();
+  if (view === 'ships')     renderShips();
+  syncErkulWindow();
+}
+
+// ── Ships: owned-ship list backed by UEX Corp's vehicle data ──────────────────
+// Each saved ship keeps a snapshot of its name/SCU/crew/roles, so the list still
+// renders offline; the UEX vehicle list is only fetched when adding a ship.
+const ERKUL_URL = 'https://erkul.games/calculator';
+const SHIP_ROLE_FLAGS = {
+  is_cargo: 'Cargo', is_mining: 'Mining', is_salvage: 'Salvage', is_medical: 'Medical',
+  is_military: 'Military', is_exploration: 'Exploration', is_racing: 'Racing',
+  is_refuel: 'Refuel', is_repair: 'Repair', is_passenger: 'Passenger', is_stealth: 'Stealth',
+  is_bomber: 'Bomber', is_carrier: 'Carrier', is_industrial: 'Industrial',
+  is_science: 'Science', is_research: 'Research', is_ground_vehicle: 'Ground',
+};
+let uexVehicles = null;
+let pickedVehicle = null;
+
+const newUid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const shipByUid = (uid) => uid ? (craftShips || []).find(s => s.uid === uid) || null : null;
+const shipLabel = (s) => s.nickname ? `${s.name} “${s.nickname}”` : s.name;
+const SELECT_STYLE = 'padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;min-width:0';
+
+function assetByUid(uid) { return uid ? (craftAssets || []).find(a => a.uid === uid) || null : null; }
+
+// Where an asset is currently installed, if anywhere — installs live on the ship
+// (ship.installed = { [slotKey]: assetUid }), so this scans the ships.
+function assetInstallSpot(uid) {
+  if (!uid) return null;
+  for (const ship of craftShips || []) {
+    for (const [key, assetUid] of Object.entries(ship.installed || {})) {
+      if (assetUid !== uid) continue;
+      const slot = (ship.slots || []).find(sl => sl.key === key);
+      return { ship, slotLabel: slot ? slot.label : key };
+    }
+  }
+  return null;
+}
+
+function openErkul() { switchShipsSub('erkul'); }
+
+function shipRoles(v) {
+  return Object.entries(SHIP_ROLE_FLAGS).filter(([flag]) => v[flag]).map(([, label]) => label);
+}
+
+function renderShips() {
+  const q = (document.getElementById('ships-search')?.value || '').toLowerCase().trim();
+  const list = document.getElementById('ships-list');
+  const ships = craftShips || [];
+  const rows = ships.map((s, i) => ({ s, i })).filter(({ s }) =>
+    !q || [s.name, s.nickname, s.company, s.location].some(f => (f || '').toLowerCase().includes(q)));
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty-state"><div class="ico">🛸</div>
+      <div class="lbl">${ships.length ? 'No ships match your search.' : 'No ships tracked yet.<br>Add the ships you own with + Add.'}</div></div>`;
+    return;
+  }
+  list.innerHTML = rows.map(({ s, i }) => {
+    const swapped = Object.values(s.installed || {}).map(assetByUid).filter(Boolean);
+    return `
+    <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openShipModal('${esc(s.uid)}')" title="Click to see and change this ship's components">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:var(--text-bright);font-size:13px">${esc(s.name)}${s.nickname ? ` <span style="font-weight:400;color:var(--accent)">“${esc(s.nickname)}”</span>` : ''}</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${[
+          s.company, s.scu != null ? `${s.scu} SCU` : '', s.crew ? `Crew ${s.crew}` : '', s.location,
+        ].filter(Boolean).map(esc).join(' · ')}</div>
+        ${(s.roles || []).length ? `<div class="craft-ingredients">${s.roles.map(r => `<span class="craft-ing">${esc(r)}</span>`).join('')}</div>` : ''}
+        ${s.livery ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">Livery: ${esc(s.livery.name)}</div>` : ''}
+        ${swapped.length ? `<div style="font-size:10px;color:var(--text-dim);margin-top:6px">Custom components (${swapped.length})</div>
+          <div class="craft-ingredients" style="margin-top:2px">${swapped.map(a => `<span class="craft-ing stocked">${esc(a.name)}</span>`).join('')}</div>` : ''}
+        ${s.notes ? `<div style="font-size:11px;color:var(--text);margin-top:4px;opacity:0.8">${esc(s.notes)}</div>` : ''}
+      </div>
+      <button class="craft-owned-btn" onclick="event.stopPropagation();openErkul()" title="Open the Erkul DPS calculator">Erkul</button>
+      <button onclick="event.stopPropagation();removeShip(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Ship components modal: stock loadout + swapping in your own assets ───────
+// Stock loadouts come from the Star Citizen Wiki API (via main.js), keyed by the
+// UEX slug saved with the ship, and are cached on the ship. Installing is done
+// here, not on the Assets page: ship.installed maps a slot to an asset uid.
+const SLOT_KIND_ORDER = ['weapon', 'shield', 'power', 'cooler', 'quantum', 'radar', 'mining', 'salvage'];
+const SLOT_KIND_LABEL = {
+  weapon: 'Weapons', shield: 'Shields', power: 'Power Plants', cooler: 'Coolers',
+  quantum: 'Quantum Drives', radar: 'Radar', mining: 'Mining Lasers', salvage: 'Salvage Heads',
+};
+let openShipUid = null;
+const freshShipModalState = () => ({ loading: false, error: '', liveryOpen: false, liveryQuery: '', liveryPreview: '', liveryLoading: false, liveryError: '' });
+let shipModalState = freshShipModalState();
+const liveryCache = {}; // paint tag -> [{uuid, name, source, image, description}]
+
+// Which slot kind an asset can fill, judged from its type text. Assets aren't
+// only ship parts (armor, FPS weapons, gear...), so anything that doesn't
+// clearly match is still offered, just under "Other assets".
+function assetSlotKind(a) {
+  const t = (a.type || '').toLowerCase();
+  if (t.includes('shield')) return 'shield';
+  if (t.includes('cooler')) return 'cooler';
+  if (t.includes('power')) return 'power';
+  if (t.includes('quantum')) return 'quantum';
+  if (t.includes('radar')) return 'radar';
+  if (t.includes('mining')) return 'mining';
+  if (t.includes('salvage')) return 'salvage';
+  if (t.includes('weapon') && /ship|vehicle|component/.test(t)) return 'weapon';
+  return null;
+}
+
+async function loadShipSlots(ship) {
+  Object.assign(shipModalState, { loading: true, error: '' });
+  renderShipModal();
+  try {
+    let slug = ship.slug;
+    if (!slug) {
+      // Ship saved before slugs were stored — recover it from UEX by id.
+      if (!uexVehicles) {
+        const res = await api.getVehicles();
+        if (res && Array.isArray(res.data)) uexVehicles = res.data.filter(v => !v.is_addon).sort((a, b) => (a.name_full || '').localeCompare(b.name_full || ''));
+      }
+      slug = uexVehicles?.find(v => v.id === ship.vid)?.slug || '';
+      if (slug) ship.slug = slug;
+    }
+    if (!slug) throw new Error('No ship id on file for this ship');
+    const res = await api.getShipLoadout(slug);
+    if (res.status !== 'ok') throw new Error(res.error || 'Request failed');
+    ship.slots = res.slots;
+    ship.paintTag = res.paintTag || '';
+    // Drop installs whose slot no longer exists in the refreshed loadout.
+    const keys = new Set(res.slots.map(sl => sl.key));
+    Object.keys(ship.installed || {}).forEach(k => { if (!keys.has(k)) delete ship.installed[k]; });
+    await api.setStore('craftShips', craftShips);
+    Object.assign(shipModalState, { loading: false, error: '' });
+  } catch (e) {
+    Object.assign(shipModalState, { loading: false, error: e.message });
+  }
+  if (openShipUid === ship.uid) renderShipModal();
+  renderShips();
+}
+
+async function openShipModal(uid) {
+  const ship = shipByUid(uid);
+  if (!ship) return;
+  openShipUid = uid;
+  shipModalState = freshShipModalState();
+  document.getElementById('ship-modal-title').textContent = shipLabel(ship);
+  document.getElementById('ship-modal-overlay').style.display = 'flex';
+  renderShipModal();
+  if (!ship.slots) await loadShipSlots(ship);
+}
+
+function closeShipModal() {
+  document.getElementById('ship-modal-overlay').style.display = 'none';
+  openShipUid = null;
+}
+
+function refreshShipSlots() {
+  const ship = shipByUid(openShipUid);
+  if (ship) loadShipSlots(ship);
+}
+
+function renderShipModal() {
+  const ship = shipByUid(openShipUid);
+  const body = document.getElementById('ship-modal-body');
+  if (!ship) { body.innerHTML = ''; return; }
+
+  const meta = [ship.company, ship.scu != null ? `${ship.scu} SCU` : '', ship.crew ? `Crew ${ship.crew}` : '', ship.location]
+    .filter(Boolean).map(esc).join(' · ');
+  const head = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">${meta}</div>` + shipLiveryBlockHtml(ship);
+
+  if (shipModalState.loading) {
+    body.innerHTML = head + '<div style="font-size:12px;color:var(--text-dim);padding:12px 0">Loading stock components…</div>';
+    return;
+  }
+  if (shipModalState.error && !ship.slots) {
+    body.innerHTML = head + `<div style="font-size:12px;color:var(--danger);padding:8px 0">Couldn't load this ship's stock components (${esc(shipModalState.error)}). Use ↻ Refresh stock data to try again.</div>`;
+    return;
+  }
+  const slots = ship.slots || [];
+  if (!slots.length) {
+    body.innerHTML = head + '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">No swappable components are listed for this ship.</div>';
+    return;
+  }
+
+  // An asset can only sit in one slot at a time.
+  const takenBy = new Map();
+  craftShips.forEach(sh => Object.entries(sh.installed || {}).forEach(([key, uid]) => takenBy.set(uid, `${sh.uid}|${key}`)));
+
+  const groups = SLOT_KIND_ORDER.map(kind => {
+    const rows = slots.map((slot, idx) => ({ slot, idx })).filter(({ slot }) => slot.kind === kind);
+    if (!rows.length) return '';
+    const rowsHtml = rows.map(({ slot, idx }) => {
+      const here = `${ship.uid}|${slot.key}`;
+      const current = ship.installed?.[slot.key] || '';
+      const asset = assetByUid(current);
+      const free = (craftAssets || []).filter(a => a.uid && (!takenBy.has(a.uid) || takenBy.get(a.uid) === here));
+      // A slot accepts sizes min..max; assets with no recorded size are given the benefit of the doubt.
+      const slotMax = slot.size;
+      const slotMin = slot.sizeMin ?? slot.size;
+      const sizeOk = a => a.size == null || slotMax == null || (a.size >= slotMin && a.size <= slotMax);
+      const slotSizeText = slotMax == null ? '' : (slotMin !== slotMax ? `${slotMin}–${slotMax}` : `${slotMax}`);
+      const matching = free.filter(a => assetSlotKind(a) === kind && sizeOk(a));
+      const other = free.filter(a => !(assetSlotKind(a) === kind && sizeOk(a)));
+      const opt = a => `<option value="${esc(a.uid)}"${a.uid === current ? ' selected' : ''}>${esc(a.name)}${a.size != null ? ` (S${a.size})` : ''}${a.crafted ? ' (crafted)' : ''}</option>`;
+      const st = slot.stock;
+      const stockLine = [st.name, st.size != null ? `S${st.size}` : '', st.grade ? `Grade ${st.grade}` : '', st.maker].filter(Boolean).map(esc).join(' · ');
+      const craftedChips = asset?.crafted
+        ? `<div class="craft-ingredients" style="margin-top:3px">
+            ${(asset.crafted.parts || []).map(pt => `<span class="craft-ing">${esc(pt.name)} Q${esc(String(pt.quality))}</span>`).join('')}
+            ${(asset.crafted.stats || []).map(x => `<span class="craft-ing stocked">${esc(x.stat)} ${esc(x.value)}</span>`).join('')}
+          </div>`
+        : '';
+      return `
+      <div style="padding:8px 0;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <span style="font-size:12px;font-weight:700">${esc(slot.label)}</span>
+          ${slotSizeText ? `<span style="font-size:10px;color:var(--text-dim)">Size ${esc(slotSizeText)}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);${asset ? 'text-decoration:line-through;opacity:.6' : ''}">Stock: ${stockLine}</div>
+        ${asset ? `<div style="font-size:12px;color:var(--accent);margin-top:2px">Installed: <b>${esc(asset.name)}</b>${asset.size != null ? ` <span style="color:var(--text-dim);font-weight:400">S${asset.size}</span>` : ''}</div>${craftedChips}` : ''}
+        ${asset && !sizeOk(asset) ? `<div style="font-size:10px;color:var(--danger);margin-top:2px">Size mismatch: an S${asset.size} part in a size ${esc(slotSizeText)} slot.</div>` : ''}
+        <select onchange="setShipSlot(${idx}, this.value)" style="${SELECT_STYLE};width:100%;margin-top:5px">
+          <option value="">Stock — ${esc(st.name)}</option>
+          ${matching.length ? `<optgroup label="Matching assets">${matching.map(opt).join('')}</optgroup>` : ''}
+          ${other.length ? `<optgroup label="Other assets (different type or size)">${other.map(opt).join('')}</optgroup>` : ''}
+        </select>
+      </div>`;
+    }).join('');
+    return `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin:12px 0 2px">${SLOT_KIND_LABEL[kind]} (${rows.length})</div>${rowsHtml}`;
+  }).join('');
+
+  body.innerHTML = head + groups + (shipModalState.error ? `<div style="font-size:10px;color:var(--danger);margin-top:8px">Refresh failed: ${esc(shipModalState.error)} — showing saved stock data.</div>` : '');
+}
+
+// ── Liveries ─────────────────────────────────────────────────────────────────
+// Paints are Wiki-API items tagged with the same tag as the ship's paint port
+// (e.g. "Paint_Avenger"), so the list is exactly what fits this ship. The tag is
+// captured with the stock loadout; the livery list itself is fetched on demand.
+function liveryResultsHtml(ship) {
+  const st = shipModalState;
+  const tag = ship.paintTag;
+  if (st.liveryLoading) return '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">Loading liveries…</div>';
+  if (st.liveryError) return `<div style="font-size:12px;color:var(--danger);padding:8px 0">Couldn't load liveries (${esc(st.liveryError)}).</div>`;
+  if (shipModalState.loading) return '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">Loading ship data…</div>';
+  if (!tag) return '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">No livery slot is listed for this ship.</div>';
+  const all = liveryCache[tag] || [];
+  const q = (st.liveryQuery || '').toLowerCase().trim();
+  const list = q ? all.filter(l => l.name.toLowerCase().includes(q) || (l.source || '').toLowerCase().includes(q)) : all;
+  const cur = ship.livery?.uuid || '';
+  const row = (uuid, name, source, equipped, extra) => `
+    <div style="padding:6px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="flex:1;min-width:0;font-size:12px;${equipped ? 'color:var(--accent);font-weight:700' : ''}">${esc(name)}${source ? ` <span class="craft-ing" style="margin-left:4px">${esc(source)}</span>` : ''}</div>
+        ${uuid ? `<button class="craft-owned-btn" onclick="previewLivery('${esc(uuid)}')">${st.liveryPreview === uuid ? 'Hide' : 'Preview'}</button>` : ''}
+        <button class="craft-owned-btn${equipped ? ' owned' : ''}" onclick="setShipLivery('${esc(uuid)}')">${equipped ? '✓ Equipped' : 'Use'}</button>
+      </div>${extra || ''}
+    </div>`;
+  const rows = list.map(l => {
+    const preview = st.liveryPreview === l.uuid
+      ? `<div style="margin-top:6px">${l.image ? `<img src="${esc(l.image)}" alt="${esc(l.name)}" loading="lazy" style="width:100%;border-radius:var(--r);display:block">` : ''}
+          ${l.description ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">${esc(l.description)}</div>` : ''}</div>`
+      : '';
+    return row(l.uuid, l.name, l.source, l.uuid === cur, preview);
+  }).join('');
+  return row('', 'Stock livery', '', !cur, '') + (rows || `<div style="font-size:12px;color:var(--text-dim);padding:8px 0">${all.length ? 'No liveries match your search.' : 'No other liveries are listed for this ship.'}</div>`)
+    + `<div style="font-size:10px;color:var(--text-dim);padding-top:6px">${all.length} ${all.length === 1 ? 'livery fits' : 'liveries fit'} this ship</div>`;
+}
+
+function shipLiveryBlockHtml(ship) {
+  const cur = ship.livery;
+  const open = shipModalState.liveryOpen;
+  return `<div style="border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:6px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="min-width:0">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim)">Livery</div>
+        <div style="font-size:12px;font-weight:700;color:${cur ? 'var(--accent)' : 'var(--text)'}">${esc(cur ? cur.name : 'Stock livery')}</div>
+      </div>
+      <button class="craft-owned-btn" onclick="toggleLiveryPanel()">${open ? 'Close ▲' : 'Change ▼'}</button>
+    </div>
+    ${open ? `<input id="livery-search" type="text" placeholder="Search liveries…" value="${esc(shipModalState.liveryQuery || '')}" oninput="setLiveryQuery(this.value)"
+        style="width:100%;margin-top:8px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+      <div id="ship-livery-results" style="max-height:240px;overflow-y:auto;margin-top:6px">${liveryResultsHtml(ship)}</div>` : ''}
+  </div>`;
+}
+
+function refreshLiveryResults() {
+  const ship = shipByUid(openShipUid);
+  const el = document.getElementById('ship-livery-results');
+  if (ship && el) el.innerHTML = liveryResultsHtml(ship);
+}
+
+async function toggleLiveryPanel() {
+  const ship = shipByUid(openShipUid);
+  if (!ship) return;
+  const st = shipModalState;
+  st.liveryOpen = !st.liveryOpen;
+  renderShipModal();
+  if (!st.liveryOpen) return;
+
+  // Stock data cached before liveries existed has no paint tag yet — re-fetch it.
+  if (ship.paintTag === undefined) await loadShipSlots(ship);
+  const tag = ship.paintTag;
+  if (!tag || liveryCache[tag]) { refreshLiveryResults(); return; }
+
+  st.liveryLoading = true; st.liveryError = '';
+  refreshLiveryResults();
+  const res = await api.getShipLiveries(tag);
+  st.liveryLoading = false;
+  if (res.status === 'ok') liveryCache[tag] = res.liveries;
+  else st.liveryError = res.error || 'Request failed';
+  if (openShipUid === ship.uid) refreshLiveryResults();
+}
+
+function setLiveryQuery(v) {
+  shipModalState.liveryQuery = v;
+  refreshLiveryResults();
+}
+
+function previewLivery(uuid) {
+  shipModalState.liveryPreview = shipModalState.liveryPreview === uuid ? '' : uuid;
+  refreshLiveryResults();
+}
+
+async function setShipLivery(uuid) {
+  const ship = shipByUid(openShipUid);
+  if (!ship) return;
+  const l = uuid ? (liveryCache[ship.paintTag] || []).find(x => x.uuid === uuid) : null;
+  if (l) ship.livery = { uuid: l.uuid, name: l.name, image: l.image };
+  else delete ship.livery;
+  await api.setStore('craftShips', craftShips);
+  renderShipModal();
+  renderShips();
+}
+
+async function setShipSlot(slotIdx, assetUid) {
+  const ship = shipByUid(openShipUid);
+  const slot = ship?.slots?.[slotIdx];
+  if (!slot) return;
+  ship.installed = ship.installed || {};
+  if (assetUid) ship.installed[slot.key] = assetUid;
+  else delete ship.installed[slot.key];
+  await api.setStore('craftShips', craftShips);
+  renderShipModal();
+  renderShips();
+}
+
+async function openAddShip() {
+  pickedVehicle = null;
+  ['ship-pick-search', 'ship-nick-input', 'ship-location-input', 'ship-notes-input'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('ship-pick-selected').textContent = '';
+  document.getElementById('add-ship-modal').style.display = 'flex';
+  const listEl = document.getElementById('ship-pick-list');
+  if (!uexVehicles) {
+    listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-dim)">Loading ships…</div>';
+    const res = await api.getVehicles();
+    if (!res || res.status === 'error' || !Array.isArray(res.data)) {
+      listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--danger)">Couldn\'t load the ship list. Check your connection and reopen this dialog.</div>';
+      return;
+    }
+    uexVehicles = res.data.filter(v => !v.is_addon).sort((a, b) => (a.name_full || '').localeCompare(b.name_full || ''));
+  }
+  renderShipPicker();
+}
+
+function renderShipPicker() {
+  if (!uexVehicles) return;
+  const q = document.getElementById('ship-pick-search').value.toLowerCase().trim();
+  const matches = (q ? uexVehicles.filter(v => (v.name_full || '').toLowerCase().includes(q)) : uexVehicles).slice(0, 60);
+  document.getElementById('ship-pick-list').innerHTML = matches.length
+    ? matches.map(v => `
+      <div onclick="pickShip(${v.id})" style="padding:6px 10px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border)${pickedVehicle?.id === v.id ? ';background:var(--accent-dim)' : ''}"
+        onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='${pickedVehicle?.id === v.id ? 'var(--accent-dim)' : ''}'">
+        <span>${esc(v.name_full)}${v.is_concept ? ' <span style="color:var(--text-dim)">(concept)</span>' : ''}</span>
+        <span style="color:var(--text-dim);white-space:nowrap">${v.scu ? `${esc(String(v.scu))} SCU` : ''}</span>
+      </div>`).join('')
+    : '<div style="padding:10px;font-size:12px;color:var(--text-dim)">No ships match.</div>';
+}
+
+function pickShip(id) {
+  pickedVehicle = uexVehicles.find(v => v.id === id) || null;
+  document.getElementById('ship-pick-selected').textContent = pickedVehicle ? `Selected: ${pickedVehicle.name_full}` : '';
+  renderShipPicker();
+}
+
+function closeAddShip() {
+  document.getElementById('add-ship-modal').style.display = 'none';
+}
+
+async function saveShip() {
+  if (!pickedVehicle) {
+    document.getElementById('ship-pick-selected').textContent = 'Pick a ship from the list first.';
+    return;
+  }
+  const v = pickedVehicle;
+  craftShips.push({
+    uid: newUid(),
+    vid: v.id,
+    slug: v.slug || '',
+    installed: {},
+    name: v.name_full,
+    company: v.company_name || '',
+    scu: v.scu ?? null,
+    crew: v.crew || '',
+    roles: shipRoles(v),
+    nickname: document.getElementById('ship-nick-input').value.trim(),
+    location: document.getElementById('ship-location-input').value.trim(),
+    notes: document.getElementById('ship-notes-input').value.trim(),
+  });
+  await api.setStore('craftShips', craftShips);
+  closeAddShip();
+  renderShips();
+}
+
+async function removeShip(i) {
+  craftShips.splice(i, 1);
+  await api.setStore('craftShips', craftShips);
+  renderShips();
 }
 
 function renderAssets() {
   const q = (document.getElementById('assets-search')?.value || '').toLowerCase().trim();
   const list = document.getElementById('assets-list');
   const assets = craftAssets || [];
-  const filtered = q ? assets.filter(a => (a.name || '').toLowerCase().includes(q) || (a.type || '').toLowerCase().includes(q)) : assets;
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state"><div class="ico">📦</div><div class="lbl">No assets tracked yet.<br>Add ships, vehicles, and components.</div></div>';
+  const rows = assets.map((a, i) => ({ a, i, spot: assetInstallSpot(a.uid) })).filter(({ a, spot }) =>
+    !q || [a.name, a.type, spot && shipLabel(spot.ship)].some(f => (f || '').toLowerCase().includes(q)));
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty-state"><div class="ico">📦</div><div class="lbl">No assets tracked yet.<br>Add ships, vehicles, gear, and components.</div></div>';
     return;
   }
-  list.innerHTML = filtered.map((a, i) => `
-    <div class="card" style="display:flex;align-items:center;gap:10px">
+  list.innerHTML = rows.map(({ a, i, spot }) => {
+    const crafted = a.crafted ? `<div class="craft-ingredients">
+      ${(a.crafted.parts || []).map(p => `<span class="craft-ing">${esc(p.name)} Q${esc(String(p.quality))}</span>`).join('')}
+      ${(a.crafted.stats || []).map(st => `<span class="craft-ing stocked">${esc(st.stat)} ${esc(st.value)}</span>`).join('')}
+    </div>` : '';
+    return `
+    <div class="card" style="display:flex;align-items:flex-start;gap:10px">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;color:var(--text-bright);font-size:13px">${esc(a.name || '—')}</div>
-        <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${esc(a.type || '')}${a.location ? ` · ${esc(a.location)}` : ''}</div>
+        <div style="font-weight:700;color:var(--text-bright);font-size:13px">${esc(a.name || '—')}${a.crafted ? ' <span style="font-weight:400;color:var(--accent);font-size:10px">crafted</span>' : ''}</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${esc(a.type || '')}${a.size != null ? ` · S${a.size}` : ''}${a.location ? ` · ${esc(a.location)}` : ''}</div>
+        ${crafted}
+        ${spot ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">Installed on ${esc(shipLabel(spot.ship))} · ${esc(spot.slotLabel)}</div>` : ''}
         ${a.notes ? `<div style="font-size:11px;color:var(--text);margin-top:4px;opacity:0.8">${esc(a.notes)}</div>` : ''}
       </div>
       <button onclick="removeAsset(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function openAddAsset() {
@@ -3390,6 +3910,7 @@ function openAddAsset() {
   document.getElementById('asset-type-input').value = '';
   document.getElementById('asset-location-input').value = '';
   document.getElementById('asset-notes-input').value = '';
+  document.getElementById('asset-size-input').value = '';
 }
 
 function closeAddAsset() {
@@ -3400,11 +3921,14 @@ async function saveAsset() {
   const name = document.getElementById('asset-name-input').value.trim();
   if (!name) return;
   const asset = {
+    uid: newUid(),
     name,
     type:     document.getElementById('asset-type-input').value.trim(),
     location: document.getElementById('asset-location-input').value.trim(),
     notes:    document.getElementById('asset-notes-input').value.trim(),
   };
+  const assetSize = document.getElementById('asset-size-input').value;
+  if (assetSize !== '') asset.size = parseInt(assetSize, 10);
   craftAssets.push(asset);
   await api.setStore('craftAssets', craftAssets);
   closeAddAsset();
@@ -3412,7 +3936,15 @@ async function saveAsset() {
 }
 
 async function removeAsset(i) {
-  craftAssets.splice(i, 1);
+  const [removed] = craftAssets.splice(i, 1);
+  if (removed?.uid) {
+    // A deleted asset can't stay installed — that slot reverts to stock.
+    let changed = false;
+    craftShips.forEach(ship => Object.entries(ship.installed || {}).forEach(([key, uid]) => {
+      if (uid === removed.uid) { delete ship.installed[key]; changed = true; }
+    }));
+    if (changed) await api.setStore('craftShips', craftShips);
+  }
   await api.setStore('craftAssets', craftAssets);
   renderAssets();
 }
@@ -3427,6 +3959,15 @@ async function initCrafting() {
   ownedBlueprints = (await api.getStore('craftingOwned', {})) || {};
   craftInventory  = (await api.getStore('craftInventory', [])) || [];
   craftAssets     = (await api.getStore('craftAssets',    [])) || [];
+  craftShips      = (await api.getStore('craftShips',     [])) || [];
+  if (craftShips.some(s => !s.uid)) {
+    craftShips.forEach(s => { if (!s.uid) s.uid = newUid(); });
+    await api.setStore('craftShips', craftShips);
+  }
+  if (craftAssets.some(a => !a.uid)) {
+    craftAssets.forEach(a => { if (!a.uid) a.uid = newUid(); });
+    await api.setStore('craftAssets', craftAssets);
+  }
 
   const list = document.getElementById('owned-list');
   list.innerHTML = `<div class="loading"><div class="spinner"></div>${t('craft.loading.check')}</div>`;
@@ -3470,6 +4011,21 @@ async function initCrafting() {
   }
 }
 
+// Ship components carry their size in the blueprint id: "_s03_" mid-id for
+// shields/coolers/power plants/quantum drives/radar, a trailing "_s2" for
+// weapons/mining lasers/tractor beams. Checked against the Wiki's own item sizes
+// (318 of 319 matching components agree). Armor, ammo, FPS weapons and a few
+// vehicle items (ore pods, salvage heads, refuel nozzles) have no size.
+function bpSize(bp) {
+  if (!(bp.category || '').startsWith('Vehiclegear')) return null;
+  const m = (bp.blueprint_id || '').match(/_s(\d{1,2})(?:_|$)/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function sizeChipHtml(size) {
+  return size == null ? '' : ` <span class="craft-ing" style="margin-left:6px">S${size}</span>`;
+}
+
 function bpIngHtml(bp, stocked) {
   return (bp.ingredients || []).map(ing => {
     const has = stocked?.has(ing.name);
@@ -3508,12 +4064,17 @@ function renderOwned() {
   if (f === 'owned')   bps = bps.filter(bp => ownedBlueprints[bp.blueprint_id]);
   if (f === 'missing') bps = bps.filter(bp => !ownedBlueprints[bp.blueprint_id]);
   if (cat) bps = bps.filter(bp => (bp.category || '').startsWith(cat));
+  const sizeSel = document.getElementById('owned-size-filter')?.value || '';
+  if (sizeSel !== '') bps = bps.filter(bp => bpSize(bp) === parseInt(sizeSel, 10));
 
   bps = [...bps].sort((a, b) => {
     if (srt === 'name-asc')  return a.name.localeCompare(b.name);
     if (srt === 'name-desc') return b.name.localeCompare(a.name);
     if (srt === 'time-asc')  return (a.craft_time_seconds || 0) - (b.craft_time_seconds || 0);
     if (srt === 'time-desc') return (b.craft_time_seconds || 0) - (a.craft_time_seconds || 0);
+    // Unsized blueprints (armor, ammo, etc.) always sort after sized ones.
+    if (srt === 'size-asc')  return (bpSize(a) ?? 99) - (bpSize(b) ?? 99) || a.name.localeCompare(b.name);
+    if (srt === 'size-desc') return (bpSize(b) ?? -1) - (bpSize(a) ?? -1) || a.name.localeCompare(b.name);
     return 0;
   });
 
@@ -3531,7 +4092,7 @@ function renderOwned() {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
           <div class="craft-name">${esc(bp.name)}</div>
-          <div class="craft-cat">${esc(bp.category || '')}</div>
+          <div class="craft-cat">${esc(bp.category || '')}${sizeChipHtml(bpSize(bp))}</div>
         </div>
         <button class="craft-owned-btn ${owned ? 'owned' : ''}" onclick="event.stopPropagation(); toggleOwned('${esc(bp.blueprint_id)}')">
           ${owned ? '✓ Owned' : '+ Own'}
@@ -3556,6 +4117,8 @@ async function toggleOwned(id) {
 // else in the data except armor's temperature resistance — so only that gets a
 // computed final value. Everywhere else this shows the honest modifier curve
 // instead of a fabricated absolute stat.
+let currentBpId = null;
+let bpSources = {}; // { [blueprint_id]: { [ingredientIndex]: [inventory box index | ''] } }
 let bpQualityState = {}; // { [blueprint_id]: { [ingredientIndex]: raw quality 0-999 } }
 
 function qualityModifierAt(qualityEffect, quality) {
@@ -3614,20 +4177,27 @@ function bpStatBaseValue(stats, statName) {
   return null;
 }
 
-function bpStatTableHtml(bp, state) {
+function bpStatRows(bp, state) {
   const statNames = [...new Set((bp.ingredients || []).flatMap(ing => (ing.quality_effects || []).map(qe => qe.stat)))];
-  if (!statNames.length) return '<div style="font-size:12px;color:var(--text-dim)">No quality-affected stats for this blueprint.</div>';
-  const rows = statNames.map(name => {
+  return statNames.map(name => {
     const modifier = bpCombinedModifier(bp, state, name);
     const base = bpStatBaseValue(bp.item_stats, name);
-    const baseText = base != null ? fmtNum(base) : '—';
-    const craftedText = base != null ? fmtNum(base * modifier) : fmtModPct(modifier);
-    return `<tr>
-      <td style="padding:3px 0;color:var(--text-dim)">${esc(name)}</td>
-      <td style="padding:3px 0;text-align:right;color:var(--text-dim)">${esc(baseText)}</td>
-      <td style="padding:3px 0;text-align:right;font-weight:600">${esc(craftedText)}</td>
-    </tr>`;
-  }).join('');
+    return {
+      name,
+      baseText: base != null ? fmtNum(base) : '—',
+      craftedText: base != null ? fmtNum(base * modifier) : fmtModPct(modifier),
+    };
+  });
+}
+
+function bpStatTableHtml(bp, state) {
+  const statRows = bpStatRows(bp, state);
+  if (!statRows.length) return '<div style="font-size:12px;color:var(--text-dim)">No quality-affected stats for this blueprint.</div>';
+  const rows = statRows.map(r => `<tr>
+      <td style="padding:3px 0;color:var(--text-dim)">${esc(r.name)}</td>
+      <td style="padding:3px 0;text-align:right;color:var(--text-dim)">${esc(r.baseText)}</td>
+      <td style="padding:3px 0;text-align:right;font-weight:600">${esc(r.craftedText)}</td>
+    </tr>`).join('');
   return `
     <table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr style="text-transform:uppercase;font-size:9px;color:var(--text-dim);letter-spacing:.05em">
@@ -3664,6 +4234,7 @@ function renderBpDetailsBody(bp) {
         <span style="color:var(--text-dim);font-weight:400">${esc(fmtSCU(ing.quantity_scu))}</span>
       </div>
       ${qeHtml || '<div style="font-size:11px;color:var(--text-dim)">No quality effect on this material.</div>'}
+      <div id="bp-src-${i}" style="margin-top:6px"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
         <input type="range" id="bp-qual-slider-${i}" min="0" max="999" step="1" value="${quality}"
           oninput="updateBpIngQuality('${esc(bp.blueprint_id)}', ${i}, this.value)" style="flex:1">
@@ -3682,7 +4253,7 @@ function renderBpDetailsBody(bp) {
     : '<div style="font-size:12px;color:var(--text-dim)">No known mission drops for this blueprint.</div>';
 
   return `
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">${esc(bp.category || '')}</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">${esc(bp.category || '')}${sizeChipHtml(bpSize(bp))}</div>
 
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:4px">Global Quality</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
@@ -3710,13 +4281,253 @@ function openBpDetails(blueprintId) {
     bpQualityState[blueprintId] = {};
     (bp.ingredients || []).forEach((_, i) => { bpQualityState[blueprintId][i] = 500; });
   }
+  currentBpId = blueprintId;
   document.getElementById('bp-details-title').textContent = bp.name;
   document.getElementById('bp-details-body').innerHTML = renderBpDetailsBody(bp);
+  document.getElementById('bp-add-asset-btn').textContent = '＋ Add as crafted asset';
+  // Inventory may have changed since this blueprint was last opened — drop picks
+  // that no longer point at a non-empty box of the right material.
+  const st = bpSources[blueprintId] || {};
+  (bp.ingredients || []).forEach((ing, i) => {
+    if (!st[i]) return;
+    st[i] = st[i].map(idx => (idx !== '' && craftInventory[idx]?.name?.toLowerCase() === ing.name.toLowerCase() && itemSCU(craftInventory[idx]) > BP_EPS) ? idx : '');
+  });
+  bpRefreshAll(bp);
   document.getElementById('bp-details-modal-overlay').style.display = 'flex';
+}
+
+// Snapshots the quality values currently set in the modal (and the resulting
+// stat line) into Assets, optionally installed on one of the user's ships.
+function bpAssetType(bp) {
+  const [top, second] = (bp.category || '').split(' / ');
+  if (top === 'Vehiclegear') return `Ship component${second ? ` — ${second}` : ''}`;
+  if (top === 'Armour') return 'Armor';
+  if (top === 'Weapons') return 'Weapon';
+  if (top === 'Ammo') return 'Ammo';
+  return top || 'Crafted item';
+}
+
+async function addCraftedToAssets() {
+  const bp = allBlueprints.find(b => b.blueprint_id === currentBpId);
+  if (!bp) return;
+  const state = bpQualityState[bp.blueprint_id];
+  const allocs = bpComputeAllocations(bp);
+  if (allocs.some(a => a.hasBox && a.short > 0)) return;
+  const asset = {
+    uid: newUid(),
+    name: bp.name,
+    type: bpAssetType(bp),
+    location: '',
+    notes: '',
+    crafted: {
+      blueprint_id: bp.blueprint_id,
+      parts: (bp.ingredients || []).map((ing, i) => ({
+        name: ing.name,
+        quality: state[i],
+        ...(allocs[i].taken > 0 ? { scu: Math.round(allocs[i].taken * 100) / 100 } : {}),
+      })),
+      stats: bpStatRows(bp, state).map(r => ({ stat: r.name, value: r.craftedText })),
+    },
+  };
+  const craftedSize = bpSize(bp);
+  if (craftedSize != null) asset.size = craftedSize;
+  craftAssets.push(asset);
+
+  // Subtract what was used from each picked box; boxes that run dry are deleted
+  // (highest index first so earlier splices don't shift later ones).
+  const emptied = new Set();
+  let usedStock = false;
+  allocs.forEach(a => a.rows.forEach(r => {
+    if (r.idx === '' || r.take <= 0) return;
+    usedStock = true;
+    const box = craftInventory[r.idx];
+    const unit = parseFloat(box.unit) || 1;
+    const remaining = itemSCU(box) - r.take;
+    if (remaining < 0.005) emptied.add(r.idx);
+    else box.qty = String(Math.round(remaining / unit * 1e6) / 1e6);
+  }));
+  [...emptied].sort((x, y) => y - x).forEach(idx => craftInventory.splice(idx, 1));
+  if (usedStock) {
+    bpSources[bp.blueprint_id] = {};
+    selectedInvBoxes.clear();
+    clearExpandedGroups();
+    await api.setStore('craftInventory', craftInventory);
+    renderInventory();
+  }
+  await api.setStore('craftAssets', craftAssets);
+
+  const btn = document.getElementById('bp-add-asset-btn');
+  btn.textContent = usedStock ? '✓ Crafted — stock deducted' : '✓ Added to Assets';
+  bpRefreshAll(bp);
+  setTimeout(() => { if (btn.textContent.startsWith('✓')) { btn.textContent = '＋ Add as crafted asset'; bpRefreshAll(bp); } }, 2200);
 }
 
 function closeBpDetailsModal() {
   document.getElementById('bp-details-modal-overlay').style.display = 'none';
+}
+
+// ── Crafting from inventory boxes ────────────────────────────────────────────
+// Each inventory entry is one box: `unit` is its size in SCU, `qty` its fill
+// (0–1), `quality` the material's raw game quality (0–999, the same scale the
+// crafting sliders use). Picking a box for an ingredient draws that ingredient's
+// SCU from the box (spilling into the next picked box if short), sets the part's
+// quality from the box (SCU-weighted when several boxes are mixed), and on craft
+// subtracts the SCU from the box — deleting it if emptied.
+const BP_EPS = 0.004;
+
+function bpEligibleBoxes(ing) {
+  const name = (ing.name || '').toLowerCase();
+  return craftInventory
+    .map((box, idx) => ({ box, idx }))
+    .filter(({ box }) => (box.name || '').toLowerCase() === name && itemSCU(box) > BP_EPS)
+    .sort((a, b) => (parseFloat(b.box.quality) || 0) - (parseFloat(a.box.quality) || 0) || itemSCU(b.box) - itemSCU(a.box));
+}
+
+function bpComputeAllocations(bp) {
+  const srcState = bpSources[bp.blueprint_id] || {};
+  const used = {};
+  return (bp.ingredients || []).map((ing, i) => {
+    const need = Math.round((ing.quantity_scu || 0) * 100) / 100;
+    let remaining = need;
+    const rows = (srcState[i] || []).map(idx => {
+      const box = idx === '' ? null : craftInventory[idx];
+      if (!box) return { idx: '', take: 0, left: 0 };
+      const avail = Math.max(0, itemSCU(box) - (used[idx] || 0));
+      const take = Math.min(avail, remaining);
+      remaining -= take;
+      used[idx] = (used[idx] || 0) + take;
+      return { idx, take, left: avail - take, quality: box.quality };
+    });
+    let qSum = 0, wSum = 0;
+    rows.forEach(r => {
+      const q = parseFloat(r.quality);
+      if (r.take > 0 && !isNaN(q)) { qSum += q * r.take; wSum += r.take; }
+    });
+    return {
+      need,
+      rows,
+      taken: need - remaining,
+      short: remaining > BP_EPS ? remaining : 0,
+      qualityRaw: wSum > 0 ? Math.max(0, Math.min(999, Math.round(qSum / wSum))) : null,
+      hasBox: rows.some(r => r.idx !== ''),
+    };
+  });
+}
+
+function bpSourceHtml(bp, i, a, chosen) {
+  const ing = bp.ingredients[i];
+  const eligible = bpEligibleBoxes(ing);
+  const srcRows = (bpSources[bp.blueprint_id] || {})[i] || (eligible.length ? [''] : []);
+  if (!eligible.length && !a.hasBox) {
+    return `<div style="font-size:10px;color:var(--text-dim)">No ${esc(ing.name)} in inventory — adjust the quality slider by hand.</div>`;
+  }
+  const bid = esc(bp.blueprint_id);
+  const rowsHtml = srcRows.map((cur, r) => {
+    const opts = eligible.filter(({ idx }) => idx === cur || !chosen.has(idx)).map(({ box, idx }) => {
+      const label = `${box.location || '—'} · Q${box.quality !== '' && box.quality != null ? box.quality : '?'} · ${fmtNum(itemSCU(box))} SCU (box ${box.unit})`;
+      return `<option value="${idx}"${idx === cur ? ' selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+    const ar = a.rows[r];
+    const detail = ar && ar.idx !== ''
+      ? `<div style="font-size:10px;color:var(--text-dim);margin:2px 0 4px">Uses ${fmtNum(ar.take)} SCU → ${fmtNum(ar.left)} SCU left in box</div>`
+      : '';
+    return `<div style="display:flex;gap:4px;align-items:center">
+        <select onchange="setBpSource('${bid}', ${i}, ${r}, this.value)" style="${SELECT_STYLE};flex:1">
+          <option value="">— take from inventory box —</option>${opts}
+        </select>
+        ${srcRows.length > 1 || cur !== '' ? `<button onclick="removeBpSourceRow('${bid}', ${i}, ${r})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1" title="Clear this box">×</button>` : ''}
+      </div>${detail}`;
+  }).join('');
+  let status = '';
+  if (a.hasBox && a.short > 0) {
+    status = `<div style="font-size:10px;color:var(--danger)">Short ${fmtNum(a.short)} SCU of ${fmtNum(a.need)} needed — add another box.
+      ${eligible.some(({ idx }) => !chosen.has(idx)) ? `<a href="#" onclick="addBpSourceRow('${bid}', ${i});return false" style="color:var(--accent)">+ another box</a>` : ''}</div>`;
+  } else if (a.hasBox) {
+    status = `<div style="font-size:10px;color:var(--success)">Covers the ${fmtNum(a.need)} SCU needed · quality set from box${a.rows.filter(r => r.idx !== '').length > 1 ? 'es (weighted)' : ''}</div>`;
+  }
+  return rowsHtml + status;
+}
+
+function bpPaintIngQuality(bp, i) {
+  const quality = bpQualityState[bp.blueprint_id][i];
+  const slider = document.getElementById(`bp-qual-slider-${i}`);
+  if (slider) slider.value = quality;
+  const label = document.getElementById(`bp-qual-label-${i}`);
+  if (label) label.textContent = `${quality}`;
+  (bp.ingredients[i].quality_effects || []).forEach((qe, qi) => {
+    const span = document.getElementById(`bp-mod-${i}-${qi}`);
+    if (span) span.textContent = fmtModPct(qualityModifierAt(qe, quality));
+  });
+}
+
+// Recomputes allocations after any change to the picked boxes, then repaints
+// each part's source picker, quality, the stat table and the craft button.
+function bpRefreshAll(bp) {
+  const allocs = bpComputeAllocations(bp);
+  const state = bpQualityState[bp.blueprint_id];
+  const chosen = new Set();
+  Object.values(bpSources[bp.blueprint_id] || {}).forEach(arr => arr.forEach(idx => { if (idx !== '') chosen.add(idx); }));
+  (bp.ingredients || []).forEach((ing, i) => {
+    const a = allocs[i];
+    const slider = document.getElementById(`bp-qual-slider-${i}`);
+    if (a.qualityRaw != null) {
+      state[i] = a.qualityRaw;
+      if (slider) slider.disabled = true;
+    } else if (slider) {
+      slider.disabled = false;
+    }
+    bpPaintIngQuality(bp, i);
+    const box = document.getElementById(`bp-src-${i}`);
+    if (box) box.innerHTML = bpSourceHtml(bp, i, a, chosen);
+  });
+  const statTable = document.getElementById('bp-stat-table');
+  if (statTable) statTable.innerHTML = bpStatTableHtml(bp, state);
+
+  const fromStock = allocs.filter(a => a.hasBox && a.taken > 0);
+  const anyShort = allocs.some(a => a.hasBox && a.short > 0);
+  const boxCount = new Set(allocs.flatMap(a => a.rows.filter(r => r.take > 0).map(r => r.idx))).size;
+  const note = document.getElementById('bp-craft-note');
+  const btn = document.getElementById('bp-add-asset-btn');
+  if (note) {
+    note.style.color = anyShort ? 'var(--danger)' : 'var(--text-dim)';
+    note.textContent = anyShort
+      ? 'Not enough stock in the selected boxes — add another box or clear the short part.'
+      : fromStock.length
+        ? `Crafting deducts ${fmtNum(fromStock.reduce((t, a) => t + a.taken, 0))} SCU from ${boxCount} box${boxCount === 1 ? '' : 'es'}${fromStock.length < allocs.length ? ` · ${allocs.length - fromStock.length} part(s) not taken from stock` : ''}.`
+        : 'No inventory boxes selected — nothing will be deducted.';
+  }
+  if (btn) {
+    btn.disabled = anyShort;
+    if (!btn.textContent.startsWith('✓')) btn.textContent = fromStock.length ? '＋ Craft & add to assets' : '＋ Add as crafted asset';
+  }
+}
+
+function bpSourceState(bpId, ingIdx) {
+  const st = (bpSources[bpId] ||= {});
+  return (st[ingIdx] ||= ['']);
+}
+
+function setBpSource(bpId, ingIdx, rowIdx, val) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  bpSourceState(bpId, ingIdx)[rowIdx] = val === '' ? '' : parseInt(val, 10);
+  bpRefreshAll(bp);
+}
+
+function addBpSourceRow(bpId, ingIdx) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  bpSourceState(bpId, ingIdx).push('');
+  bpRefreshAll(bp);
+}
+
+function removeBpSourceRow(bpId, ingIdx, rowIdx) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  const arr = bpSourceState(bpId, ingIdx);
+  arr.splice(rowIdx, 1);
+  if (!arr.length) arr.push('');
+  bpRefreshAll(bp);
 }
 
 // Updates only the specific numbers a slider move affects, rather than
@@ -3728,14 +4539,7 @@ function updateBpIngQuality(blueprintId, ingIdx, val) {
   const bp = allBlueprints.find(b => b.blueprint_id === blueprintId);
   if (!bp) return;
 
-  const label = document.getElementById(`bp-qual-label-${ingIdx}`);
-  if (label) label.textContent = `${quality}`;
-
-  const ing = (bp.ingredients || [])[ingIdx];
-  (ing.quality_effects || []).forEach((qe, qi) => {
-    const span = document.getElementById(`bp-mod-${ingIdx}-${qi}`);
-    if (span) span.textContent = fmtModPct(qualityModifierAt(qe, quality));
-  });
+  bpPaintIngQuality(bp, ingIdx);
 
   // The stat table has no interactive elements of its own, so a full innerHTML
   // refresh is safe here (unlike the per-part sliders, which must be targeted
@@ -3755,16 +4559,11 @@ function updateBpGlobalQuality(blueprintId, val) {
   const globalLabel = document.getElementById('bp-global-quality-label');
   if (globalLabel) globalLabel.textContent = `${quality}`;
 
+  const allocs = bpComputeAllocations(bp);
   (bp.ingredients || []).forEach((ing, i) => {
+    if (allocs[i].qualityRaw != null) return; // quality comes from the chosen box
     bpQualityState[blueprintId][i] = quality;
-    const slider = document.getElementById(`bp-qual-slider-${i}`);
-    if (slider) slider.value = quality;
-    const label = document.getElementById(`bp-qual-label-${i}`);
-    if (label) label.textContent = `${quality}`;
-    (ing.quality_effects || []).forEach((qe, qi) => {
-      const span = document.getElementById(`bp-mod-${i}-${qi}`);
-      if (span) span.textContent = fmtModPct(qualityModifierAt(qe, quality));
-    });
+    bpPaintIngQuality(bp, i);
   });
 
   const statTable = document.getElementById('bp-stat-table');

@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // UEX Corp commodity data
   getCommodities: () => ipcRenderer.invoke('api:getCommodities'),
+  getVehicles: () => ipcRenderer.invoke('api:getVehicles'),
+  getShipLoadout: (slug) => ipcRenderer.invoke('api:getShipLoadout', slug),
+  getShipLiveries: (tag) => ipcRenderer.invoke('api:getShipLiveries', tag),
   getCommodityPrices: (id, type) => ipcRenderer.invoke('api:getCommodityPrices', { id, type }),
   getTerminals: () => ipcRenderer.invoke('api:getTerminals'),
   getTerminalPrices: (id_terminal) => ipcRenderer.invoke('api:getTerminalPrices', { id_terminal }),
@@ -19,6 +22,8 @@ contextBridge.exposeInMainWorld('api', {
   setOpacity: (v) => ipcRenderer.invoke('window:setOpacity', v),
   setAlwaysOnTop: (v) => ipcRenderer.invoke('window:setAlwaysOnTop', v),
   setResizable: (v) => ipcRenderer.invoke('window:setResizable', v),
+  expandWindowForEmbed: (w) => ipcRenderer.invoke('window:expandForEmbed', w),
+  restoreWindowFromEmbed: () => ipcRenderer.invoke('window:restoreFromEmbed'),
 
   // Desktop notifications
   notify: (title, body) => ipcRenderer.invoke('notify', { title, body }),
