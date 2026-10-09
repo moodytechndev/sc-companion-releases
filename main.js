@@ -324,6 +324,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+app.on('before-quit', () => { app.isQuitting = true; });
+
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (_ocrWorker) { _ocrWorker.terminate().catch(() => {}); }
@@ -873,7 +875,13 @@ autoUpdater.on('error', (err) => {
 
 ipcMain.handle('app:getVersion', () => CURRENT_VERSION);
 ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate());
-ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall(); });
+// The main window's close handler hides to tray instead of closing (unless
+// app.isQuitting), which would cancel the quit that quitAndInstall relies on and
+// leave the old version running with the installer waiting on it.
+ipcMain.handle('updater:install', () => {
+  app.isQuitting = true;
+  autoUpdater.quitAndInstall();
+});
 ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
 
 // ─── IPC: Bug report ──────────────────────────────────────────────────────────

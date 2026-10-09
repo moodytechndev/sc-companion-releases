@@ -869,10 +869,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
     <div class="form-group">
       <label>Type</label>
-      <input id="asset-type-input" type="text" placeholder="e.g. Ship, Vehicle, Component…">
+      <select id="asset-type-input" onchange="onAssetTypeChange()" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none"></select>
     </div>
-    <div class="form-group">
-      <label>Size <span style="color:var(--text-dim);font-weight:400">(optional — ship components)</span></label>
+    <div class="form-group" id="asset-size-group" style="display:none">
+      <label>Size <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
       <select id="asset-size-input" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
         <option value="">—</option>
         <option value="0">S0</option><option value="1">S1</option><option value="2">S2</option><option value="3">S3</option>
@@ -881,7 +881,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
     <div class="form-group">
       <label>Location</label>
-      <input id="asset-location-input" type="text" placeholder="e.g. New Babbage, Port Olisar…">
+      <select id="asset-location-select" onchange="onAssetLocChange()" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none"></select>
+      <input type="text" id="asset-location-custom" placeholder="Enter location…" style="margin-top:4px;display:none">
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -3330,8 +3331,8 @@ function initUpdateCheck() {
   });
 
   api.onUpdateDownloaded(() => {
-    bannerText.textContent = 'Update ready — restart to apply.';
-    bannerBtn.textContent = 'Restart Now';
+    bannerText.textContent = 'Update ready — the app closes to install it.';
+    bannerBtn.textContent = 'Update Now';
     bannerBtn.hidden = false;
     bannerBtn.disabled = false;
     bannerBtn.style.opacity = '1';
@@ -3904,13 +3905,53 @@ function renderAssets() {
   }).join('');
 }
 
-function openAddAsset() {
+// Type values double as the keys the ship modal uses to decide which slot an asset
+// fits (see assetSlotKind), so ship parts are all "Ship component — <part>".
+const ASSET_TYPE_GROUPS = [
+  ['Ship components', ['Shield', 'Cooler', 'Power Plant', 'Quantum Drive', 'Radar', 'Weapon', 'Mining Laser', 'Salvage Head', 'Tractor Beam']
+    .map(n => ({ value: `Ship component — ${n}`, label: n }))],
+  ['Ships & vehicles', [{ value: 'Ship', label: 'Ship' }, { value: 'Ground vehicle', label: 'Ground vehicle' }]],
+  ['Personal gear', [{ value: 'Armor', label: 'Armor' }, { value: 'Weapon', label: 'FPS weapon' }, { value: 'Ammo', label: 'Ammo' }]],
+  ['Other', [{ value: 'Other', label: 'Other / Gear' }]],
+];
+
+function onAssetTypeChange() {
+  // Size only means anything for ship components.
+  const isPart = document.getElementById('asset-type-input').value.startsWith('Ship component');
+  document.getElementById('asset-size-group').style.display = isPart ? '' : 'none';
+  if (!isPart) document.getElementById('asset-size-input').value = '';
+}
+
+function onAssetLocChange() {
+  const isCustom = document.getElementById('asset-location-select').value === '__custom__';
+  const custom = document.getElementById('asset-location-custom');
+  custom.style.display = isCustom ? '' : 'none';
+  if (isCustom) custom.focus(); else custom.value = '';
+}
+
+async function openAddAsset() {
   document.getElementById('add-asset-modal').style.display = 'flex';
   document.getElementById('asset-name-input').value = '';
-  document.getElementById('asset-type-input').value = '';
-  document.getElementById('asset-location-input').value = '';
   document.getElementById('asset-notes-input').value = '';
   document.getElementById('asset-size-input').value = '';
+
+  document.getElementById('asset-type-input').innerHTML = ASSET_TYPE_GROUPS.map(([group, types]) =>
+    `<optgroup label="${esc(group)}">${types.map(t => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}</optgroup>`).join('');
+  document.getElementById('asset-type-input').value = 'Other';
+  onAssetTypeChange();
+
+  // Same places as the Inventory dialog, plus any custom ones already used anywhere.
+  const stored = (await api.getStore('customLocations')) || [];
+  const used = [...craftInventory.map(i => i.location), ...craftAssets.map(a => a.location)];
+  const saved = [...new Set([...stored, ...used].filter(l => l && l !== 'In Transit' && !ALL_SC_LOCATIONS.includes(l)))].sort();
+  const opt = l => `<option value="${esc(l)}">${esc(l)}</option>`;
+  document.getElementById('asset-location-select').innerHTML =
+    '<option value="">— No location —</option>' +
+    (saved.length ? `<optgroup label="Saved">${saved.map(opt).join('')}</optgroup>` : '') +
+    Object.entries(SC_LOCATIONS).map(([group, locs]) => `<optgroup label="${esc(group)}">${locs.map(opt).join('')}</optgroup>`).join('') +
+    '<option value="__custom__">Custom…</option>';
+  document.getElementById('asset-location-select').value = '';
+  onAssetLocChange();
 }
 
 function closeAddAsset() {
@@ -3920,15 +3961,21 @@ function closeAddAsset() {
 async function saveAsset() {
   const name = document.getElementById('asset-name-input').value.trim();
   if (!name) return;
+  const locSel = document.getElementById('asset-location-select').value;
+  const location = locSel === '__custom__' ? document.getElementById('asset-location-custom').value.trim() : locSel;
   const asset = {
     uid: newUid(),
     name,
-    type:     document.getElementById('asset-type-input').value.trim(),
-    location: document.getElementById('asset-location-input').value.trim(),
+    type:     document.getElementById('asset-type-input').value,
+    location,
     notes:    document.getElementById('asset-notes-input').value.trim(),
   };
   const assetSize = document.getElementById('asset-size-input').value;
   if (assetSize !== '') asset.size = parseInt(assetSize, 10);
+  if (locSel === '__custom__' && location) {
+    const saved = (await api.getStore('customLocations')) || [];
+    if (!saved.includes(location)) { saved.push(location); await api.setStore('customLocations', saved); }
+  }
   craftAssets.push(asset);
   await api.setStore('craftAssets', craftAssets);
   closeAddAsset();
@@ -4298,9 +4345,13 @@ function openBpDetails(blueprintId) {
 
 // Snapshots the quality values currently set in the modal (and the resulting
 // stat line) into Assets, optionally installed on one of the user's ships.
+const SHIP_PART_NAMES = {
+  Shield: 'Shield', Cooler: 'Cooler', Powerplant: 'Power Plant', Quantumdrive: 'Quantum Drive', Radar: 'Radar',
+  Weapons: 'Weapon', Mininglaser: 'Mining Laser', Salvage: 'Salvage Head', Tractorbeam: 'Tractor Beam',
+};
 function bpAssetType(bp) {
   const [top, second] = (bp.category || '').split(' / ');
-  if (top === 'Vehiclegear') return `Ship component${second ? ` — ${second}` : ''}`;
+  if (top === 'Vehiclegear') return `Ship component${second ? ` — ${SHIP_PART_NAMES[second] || second}` : ''}`;
   if (top === 'Armour') return 'Armor';
   if (top === 'Weapons') return 'Weapon';
   if (top === 'Ammo') return 'Ammo';

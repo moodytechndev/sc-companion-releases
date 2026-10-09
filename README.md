@@ -130,7 +130,7 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 - The bottom bar shows total SCU and an estimated aUEC value, calculated from the best known sell price for each ore you're holding
 
 **Assets**
-- A tracker for everything you own or craft — ship components, armor, weapons, gear, vehicles: name, type, optional size (for ship components), location, and free-text notes. Assets added from a blueprint show a **crafted** tag with the material qualities and stats you chose
+- A tracker for everything you own or craft — ship components, armor, weapons, gear, vehicles: name, type (dropdown), optional size (shown for ship components), location (dropdown — the same station list as Inventory, plus Custom…), and free-text notes. Picking a ship-component type is what lets the ship modal offer the asset for the right slot. Assets added from a blueprint show a **crafted** tag with the material qualities and stats you chose
 - An asset that's installed on a ship shows an **Installed on …** tag. Installing is done from the Ships page, not here
 
 **Ships**
