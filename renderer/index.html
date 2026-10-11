@@ -400,11 +400,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <div id="mining-view-scanner" style="display:none;flex-direction:column;flex:1;min-height:0">
         <div style="padding:8px 10px;border-bottom:1px solid var(--border)">
           <div class="filter-chips" id="scanner-mode-chips" style="margin-top:0;margin-bottom:8px">
-            <div class="chip" onclick="setScannerMode('ref',this)">📋 Reference</div>
-            <div class="chip active" onclick="setScannerMode('scan',this)">🔍 Scan</div>
+            <div class="chip active" onclick="setScannerMode('ref',this)">📋 Reference</div>
+            <div class="chip" onclick="setScannerMode('scan',this)">🔍 Scan</div>
           </div>
           <!-- Reference mode filters -->
-          <div id="scanner-ref-filters" style="display:none;flex-direction:column;gap:5px;margin-bottom:8px">
+          <div id="scanner-ref-filters" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
             <div class="filter-chips" id="scanner-tier-chips" style="margin:0;flex-wrap:wrap">
               <div class="chip active" onclick="setScannerTierFilter('all',this)">All</div>
               <div class="chip" onclick="setScannerTierFilter('legendary',this)" style="color:#ff9500">Legendary</div>
@@ -426,7 +426,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             </div>
           </div>
           <!-- Scan mode input -->
-          <div id="scanner-input-row" style="display:flex;gap:6px;align-items:center">
+          <div id="scanner-input-row" style="display:none;gap:6px;align-items:center">
             <input type="number" id="scanner-input" placeholder="e.g. 31700" min="0" step="1"
               style="flex:1;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:15px;outline:none;font-variant-numeric:tabular-nums"
               oninput="runScanner()">
@@ -639,6 +639,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <input type="text" id="assets-search" placeholder="Search assets…" oninput="renderAssets()"
               style="width:100%;padding:7px 10px 7px 32px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
           </div>
+          <select id="assets-source" onchange="renderAssets()" title="Show" style="padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;flex-shrink:0">
+            <option value="all">All</option>
+            <option value="mine">Mine &amp; crafted</option>
+            <option value="stock">Stock parts</option>
+          </select>
           <button class="btn btn-sm" onclick="openAddAsset()" style="flex-shrink:0">+ Add</button>
         </div>
         <div class="scroll-area" id="assets-list">
@@ -745,6 +750,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-dim);font-size:12px;font-weight:700;outline:none;opacity:0.5;cursor:not-allowed">
             <option value="uex">UEX Corp</option>
             <option value="sctrader">SC Trader</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label" data-i18n="settings.hints">Hover Hints</div>
+            <div class="setting-desc" data-i18n="settings.hints.desc">Show a short description when you hover over a button or option</div>
+          </div>
+          <select id="hover-hints-select" onchange="saveHoverHints()"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
+            <option value="on" data-i18n="settings.hints.on">On</option>
+            <option value="off" data-i18n="settings.hints.off">Off</option>
           </select>
         </div>
 
@@ -862,7 +879,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <!-- ── Add Asset Modal ── -->
 <div id="add-asset-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal">
-    <h3>Add Asset</h3>
+    <h3 id="asset-modal-title">Add Asset</h3>
     <div class="form-group">
       <label>Name</label>
       <input id="asset-name-input" type="text" placeholder="e.g. Prospector, Aurora MR…">
@@ -881,7 +898,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
     <div class="form-group">
       <label>Location</label>
-      <select id="asset-location-select" onchange="onAssetLocChange()" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none"></select>
+      <select id="asset-location-select" onchange="onLocPickChange('asset-location-select', 'asset-location-custom')" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none"></select>
       <input type="text" id="asset-location-custom" placeholder="Enter location…" style="margin-top:4px;display:none">
     </div>
     <div class="form-group">
@@ -889,7 +906,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <input id="asset-notes-input" type="text" placeholder="Optional notes…">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-full" onclick="saveAsset()">Save Asset</button>
+      <button class="btn btn-full" onclick="saveAsset()">Save</button>
       <button class="btn btn-full" onclick="closeAddAsset()" style="background:none;border-color:var(--border);color:var(--text-dim)">Cancel</button>
     </div>
   </div>
@@ -911,7 +928,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
     <div class="form-group">
       <label>Location</label>
-      <input id="ship-location-input" type="text" placeholder="e.g. Lorville, Everus Harbor…">
+      <select id="ship-location-select" onchange="onLocPickChange('ship-location-select', 'ship-location-custom')" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none"></select>
+      <input type="text" id="ship-location-custom" placeholder="Enter location…" style="margin-top:4px;display:none">
     </div>
     <div class="form-group">
       <label>Notes</label>
@@ -928,6 +946,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <div id="ship-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center" onclick="if(event.target===this)closeShipModal()">
   <div class="modal" style="width:430px">
     <h3 id="ship-modal-title">Ship</h3>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <div class="form-group" style="flex:1;margin-bottom:6px;min-width:0">
+        <label>Location</label>
+        <select id="ship-edit-location-select" onchange="onShipLocEdit()" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none"></select>
+        <input type="text" id="ship-edit-location-custom" placeholder="Enter location… (Enter to save)" onchange="saveShipDetails()" style="margin-top:4px;display:none">
+      </div>
+      <div class="form-group" style="flex:1;margin-bottom:6px;min-width:0">
+        <label>Notes</label>
+        <input type="text" id="ship-edit-notes" placeholder="Optional notes…" onchange="saveShipDetails()">
+      </div>
+    </div>
     <div id="ship-modal-body"></div>
     <div class="modal-actions">
       <button class="btn btn-sm" onclick="refreshShipSlots()" title="Re-download the stock loadout for this ship" style="background:none;border-color:var(--border);color:var(--text-dim)">↻ Refresh stock data</button>
@@ -1971,6 +2000,8 @@ function switchMiningView(view, chipEl) {
   document.getElementById('mining-view-halo').style.display      = view === 'halo'      ? 'flex' : 'none';
   document.getElementById('mining-view-scanner').style.display   = view === 'scanner'   ? 'flex' : 'none';
   if (view === 'halo') initHalo();
+  // Reference is the Scanner's default mode, so it has to be drawn the first time the view opens.
+  if (view === 'scanner' && scannerMode === 'ref') { populateScannerLocSelect(); renderScannerRef(); }
 }
 
 function switchRefineryView(view, chipEl) {
@@ -3350,52 +3381,326 @@ function initUpdateCheck() {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// Tooltip — handles [data-tip] anywhere in the document
+// Hover hints — a short "what does this do" tooltip on anything clickable
 // ════════════════════════════════════════════════════════════════════
-(function () {
-  const tip = document.getElementById('tip');
-  let current = null;
+// Hints are looked up when you hover, not baked into each element, so they also
+// cover everything that's rendered dynamically (cards, inventory rows, modals).
+// An element's hint comes from, in order: its data-tip, its title attribute
+// (existing titles are routed through here so ONE setting controls them all and
+// the native tooltip never double-shows), then the tables below — keyed by the
+// handler it calls ("fn" or "fn:firstArg"), by id, or by tab name.
+// Settings → Hover Hints turns the whole thing off.
+const HINTS_BY_CALL = {
+  // navigation
+  'switchTab:mining': 'Ore locations, the signature scanner and the Aaron Halo calculator',
+  'switchTab:refinery': 'Track refinery jobs and compare station yield bonuses',
+  'switchTab:prices': 'Live commodity prices and buying/selling at stations',
+  'switchTab:crafting': 'Blueprints, inventory, assets and ships',
+  'switchTab:settings': 'App settings, backup and restore',
+  'api.minimize': 'Minimize the window',
+  'api.close': 'Hide the window (or quit, depending on your Close Button setting)',
+  'toggleSizeLock': 'Lock or unlock resizing the window',
+  // mining
+  'switchMiningView:locations': 'Browse where each ore can be mined',
+  'switchMiningView:scanner': 'Identify ore from a scanner signature, or read the signature table',
+  'switchMiningView:halo': 'Plan a quantum drop into the Aaron Halo asteroid belt',
+  'setScannerMode:ref': 'Table of every signature, with the values for 2–6 rocks in one cluster',
+  'setScannerMode:scan': 'Type the RS signature your scanner shows to find the ore and rock count',
+  'setScannerTierFilter:all': 'Show signatures of every rarity',
+  'setScannerTierFilter:legendary': 'Show only Legendary signatures',
+  'setScannerTierFilter:epic': 'Show only Epic signatures',
+  'setScannerTierFilter:rare': 'Show only Rare signatures',
+  'setScannerTierFilter:uncommon': 'Show only Uncommon signatures',
+  'setScannerTierFilter:common': 'Show only Common signatures',
+  'setScannerLocFilter': 'Only show ores that can be found at this location',
+  'toggleMiningOreSelect': 'Select this ore to filter the Scanner reference to it (click again to deselect)',
+  'clearMiningOreSelect': 'Clear the ore selection',
+  'applyHaloPreset': 'Fill in this common Aaron Halo route',
+  'calcHalo': 'Recalculate the drop numbers',
+  // refinery
+  'switchRefineryView:jobs': 'Your active refinery jobs and timers',
+  'switchRefineryView:bonuses': 'See a station\'s refinery yield bonus or penalty for each material',
+  'openAddJob': 'Start tracking a new refinery job',
+  'captureRefineryJob': 'Screenshot the in-game refinery screen and try to pre-fill a job (you review it before starting)',
+  'openEditJob': 'Edit this job',
+  'removeJob': 'Remove this job',
+  'deliverJob': 'Record what you collected and add it to your inventory',
+  'addJob': 'Save this job and start its timer',
+  'closeModal': 'Close without saving',
+  'addOreRow': 'Add another ore or material to this job',
+  'removeOreRow': 'Remove this ore from the job',
+  'addDeliverRow': 'Add another box size for this ore',
+  'removeDeliverRow': 'Remove this box size',
+  'confirmDelivery': 'Add these boxes to your inventory and remove the job',
+  'closeDeliverModal': 'Close without collecting',
+  'onStationSelect': 'Choose a station to see its yield bonuses',
+  // prices
+  'switchPricesView:commodity': 'Browse every commodity and where it sells best',
+  'switchPricesView:station': 'Pick a station to see everything it buys and sells',
+  'setFilter:all': 'Show all commodities',
+  'setFilter:mineral': 'Show only minerals',
+  'setFilter:raw': 'Show only raw ore',
+  'setFilter:refined': 'Show only refined materials',
+  'setFilter:inventory': 'Show only commodities you currently have in inventory',
+  'showTerminalPrices': 'See every commodity this terminal buys and sells',
+  'buyAtStation': 'Buy this here — opens Add Inventory pre-filled and marks it in transit',
+  'sellAtStation': 'Sell your in-transit stock of this commodity here',
+  'confirmStationSale': 'Remove this stock from inventory and record the sale',
+  'closeStationSellModal': 'Close without selling',
+  'closeTerminalModal': 'Close this window',
+  'closePriceDetail': 'Close this window',
+  // hangar: blueprints
+  'switchCraftingView:owned': 'Browse craftable blueprints and mark the ones you own',
+  'switchCraftingView:inventory': 'Your ore and materials, by box',
+  'switchCraftingView:assets': 'Everything you own or crafted — parts, gear, vehicles',
+  'switchCraftingView:ships': 'Your ships, their components, liveries, and the Erkul calculator',
+  'openBpDetails': 'See quality effects on stats, set material quality, and where this blueprint drops',
+  'toggleOwned': 'Mark whether you own this blueprint',
+  'closeBpDetailsModal': 'Close this window',
+  'addCraftedToAssets': 'Add this item to Assets with the qualities set here (and use up the selected inventory boxes)',
+  'setBpSource': 'Take this material from one of your inventory boxes — its quality is used and the amount is deducted',
+  'addBpSourceRow': 'Draw the rest from another inventory box',
+  'removeBpSourceRow': 'Clear this box choice',
+  // hangar: inventory
+  'openAddInventory': 'Add ore or materials to your inventory',
+  'openAddInventoryForGroup': 'Add more of this ore at this quality',
+  'toggleInvView': 'Switch between grouping by ore and grouping by location',
+  'toggleInvGroup': 'Expand or collapse this group',
+  'toggleInvQualGroup': 'Expand or collapse this quality group',
+  'toggleInvBoxSelect': 'Select this box for moving, transit or selling',
+  'toggleCondensedSelect': 'Select these identical boxes for moving, transit or selling',
+  'selectAllInQual': 'Select or deselect every box in this group',
+  'selectAllTransitAtLoc': 'Select or deselect every in-transit box at this location',
+  'openEditInventory': 'Edit this inventory item',
+  'removeInvBox': 'Remove this box from inventory',
+  'removeCondensedBoxes': 'Remove these boxes from inventory',
+  'deleteInventoryItem': 'Remove this item from inventory',
+  'showSplitUI': 'Split some of these identical boxes out so you can edit or move them individually',
+  'confirmSplit': 'Split the chosen number of boxes out of the stack',
+  'mergeBackGroup': 'Fold the split-out boxes back into the stack',
+  'markSelectedInTransit': 'Mark the selected boxes as in transit (on a ship, not at a station)',
+  'moveSelectedFromTransit': 'Move the selected in-transit boxes to a station',
+  'sellSelectedTransit': 'Sell the selected in-transit boxes',
+  'doMoveSelectedQual': 'Move the selected boxes to the chosen location',
+  'onQualMoveSel': 'Choose where to move the selected boxes',
+  'onTransitMoveSel': 'Choose where to move the selected in-transit boxes',
+  'onYieldChange': 'Preview what your stock is worth after a refinery yield penalty (doesn\'t change your inventory)',
+  'updateInvBoxSCU': 'Set how much is left in this box',
+  'updateCondensedBoxesSCU': 'Set how much is left in each of these boxes',
+  'addInvRow': 'Add another box size',
+  'removeInvRow': 'Remove this box size',
+  'saveInventoryItem': 'Save this to your inventory',
+  'closeInvModal': 'Close without saving',
+  'onLocSelectChange': 'Choose where this is stored',
+  // hangar: assets & ships
+  'openAddAsset': 'Add something you own — a part, gear, a vehicle',
+  'openEditAsset': 'Edit this asset (name, type, size, location, notes)',
+  'removeAsset': 'Delete this asset',
+  'saveAsset': 'Save this asset',
+  'closeAddAsset': 'Close without saving',
+  'toggleAttachedGroup': 'Expand or collapse the assets that are attached to ships',
+  'openAddShip': 'Add a ship you own',
+  'pickShip': 'Choose this ship',
+  'saveShip': 'Add this ship and pull its stock components into Assets',
+  'closeAddShip': 'Close without saving',
+  'openShipModal': 'See this ship\'s components and swap in your own parts',
+  'closeShipModal': 'Close this window',
+  'refreshShipSlots': 'Re-download this ship\'s stock components (also restores any stock parts you deleted)',
+  'setShipSlot': 'Fit one of your assets in this slot, or go back to the stock part',
+  'toggleLiveryPanel': 'Show or hide the liveries that fit this ship',
+  'previewLivery': 'Show or hide a preview of this livery',
+  'setShipLivery': 'Record this as the livery the ship wears',
+  'removeShip': 'Remove this ship (its stock parts go with it)',
+  'openErkul': 'Open the Erkul DPS calculator',
+  'switchShipsSub:list': 'Your owned ships',
+  'switchShipsSub:erkul': 'The Erkul loadout and DPS calculator, inside the app',
+  'erkulNav:back': 'Go back',
+  'erkulNav:forward': 'Go forward',
+  'erkulNav:reload': 'Reload the page',
+  'erkulNav:browser': 'Open this page in your web browser',
+  'onShipLocEdit': 'Change where this ship is kept',
+  'saveShipDetails': 'Saved automatically when you leave the field',
+  'onAssetTypeChange': 'What kind of asset this is — ship components can be fitted to ships',
+  'onLocPickChange': 'Where this is kept — choose Custom… to type your own',
+  // settings
+  'saveShortcut': 'Use this key to show or hide the overlay',
+  'saveLogPath': 'Use this Game.log for background game detection',
+  'saveCloseBehavior': 'What the ✕ button does: hide to the tray or quit',
+  'saveTransitIcon': 'Which icon marks in-transit items',
+  'saveRefineryCaptureMode': 'Whether the Capture button is shown for the refinery screen',
+  'saveHoverHints': 'Turn these hover descriptions on or off',
+  'onLangChange': 'Change the app language',
+  'clearCompleted': 'Remove refinery jobs whose timers have finished',
+  'clearAll': 'Remove every refinery job',
+  'doExport': 'Save all your data to a backup file',
+  'doImport': 'Restore data from a backup file (overwrites what\'s there)',
+  'submitBugReport': 'Send your description to the developer',
+};
 
-  function show(el, x, y) {
-    tip.textContent = el.dataset.tip;
-    tip.style.opacity = '1';
-    position(x, y);
+const HINTS_BY_ID = {
+  'settings-btn': 'App settings, backup and restore',
+  'lock-btn': 'Lock or unlock resizing the window',
+  'opacity-range': 'How see-through the overlay is',
+  'capture-job-btn': 'Screenshot the in-game refinery screen and try to pre-fill a job (you review it before starting)',
+  'owned-filter': 'Show all blueprints, only ones you own, or only ones you don\'t',
+  'owned-cat-filter': 'Only show blueprints in this category',
+  'owned-size-filter': 'Only show components of this size',
+  'owned-sort': 'Change how blueprints are ordered',
+  'inv-sort': 'Change how inventory is ordered',
+  'inv-yield': 'Preview what your stock is worth after a refinery yield penalty (doesn\'t change your inventory)',
+  'assets-source': 'Show all assets, only yours and crafted ones, or only stock parts',
+  'bp-global-quality': 'Set every material to this quality at once (boxes you picked keep their own quality)',
+  'bp-install-ship': 'Choose a ship to install this on',
+  'scanner-loc-select': 'Only show ores that can be found at this location',
+  'mining-search': 'Search ores and locations',
+  'owned-search': 'Search blueprints by name or category',
+  'inv-search': 'Search inventory by ore or location',
+  'assets-search': 'Search assets by name, type, ship or slot',
+  'ships-search': 'Search your ships',
+  'com-search': 'Search commodities',
+  'scanner-input': 'Type the RS signature your scanner shows',
+  'station-select': 'Choose a station to see its refinery yield bonus or penalty for each material',
+  'shortcut-select': 'The key that shows or hides the overlay, even while the game has focus',
+  'price-source-select': 'Where prices come from — only UEX Corp is available for now',
+  'asset-size-input': 'Component size (S0–S6), used to check parts fit a ship slot',
+  'inv-name-input': 'Which ore or material this is',
+  'job-method': 'The refining method used for this job',
+  'job-location': 'The station where this job is running',
+  'update-banner-link': 'Download or install the new version',
+};
+
+const HINTS_BY_ID_PREFIX = [
+  ['bp-qual-slider-', 'Set this material\'s quality (0–999) — higher quality boosts the stats it affects'],
+];
+
+const HINTS_BY_TAB = {
+  mining: HINTS_BY_CALL['switchTab:mining'],
+  refinery: HINTS_BY_CALL['switchTab:refinery'],
+  prices: HINTS_BY_CALL['switchTab:prices'],
+  crafting: HINTS_BY_CALL['switchTab:crafting'],
+};
+
+const HINTS_BY_SELECTOR = [
+  ['select.inv-row-unit', 'Box size in SCU (1 cSCU = 0.01 SCU)'],
+  ['#update-banner button', 'Dismiss this notice'],
+  ['.commodity-item', 'Show where this commodity sells and buys best'],
+];
+
+let hoverHintsOn = true;
+
+async function initHoverHints() {
+  const v = await api.getStore('hoverHints');
+  hoverHintsOn = v !== 'off';
+  const sel = document.getElementById('hover-hints-select');
+  if (sel) sel.value = hoverHintsOn ? 'on' : 'off';
+}
+
+async function saveHoverHints() {
+  hoverHintsOn = document.getElementById('hover-hints-select').value !== 'off';
+  await api.setStore('hoverHints', hoverHintsOn ? 'on' : 'off');
+  if (!hoverHintsOn) document.getElementById('tip').style.opacity = '0';
+}
+
+(function () {
+  // #tip sits at the end of <body>, after this script runs — so look it up on first use.
+  let tipEl = null;
+  const T = () => tipEl || (tipEl = document.getElementById('tip'));
+  const SHOW_DELAY = 350;
+  let current = null;
+  let timer = null;
+  let pos = { x: 0, y: 0 };
+
+  // "fn" / "fn:arg" from an inline handler, tolerating a leading stopPropagation().
+  const CALL_RE = /^\s*(?:event\.stopPropagation\(\);\s*)?([A-Za-z_$][\w$.]*)\(\s*(?:'([^']*)'|"([^"]*)")?/;
+  function callKeys(el) {
+    for (const attr of ['onclick', 'onchange']) {
+      const v = el.getAttribute(attr);
+      const m = v && CALL_RE.exec(v);
+      if (!m) continue;
+      const arg = m[2] ?? m[3];
+      return arg != null ? [`${m[1]}:${arg}`, m[1]] : [m[1]];
+    }
+    return [];
+  }
+
+  function hintFor(el) {
+    if (el.dataset.tip) return el.dataset.tip;
+    if (el.dataset.hintTitle) return el.dataset.hintTitle;
+    if (el.id) {
+      if (HINTS_BY_ID[el.id]) return HINTS_BY_ID[el.id];
+      const pre = HINTS_BY_ID_PREFIX.find(([p]) => el.id.startsWith(p));
+      if (pre) return pre[1];
+    }
+    if (el.classList.contains('tab') && el.dataset.tab && HINTS_BY_TAB[el.dataset.tab]) return HINTS_BY_TAB[el.dataset.tab];
+    for (const k of callKeys(el)) if (HINTS_BY_CALL[k]) return HINTS_BY_CALL[k];
+    for (const [sel, text] of HINTS_BY_SELECTOR) if (el.matches(sel)) return text;
+    return '';
+  }
+
+  // Walks up from what's under the cursor to the nearest element with a hint,
+  // moving every title attribute it passes into data-hint-title so the browser's
+  // own (undismissable, un-toggleable) tooltip never shows.
+  function resolve(start) {
+    for (let n = start; n && n !== document.documentElement; n = n.parentElement) {
+      if (n.hasAttribute && n.hasAttribute('title')) {
+        n.dataset.hintTitle = n.getAttribute('title');
+        n.removeAttribute('title');
+      }
+    }
+    for (let n = start; n && n !== document.body; n = n.parentElement) {
+      const text = hintFor(n);
+      if (text) return { el: n, text };
+    }
+    return null;
   }
 
   function position(x, y) {
     const pad = 12;
-    tip.style.left = '0';
-    tip.style.top  = '0';
-    const tw = tip.offsetWidth;
-    const th = tip.offsetHeight;
+    T().style.left = '0';
+    T().style.top = '0';
+    const tw = T().offsetWidth;
+    const th = T().offsetHeight;
     const vw = window.innerWidth;
-    const vh = window.innerHeight;
     let left = x + pad;
-    let top  = y - th - pad;
-    if (left + tw > vw - 4) left = x - tw - pad;
-    if (top < 4)            top  = y + pad;
-    tip.style.left = left + 'px';
-    tip.style.top  = top  + 'px';
+    let top = y - th - pad;
+    if (left + tw > vw - 4) left = Math.max(4, x - tw - pad);
+    if (top < 4) top = y + pad;
+    T().style.left = left + 'px';
+    T().style.top = top + 'px';
+  }
+
+  function hide() {
+    clearTimeout(timer);
+    timer = null;
+    current = null;
+    T().style.opacity = '0';
   }
 
   document.addEventListener('mouseover', e => {
-    const el = e.target.closest('[data-tip]');
-    if (!el) return;
-    current = el;
-    show(el, e.clientX, e.clientY);
-  });
-
-  document.addEventListener('mouseout', e => {
-    const el = e.target.closest('[data-tip]');
-    if (el && el === current) {
-      tip.style.opacity = '0';
-      current = null;
-    }
-  });
+    const hit = resolve(e.target);   // always run, so titles are captured even when hints are off
+    if (!hoverHintsOn || !hit) { hide(); return; }
+    if (hit.el === current) return;
+    hide();
+    current = hit.el;
+    pos = { x: e.clientX, y: e.clientY };
+    timer = setTimeout(() => {
+      if (!hoverHintsOn || !current) return;
+      T().textContent = tHint(hit.text);
+      position(pos.x, pos.y);
+      T().style.opacity = '1';
+    }, SHOW_DELAY);
+  }, true);
 
   document.addEventListener('mousemove', e => {
-    if (current) position(e.clientX, e.clientY);
+    pos = { x: e.clientX, y: e.clientY };
+    if (current && T().style.opacity === '1') position(e.clientX, e.clientY);
   });
+  document.addEventListener('mouseout', e => {
+    if (!e.relatedTarget) hide();
+  });
+  document.addEventListener('mousedown', hide, true);
+  document.addEventListener('keydown', hide, true);
+  document.addEventListener('scroll', hide, true);
 })();
 
 // ════════════════════════════════════════════════════════════════════
@@ -3406,6 +3711,7 @@ initCloseBehavior();
 initPriceSource();
 initTransitIcon();
 initRefineryCaptureMode();
+initHoverHints();
 initLanguage();
 initUpdateCheck();
 if (api.onRefineryKioskDetected) {
@@ -3491,11 +3797,101 @@ function assetInstallSpot(uid) {
   for (const ship of craftShips || []) {
     for (const [key, assetUid] of Object.entries(ship.installed || {})) {
       if (assetUid !== uid) continue;
-      const slot = (ship.slots || []).find(sl => sl.key === key);
-      return { ship, slotLabel: slot ? slot.label : key };
+      const slotIndex = (ship.slots || []).findIndex(sl => sl.key === key);
+      const slot = slotIndex >= 0 ? ship.slots[slotIndex] : null;
+      return { ship, slotKey: key, slotLabel: slot ? slot.label : key, slotKind: slot?.kind || '', slotIndex };
     }
   }
   return null;
+}
+
+// ── Stock components as assets ────────────────────────────────────────────────
+// Every ship's stock loadout is mirrored into Assets: one asset per swappable
+// slot, installed in that slot by default (ship.installed[slot] = asset uid).
+// Swapping a crafted part in just exchanges which asset sits in the slot — the
+// stock part stays in Assets, free to use elsewhere, and picking "Stock" puts it
+// back. ship.stockAssets maps slot -> stock asset uid; ship.stockSeeded records
+// every slot ever seeded so a stock part you deleted isn't silently re-created
+// (↻ Refresh stock data restores missing ones on request).
+const SLOT_KIND_TYPE = {
+  shield: 'Shield', cooler: 'Cooler', power: 'Power Plant', quantum: 'Quantum Drive',
+  radar: 'Radar', weapon: 'Weapon', mining: 'Mining Laser', salvage: 'Salvage Head',
+};
+const seedingShips = new Set();
+const seedErrors = new Map();
+
+const isOwnStock = (ship, slotKey, a) => !!a && a.stock?.shipUid === ship.uid && a.stock.slotKey === slotKey;
+
+function ensureStockAssets(ship, restore = false) {
+  if (!ship.slots) return false;
+  ship.stockAssets = ship.stockAssets || {};
+  ship.stockSeeded = ship.stockSeeded || [];
+  ship.installed = ship.installed || {};
+  let changed = false;
+  for (const slot of ship.slots) {
+    const st = slot.stock || {};
+    let asset = assetByUid(ship.stockAssets[slot.key]);
+    if (!asset) {
+      if (!restore && ship.stockSeeded.includes(slot.key)) continue;
+      asset = {
+        uid: newUid(),
+        name: st.name || slot.label,
+        type: `Ship component — ${SLOT_KIND_TYPE[slot.kind] || 'Other'}`,
+        location: '',
+        notes: '',
+        stock: { shipUid: ship.uid, slotKey: slot.key, slotLabel: slot.label, grade: st.grade || '', maker: st.maker || '' },
+      };
+      const size = st.size ?? slot.size;
+      if (size != null) asset.size = size;
+      craftAssets.push(asset);
+      ship.stockAssets[slot.key] = asset.uid;
+      if (!ship.stockSeeded.includes(slot.key)) ship.stockSeeded.push(slot.key);
+      changed = true;
+    }
+    // Slot is empty and the stock part is free: put it back in.
+    if (!ship.installed[slot.key] && !assetInstallSpot(asset.uid)) {
+      ship.installed[slot.key] = asset.uid;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+// Gets the stock loadout (if not cached) and creates the stock assets, without
+// needing the ship modal open.
+async function seedShipStock(ship) {
+  if (seedingShips.has(ship.uid)) return;
+  seedingShips.add(ship.uid);
+  seedErrors.delete(ship.uid);
+  renderShips();
+  try {
+    if (!ship.slots) await fetchShipSlots(ship);
+    if (!shipByUid(ship.uid)) return; // removed while loading
+    ensureStockAssets(ship);
+    await api.setStore('craftShips', craftShips);
+    await api.setStore('craftAssets', craftAssets);
+  } catch (e) {
+    seedErrors.set(ship.uid, e.message);
+  } finally {
+    seedingShips.delete(ship.uid);
+    renderShips();
+    if (document.getElementById('crafting-view-assets')?.style.display === 'flex') renderAssets();
+    if (openShipUid === ship.uid) renderShipModal();
+  }
+}
+
+// Ships added before this existed: seed them once, quietly, one at a time.
+async function backfillStockAssets() {
+  for (const ship of [...craftShips]) {
+    if (!ship.stockAssets && shipByUid(ship.uid)) await seedShipStock(ship);
+  }
+}
+
+// Ship cards and the Assets page both show what's installed where, so anything
+// that changes installs or ship details refreshes both.
+function renderHangarLists() {
+  renderShips();
+  if (document.getElementById('crafting-view-assets')?.style.display === 'flex') renderAssets();
 }
 
 function openErkul() { switchShipsSub('erkul'); }
@@ -3516,7 +3912,11 @@ function renderShips() {
     return;
   }
   list.innerHTML = rows.map(({ s, i }) => {
-    const swapped = Object.values(s.installed || {}).map(assetByUid).filter(Boolean);
+    const swapped = Object.entries(s.installed || {}).map(([key, uid]) => ({ key, a: assetByUid(uid) }))
+      .filter(({ key, a }) => a && !isOwnStock(s, key, a)).map(({ a }) => a);
+    const seedNote = seedingShips.has(s.uid)
+      ? '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">Adding stock components to Assets…</div>'
+      : (seedErrors.has(s.uid) ? '<div style="font-size:10px;color:var(--danger);margin-top:4px">Couldn\'t load stock components — open this ship to retry.</div>' : '');
     return `
     <div class="card" style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openShipModal('${esc(s.uid)}')" title="Click to see and change this ship's components">
       <div style="flex:1;min-width:0">
@@ -3526,6 +3926,7 @@ function renderShips() {
         ].filter(Boolean).map(esc).join(' · ')}</div>
         ${(s.roles || []).length ? `<div class="craft-ingredients">${s.roles.map(r => `<span class="craft-ing">${esc(r)}</span>`).join('')}</div>` : ''}
         ${s.livery ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">Livery: ${esc(s.livery.name)}</div>` : ''}
+        ${seedNote}
         ${swapped.length ? `<div style="font-size:10px;color:var(--text-dim);margin-top:6px">Custom components (${swapped.length})</div>
           <div class="craft-ingredients" style="margin-top:2px">${swapped.map(a => `<span class="craft-ing stocked">${esc(a.name)}</span>`).join('')}</div>` : ''}
         ${s.notes ? `<div style="font-size:11px;color:var(--text);margin-top:4px;opacity:0.8">${esc(s.notes)}</div>` : ''}
@@ -3566,35 +3967,69 @@ function assetSlotKind(a) {
   return null;
 }
 
-async function loadShipSlots(ship) {
+// Network + cache only: resolves the ship's slug, downloads the stock loadout
+// and stores it on the ship. Throws on failure.
+async function fetchShipSlots(ship) {
+  let slug = ship.slug;
+  if (!slug) {
+    // Ship saved before slugs were stored — recover it from UEX by id.
+    if (!uexVehicles) {
+      const res = await api.getVehicles();
+      if (res && Array.isArray(res.data)) uexVehicles = res.data.filter(v => !v.is_addon).sort((a, b) => (a.name_full || '').localeCompare(b.name_full || ''));
+    }
+    slug = uexVehicles?.find(v => v.id === ship.vid)?.slug || '';
+    if (slug) ship.slug = slug;
+  }
+  if (!slug) throw new Error('No ship id on file for this ship');
+  const res = await api.getShipLoadout(slug);
+  if (res.status !== 'ok') throw new Error(res.error || 'Request failed');
+  ship.slots = res.slots;
+  ship.paintTag = res.paintTag || '';
+  // Drop installs whose slot no longer exists in the refreshed loadout.
+  const keys = new Set(res.slots.map(sl => sl.key));
+  Object.keys(ship.installed || {}).forEach(k => { if (!keys.has(k)) delete ship.installed[k]; });
+}
+
+// restore = true is the explicit "Refresh stock data": it also re-creates any
+// stock parts that were deleted from Assets.
+async function loadShipSlots(ship, restore = false) {
   Object.assign(shipModalState, { loading: true, error: '' });
   renderShipModal();
   try {
-    let slug = ship.slug;
-    if (!slug) {
-      // Ship saved before slugs were stored — recover it from UEX by id.
-      if (!uexVehicles) {
-        const res = await api.getVehicles();
-        if (res && Array.isArray(res.data)) uexVehicles = res.data.filter(v => !v.is_addon).sort((a, b) => (a.name_full || '').localeCompare(b.name_full || ''));
-      }
-      slug = uexVehicles?.find(v => v.id === ship.vid)?.slug || '';
-      if (slug) ship.slug = slug;
-    }
-    if (!slug) throw new Error('No ship id on file for this ship');
-    const res = await api.getShipLoadout(slug);
-    if (res.status !== 'ok') throw new Error(res.error || 'Request failed');
-    ship.slots = res.slots;
-    ship.paintTag = res.paintTag || '';
-    // Drop installs whose slot no longer exists in the refreshed loadout.
-    const keys = new Set(res.slots.map(sl => sl.key));
-    Object.keys(ship.installed || {}).forEach(k => { if (!keys.has(k)) delete ship.installed[k]; });
+    await fetchShipSlots(ship);
+    ensureStockAssets(ship, restore);
+    seedErrors.delete(ship.uid);
     await api.setStore('craftShips', craftShips);
+    await api.setStore('craftAssets', craftAssets);
     Object.assign(shipModalState, { loading: false, error: '' });
   } catch (e) {
     Object.assign(shipModalState, { loading: false, error: e.message });
   }
   if (openShipUid === ship.uid) renderShipModal();
   renderShips();
+  if (document.getElementById('crafting-view-assets')?.style.display === 'flex') renderAssets();
+}
+
+function onShipLocEdit() {
+  const sel = document.getElementById('ship-edit-location-select');
+  onLocPickChange('ship-edit-location-select', 'ship-edit-location-custom');
+  // Picking Custom… only reveals the text box; the value is saved when it's filled in.
+  if (sel.value !== '__custom__') saveShipDetails();
+}
+
+// Saves on change (blur / Enter), so there's no separate Save button to forget.
+async function saveShipDetails() {
+  const ship = shipByUid(openShipUid);
+  if (!ship) return;
+  const sel = document.getElementById('ship-edit-location-select');
+  const customVal = document.getElementById('ship-edit-location-custom').value.trim();
+  if (!(sel.value === '__custom__' && !customVal)) {
+    ship.location = await readLocationPick('ship-edit-location-select', 'ship-edit-location-custom');
+  }
+  ship.notes = document.getElementById('ship-edit-notes').value.trim();
+  await api.setStore('craftShips', craftShips);
+  renderHangarLists();
+  renderShipModal(); // refreshes the location in the header line
 }
 
 async function openShipModal(uid) {
@@ -3602,10 +4037,20 @@ async function openShipModal(uid) {
   if (!ship) return;
   openShipUid = uid;
   shipModalState = freshShipModalState();
+  document.getElementById('ship-edit-notes').value = ship.notes || '';
+  fillLocationSelect('ship-edit-location-select', 'ship-edit-location-custom', ship.location || '');
   document.getElementById('ship-modal-title').textContent = shipLabel(ship);
   document.getElementById('ship-modal-overlay').style.display = 'flex';
   renderShipModal();
   if (!ship.slots) await loadShipSlots(ship);
+  else if (!ship.stockAssets) {
+    // Loadout was cached before stock assets existed — create them now, no network needed.
+    ensureStockAssets(ship);
+    await api.setStore('craftShips', craftShips);
+    await api.setStore('craftAssets', craftAssets);
+    renderShipModal();
+    renderShips();
+  }
 }
 
 function closeShipModal() {
@@ -3615,7 +4060,7 @@ function closeShipModal() {
 
 function refreshShipSlots() {
   const ship = shipByUid(openShipUid);
-  if (ship) loadShipSlots(ship);
+  if (ship) loadShipSlots(ship, true);
 }
 
 function renderShipModal() {
@@ -3652,7 +4097,12 @@ function renderShipModal() {
       const here = `${ship.uid}|${slot.key}`;
       const current = ship.installed?.[slot.key] || '';
       const asset = assetByUid(current);
-      const free = (craftAssets || []).filter(a => a.uid && (!takenBy.has(a.uid) || takenBy.get(a.uid) === here));
+      const stockUid = ship.stockAssets?.[slot.key] || '';
+      const stockAsset = assetByUid(stockUid);
+      const stockInstalled = !!stockAsset && current === stockUid;
+      const custom = asset && !stockInstalled;          // something other than the stock part is fitted
+      // This slot's own stock part is the "Stock" option, so it's not listed again below.
+      const free = (craftAssets || []).filter(a => a.uid && a.uid !== stockUid && (!takenBy.has(a.uid) || takenBy.get(a.uid) === here));
       // A slot accepts sizes min..max; assets with no recorded size are given the benefit of the doubt.
       const slotMax = slot.size;
       const slotMin = slot.sizeMin ?? slot.size;
@@ -3660,10 +4110,19 @@ function renderShipModal() {
       const slotSizeText = slotMax == null ? '' : (slotMin !== slotMax ? `${slotMin}–${slotMax}` : `${slotMax}`);
       const matching = free.filter(a => assetSlotKind(a) === kind && sizeOk(a));
       const other = free.filter(a => !(assetSlotKind(a) === kind && sizeOk(a)));
-      const opt = a => `<option value="${esc(a.uid)}"${a.uid === current ? ' selected' : ''}>${esc(a.name)}${a.size != null ? ` (S${a.size})` : ''}${a.crafted ? ' (crafted)' : ''}</option>`;
+      const stockFrom = a => {
+        if (!a.stock) return '';
+        const sh = shipByUid(a.stock.shipUid);
+        return ` — stock${sh ? ` (${shipLabel(sh)})` : ''}`;
+      };
+      const opt = a => `<option value="${esc(a.uid)}"${a.uid === current ? ' selected' : ''}>${esc(a.name)}${a.size != null ? ` (S${a.size})` : ''}${a.crafted ? ' (crafted)' : ''}${esc(stockFrom(a))}</option>`;
       const st = slot.stock;
       const stockLine = [st.name, st.size != null ? `S${st.size}` : '', st.grade ? `Grade ${st.grade}` : '', st.maker].filter(Boolean).map(esc).join(' · ');
-      const craftedChips = asset?.crafted
+      // The stock part can only be put back if it isn't fitted somewhere else.
+      const stockSpot = stockAsset ? assetInstallSpot(stockUid) : null;
+      const stockBusy = !!stockSpot && !(stockSpot.ship.uid === ship.uid && current === stockUid);
+      const stockOptLabel = `Stock — ${st.name}${stockBusy ? ` (fitted on ${shipLabel(stockSpot.ship)})` : ''}`;
+      const craftedChips = custom && asset.crafted
         ? `<div class="craft-ingredients" style="margin-top:3px">
             ${(asset.crafted.parts || []).map(pt => `<span class="craft-ing">${esc(pt.name)} Q${esc(String(pt.quality))}</span>`).join('')}
             ${(asset.crafted.stats || []).map(x => `<span class="craft-ing stocked">${esc(x.stat)} ${esc(x.value)}</span>`).join('')}
@@ -3675,11 +4134,11 @@ function renderShipModal() {
           <span style="font-size:12px;font-weight:700">${esc(slot.label)}</span>
           ${slotSizeText ? `<span style="font-size:10px;color:var(--text-dim)">Size ${esc(slotSizeText)}</span>` : ''}
         </div>
-        <div style="font-size:11px;color:var(--text-dim);${asset ? 'text-decoration:line-through;opacity:.6' : ''}">Stock: ${stockLine}</div>
-        ${asset ? `<div style="font-size:12px;color:var(--accent);margin-top:2px">Installed: <b>${esc(asset.name)}</b>${asset.size != null ? ` <span style="color:var(--text-dim);font-weight:400">S${asset.size}</span>` : ''}</div>${craftedChips}` : ''}
-        ${asset && !sizeOk(asset) ? `<div style="font-size:10px;color:var(--danger);margin-top:2px">Size mismatch: an S${asset.size} part in a size ${esc(slotSizeText)} slot.</div>` : ''}
+        <div style="font-size:11px;color:var(--text-dim);${custom ? 'text-decoration:line-through;opacity:.6' : ''}">Stock: ${stockLine}</div>
+        ${custom ? `<div style="font-size:12px;color:var(--accent);margin-top:2px">Installed: <b>${esc(asset.name)}</b>${asset.size != null ? ` <span style="color:var(--text-dim);font-weight:400">S${asset.size}</span>` : ''}${esc(stockFrom(asset))}</div>${craftedChips}` : ''}
+        ${custom && !sizeOk(asset) ? `<div style="font-size:10px;color:var(--danger);margin-top:2px">Size mismatch: an S${asset.size} part in a size ${esc(slotSizeText)} slot.</div>` : ''}
         <select onchange="setShipSlot(${idx}, this.value)" style="${SELECT_STYLE};width:100%;margin-top:5px">
-          <option value="">Stock — ${esc(st.name)}</option>
+          <option value=""${stockBusy ? ' disabled' : ''}>${esc(stockOptLabel)}</option>
           ${matching.length ? `<optgroup label="Matching assets">${matching.map(opt).join('')}</optgroup>` : ''}
           ${other.length ? `<optgroup label="Other assets (different type or size)">${other.map(opt).join('')}</optgroup>` : ''}
         </select>
@@ -3788,7 +4247,7 @@ async function setShipLivery(uuid) {
   else delete ship.livery;
   await api.setStore('craftShips', craftShips);
   renderShipModal();
-  renderShips();
+  renderHangarLists();
 }
 
 async function setShipSlot(slotIdx, assetUid) {
@@ -3796,16 +4255,26 @@ async function setShipSlot(slotIdx, assetUid) {
   const slot = ship?.slots?.[slotIdx];
   if (!slot) return;
   ship.installed = ship.installed || {};
-  if (assetUid) ship.installed[slot.key] = assetUid;
+  let target = assetUid;
+  if (!target) {
+    // "Stock" = put this slot's own stock part back, if it's free.
+    const stock = assetByUid(ship.stockAssets?.[slot.key]);
+    if (stock) {
+      const spot = assetInstallSpot(stock.uid);
+      if (!spot || (spot.ship.uid === ship.uid && ship.installed[slot.key] === stock.uid)) target = stock.uid;
+    }
+  }
+  if (target) ship.installed[slot.key] = target;
   else delete ship.installed[slot.key];
   await api.setStore('craftShips', craftShips);
   renderShipModal();
-  renderShips();
+  renderHangarLists();
 }
 
 async function openAddShip() {
   pickedVehicle = null;
-  ['ship-pick-search', 'ship-nick-input', 'ship-location-input', 'ship-notes-input'].forEach(id => { document.getElementById(id).value = ''; });
+  ['ship-pick-search', 'ship-nick-input', 'ship-notes-input'].forEach(id => { document.getElementById(id).value = ''; });
+  fillLocationSelect('ship-location-select', 'ship-location-custom');
   document.getElementById('ship-pick-selected').textContent = '';
   document.getElementById('add-ship-modal').style.display = 'flex';
   const listEl = document.getElementById('ship-pick-list');
@@ -3851,7 +4320,8 @@ async function saveShip() {
     return;
   }
   const v = pickedVehicle;
-  craftShips.push({
+  const shipLocation = await readLocationPick('ship-location-select', 'ship-location-custom');
+  const newShip = {
     uid: newUid(),
     vid: v.id,
     slug: v.slug || '',
@@ -3862,47 +4332,120 @@ async function saveShip() {
     crew: v.crew || '',
     roles: shipRoles(v),
     nickname: document.getElementById('ship-nick-input').value.trim(),
-    location: document.getElementById('ship-location-input').value.trim(),
+    location: shipLocation,
     notes: document.getElementById('ship-notes-input').value.trim(),
-  });
+  };
+  craftShips.push(newShip);
   await api.setStore('craftShips', craftShips);
   closeAddShip();
-  renderShips();
+  renderHangarLists();
+  seedShipStock(newShip); // pulls the stock loadout into Assets in the background
 }
 
 async function removeShip(i) {
-  craftShips.splice(i, 1);
+  const [ship] = craftShips.splice(i, 1);
+  if (ship) {
+    // The ship's stock parts go with it — unless one is fitted on another ship,
+    // in which case it just becomes an ordinary asset.
+    const fittedElsewhere = uid => craftShips.some(s => Object.values(s.installed || {}).includes(uid));
+    const keep = craftAssets.filter(a => !(a.stock?.shipUid === ship.uid && !fittedElsewhere(a.uid)));
+    craftAssets.length = 0;
+    keep.forEach(a => { if (a.stock?.shipUid === ship.uid) delete a.stock; craftAssets.push(a); });
+    await api.setStore('craftAssets', craftAssets);
+  }
   await api.setStore('craftShips', craftShips);
-  renderShips();
+  renderHangarLists();
+}
+
+// Assets page layout: assets that aren't installed anywhere come first; the ones
+// installed on a ship sit in a collapsible "Attached" group below, each row
+// naming the ship and slot it's fitted to. Ships themselves live only on My Ships.
+let attachedGroupOpen = true;
+
+function toggleAttachedGroup() {
+  attachedGroupOpen = !attachedGroupOpen;
+  renderAssets();
+}
+
+function assetChipsHtml(a, { showStockOrigin = true } = {}) {
+  const crafted = a.crafted ? `<div class="craft-ingredients">
+      ${(a.crafted.parts || []).map(p => `<span class="craft-ing">${esc(p.name)} Q${esc(String(p.quality))}</span>`).join('')}
+      ${(a.crafted.stats || []).map(st => `<span class="craft-ing stocked">${esc(st.stat)} ${esc(st.value)}</span>`).join('')}
+    </div>` : '';
+  const origin = showStockOrigin ? shipByUid(a.stock?.shipUid) : null;
+  const stock = a.stock ? `<div class="craft-ingredients">
+      ${showStockOrigin ? `<span class="craft-ing">Stock${origin ? ` · ${esc(shipLabel(origin))}` : ''}${a.stock.slotLabel ? ` · ${esc(a.stock.slotLabel)}` : ''}</span>` : ''}
+      ${a.stock.grade ? `<span class="craft-ing">Grade ${esc(a.stock.grade)}</span>` : ''}
+      ${a.stock.maker ? `<span class="craft-ing">${esc(a.stock.maker)}</span>` : ''}
+    </div>` : '';
+  return stock + crafted;
+}
+
+function assetTagsHtml(a) {
+  return `${a.crafted ? ' <span style="font-weight:400;color:var(--accent);font-size:10px">crafted</span>' : ''}${a.stock ? ' <span style="font-weight:400;color:var(--text-dim);font-size:10px">stock</span>' : ''}`;
+}
+
+function assetButtonsHtml(i) {
+  return `<button class="job-edit" onclick="openEditAsset(${i})" title="Edit">✎</button>
+      <button onclick="removeAsset(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>`;
 }
 
 function renderAssets() {
   const q = (document.getElementById('assets-search')?.value || '').toLowerCase().trim();
+  const source = document.getElementById('assets-source')?.value || 'all';
   const list = document.getElementById('assets-list');
   const assets = craftAssets || [];
-  const rows = assets.map((a, i) => ({ a, i, spot: assetInstallSpot(a.uid) })).filter(({ a, spot }) =>
-    !q || [a.name, a.type, spot && shipLabel(spot.ship)].some(f => (f || '').toLowerCase().includes(q)));
-  if (!rows.length) {
-    list.innerHTML = '<div class="empty-state"><div class="ico">📦</div><div class="lbl">No assets tracked yet.<br>Add ships, vehicles, gear, and components.</div></div>';
+  const has = (f) => (f || '').toLowerCase().includes(q);
+  const shipOrder = new Map((craftShips || []).map((sh, n) => [sh.uid, n]));
+
+  const items = assets.map((a, i) => ({ a, i, spot: assetInstallSpot(a.uid) })).filter(({ a, spot }) => {
+    if (source === 'mine' && a.stock) return false;
+    if (source === 'stock' && !a.stock) return false;
+    return !q || [a.name, a.type, a.stock?.maker, a.stock?.slotLabel, a.notes, a.location,
+      spot && shipLabel(spot.ship), spot && spot.slotLabel].some(has);
+  });
+
+  const loose = items.filter(x => !x.spot);
+  // Same ship together, then in slot-kind / slot order, so a ship's parts read as a block.
+  const attached = items.filter(x => x.spot).sort((x, y) => {
+    const sx = shipOrder.get(x.spot.ship.uid) ?? 999, sy = shipOrder.get(y.spot.ship.uid) ?? 999;
+    if (sx !== sy) return sx - sy;
+    const kx = SLOT_KIND_ORDER.indexOf(x.spot.slotKind), ky = SLOT_KIND_ORDER.indexOf(y.spot.slotKind);
+    return (kx < 0 ? 99 : kx) - (ky < 0 ? 99 : ky) || x.spot.slotIndex - y.spot.slotIndex;
+  });
+
+  if (!loose.length && !attached.length) {
+    list.innerHTML = `<div class="empty-state"><div class="ico">📦</div><div class="lbl">${assets.length
+      ? 'No assets match this filter.'
+      : 'No assets tracked yet.<br>Add ships, vehicles, gear, and components.'}</div></div>`;
     return;
   }
-  list.innerHTML = rows.map(({ a, i, spot }) => {
-    const crafted = a.crafted ? `<div class="craft-ingredients">
-      ${(a.crafted.parts || []).map(p => `<span class="craft-ing">${esc(p.name)} Q${esc(String(p.quality))}</span>`).join('')}
-      ${(a.crafted.stats || []).map(st => `<span class="craft-ing stocked">${esc(st.stat)} ${esc(st.value)}</span>`).join('')}
-    </div>` : '';
-    return `
+
+  const card = ({ a, i, spot }) => `
     <div class="card" style="display:flex;align-items:flex-start;gap:10px">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;color:var(--text-bright);font-size:13px">${esc(a.name || '—')}${a.crafted ? ' <span style="font-weight:400;color:var(--accent);font-size:10px">crafted</span>' : ''}</div>
+        <div style="font-weight:700;color:var(--text-bright);font-size:13px">${esc(a.name || '—')}${assetTagsHtml(a)}</div>
         <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${esc(a.type || '')}${a.size != null ? ` · S${a.size}` : ''}${a.location ? ` · ${esc(a.location)}` : ''}</div>
-        ${crafted}
-        ${spot ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">Installed on ${esc(shipLabel(spot.ship))} · ${esc(spot.slotLabel)}</div>` : ''}
+        ${assetChipsHtml(a)}
+        ${spot
+          ? `<div style="font-size:10px;margin-top:4px"><a href="#" onclick="openShipModal('${esc(spot.ship.uid)}');return false" title="See and change this ship's components" style="color:var(--accent);text-decoration:none">Attached to ${esc(shipLabel(spot.ship))} · ${esc(spot.slotLabel)}</a></div>`
+          : (a.stock ? '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">Not attached — free to fit on a ship</div>' : '')}
         ${a.notes ? `<div style="font-size:11px;color:var(--text);margin-top:4px;opacity:0.8">${esc(a.notes)}</div>` : ''}
       </div>
-      <button onclick="removeAsset(${i})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">×</button>
+      ${assetButtonsHtml(i)}
     </div>`;
-  }).join('');
+
+  const hdrStyle = 'font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin:12px 4px 6px';
+  const looseHtml = loose.length
+    ? `<div style="${hdrStyle}">${attached.length ? 'Not attached' : 'Assets'} (${loose.length})</div>` + loose.map(card).join('')
+    : '';
+  const attachedHtml = attached.length
+    ? `<div onclick="toggleAttachedGroup()" title="${attachedGroupOpen ? 'Click to collapse' : 'Click to expand'}"
+         style="${hdrStyle};cursor:pointer;display:flex;align-items:center;gap:6px">
+         <span style="color:var(--accent);width:12px;text-align:center">${attachedGroupOpen ? '▼' : '▶'}</span>Attached to ships (${attached.length})
+       </div>` + (attachedGroupOpen ? attached.map(card).join('') : '')
+    : '';
+  list.innerHTML = looseHtml + attachedHtml;
 }
 
 // Type values double as the keys the ship modal uses to decide which slot an asset
@@ -3922,37 +4465,69 @@ function onAssetTypeChange() {
   if (!isPart) document.getElementById('asset-size-input').value = '';
 }
 
-function onAssetLocChange() {
-  const isCustom = document.getElementById('asset-location-select').value === '__custom__';
-  const custom = document.getElementById('asset-location-custom');
-  custom.style.display = isCustom ? '' : 'none';
-  if (isCustom) custom.focus(); else custom.value = '';
-}
-
-async function openAddAsset() {
-  document.getElementById('add-asset-modal').style.display = 'flex';
-  document.getElementById('asset-name-input').value = '';
-  document.getElementById('asset-notes-input').value = '';
-  document.getElementById('asset-size-input').value = '';
-
-  document.getElementById('asset-type-input').innerHTML = ASSET_TYPE_GROUPS.map(([group, types]) =>
-    `<optgroup label="${esc(group)}">${types.map(t => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}</optgroup>`).join('');
-  document.getElementById('asset-type-input').value = 'Other';
-  onAssetTypeChange();
-
-  // Same places as the Inventory dialog, plus any custom ones already used anywhere.
+// One location picker for every "where is it" field (assets, ships): the same
+// station list as Inventory, any custom places already used anywhere, and a
+// Custom… option that's remembered for next time.
+async function fillLocationSelect(selId, customId, currentVal = '') {
   const stored = (await api.getStore('customLocations')) || [];
-  const used = [...craftInventory.map(i => i.location), ...craftAssets.map(a => a.location)];
-  const saved = [...new Set([...stored, ...used].filter(l => l && l !== 'In Transit' && !ALL_SC_LOCATIONS.includes(l)))].sort();
+  const used = [...craftInventory.map(i => i.location), ...craftAssets.map(x => x.location), ...craftShips.map(x => x.location)];
+  const saved = [...new Set([...stored, ...used, currentVal].filter(l => l && l !== 'In Transit' && !ALL_SC_LOCATIONS.includes(l)))].sort();
   const opt = l => `<option value="${esc(l)}">${esc(l)}</option>`;
-  document.getElementById('asset-location-select').innerHTML =
+  const sel = document.getElementById(selId);
+  sel.innerHTML =
     '<option value="">— No location —</option>' +
     (saved.length ? `<optgroup label="Saved">${saved.map(opt).join('')}</optgroup>` : '') +
     Object.entries(SC_LOCATIONS).map(([group, locs]) => `<optgroup label="${esc(group)}">${locs.map(opt).join('')}</optgroup>`).join('') +
     '<option value="__custom__">Custom…</option>';
-  document.getElementById('asset-location-select').value = '';
-  onAssetLocChange();
+  sel.value = currentVal || '';
+  onLocPickChange(selId, customId);
 }
+
+function onLocPickChange(selId, customId) {
+  const isCustom = document.getElementById(selId).value === '__custom__';
+  const custom = document.getElementById(customId);
+  custom.style.display = isCustom ? '' : 'none';
+  if (isCustom) custom.focus(); else custom.value = '';
+}
+
+async function readLocationPick(selId, customId) {
+  const v = document.getElementById(selId).value;
+  const location = v === '__custom__' ? document.getElementById(customId).value.trim() : v;
+  if (v === '__custom__' && location) {
+    const saved = (await api.getStore('customLocations')) || [];
+    if (!saved.includes(location)) { saved.push(location); await api.setStore('customLocations', saved); }
+  }
+  return location;
+}
+
+let editingAssetUid = null;
+
+// One dialog for both adding and editing; `asset` is undefined when adding.
+async function openAssetDialog(asset) {
+  editingAssetUid = asset ? asset.uid : null;
+  document.getElementById('asset-modal-title').textContent = asset ? 'Edit Asset' : 'Add Asset';
+  document.getElementById('add-asset-modal').style.display = 'flex';
+  document.getElementById('asset-name-input').value = asset ? (asset.name || '') : '';
+  document.getElementById('asset-notes-input').value = asset ? (asset.notes || '') : '';
+
+  const typeSel = document.getElementById('asset-type-input');
+  typeSel.innerHTML = ASSET_TYPE_GROUPS.map(([group, types]) =>
+    `<optgroup label="${esc(group)}">${types.map(t => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}</optgroup>`).join('');
+  const currentType = asset ? (asset.type || '') : 'Other';
+  // An asset saved before types were a dropdown may hold free text — keep it selectable.
+  if (currentType && ![...typeSel.options].some(o => o.value === currentType)) {
+    typeSel.insertAdjacentHTML('beforeend', `<option value="${esc(currentType)}">${esc(currentType)}</option>`);
+  }
+  typeSel.value = currentType || 'Other';
+  document.getElementById('asset-size-input').value = '';
+  onAssetTypeChange();
+  if (asset && asset.size != null) document.getElementById('asset-size-input').value = String(asset.size);
+
+  await fillLocationSelect('asset-location-select', 'asset-location-custom', asset ? (asset.location || '') : '');
+}
+
+function openAddAsset() { return openAssetDialog(); }
+function openEditAsset(i) { if (craftAssets[i]) return openAssetDialog(craftAssets[i]); }
 
 function closeAddAsset() {
   document.getElementById('add-asset-modal').style.display = 'none';
@@ -3961,25 +4536,29 @@ function closeAddAsset() {
 async function saveAsset() {
   const name = document.getElementById('asset-name-input').value.trim();
   if (!name) return;
-  const locSel = document.getElementById('asset-location-select').value;
-  const location = locSel === '__custom__' ? document.getElementById('asset-location-custom').value.trim() : locSel;
-  const asset = {
-    uid: newUid(),
+  const location = await readLocationPick('asset-location-select', 'asset-location-custom');
+  const fields = {
     name,
     type:     document.getElementById('asset-type-input').value,
     location,
     notes:    document.getElementById('asset-notes-input').value.trim(),
   };
   const assetSize = document.getElementById('asset-size-input').value;
-  if (assetSize !== '') asset.size = parseInt(assetSize, 10);
-  if (locSel === '__custom__' && location) {
-    const saved = (await api.getStore('customLocations')) || [];
-    if (!saved.includes(location)) { saved.push(location); await api.setStore('customLocations', saved); }
+  const existing = editingAssetUid ? assetByUid(editingAssetUid) : null;
+  if (existing) {
+    // Editing keeps everything the dialog doesn't show (crafted parts, stock info, uid).
+    Object.assign(existing, fields);
+    if (assetSize !== '') existing.size = parseInt(assetSize, 10); else delete existing.size;
+  } else {
+    const asset = { uid: newUid(), ...fields };
+    if (assetSize !== '') asset.size = parseInt(assetSize, 10);
+    craftAssets.push(asset);
   }
-  craftAssets.push(asset);
+  editingAssetUid = null;
   await api.setStore('craftAssets', craftAssets);
   closeAddAsset();
   renderAssets();
+  renderShips();
 }
 
 async function removeAsset(i) {
@@ -3994,6 +4573,7 @@ async function removeAsset(i) {
   }
   await api.setStore('craftAssets', craftAssets);
   renderAssets();
+  renderShips();
 }
 
 async function initCrafting() {
@@ -4015,6 +4595,7 @@ async function initCrafting() {
     craftAssets.forEach(a => { if (!a.uid) a.uid = newUid(); });
     await api.setStore('craftAssets', craftAssets);
   }
+  backfillStockAssets(); // ships added before stock assets existed (runs in the background)
 
   const list = document.getElementById('owned-list');
   list.innerHTML = `<div class="loading"><div class="spinner"></div>${t('craft.loading.check')}</div>`;
@@ -5831,7 +6412,7 @@ function runScanner() {
   }).join('');
 }
 
-let scannerMode = 'scan';
+let scannerMode = 'ref';
 
 function setScannerMode(mode, chipEl) {
   scannerMode = mode;
