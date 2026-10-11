@@ -65,6 +65,31 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
   font-size:14px; padding:0 0 0 8px; line-height:1; transition:color .15s;
 }
 #settings-btn:hover, #settings-btn.active { color:var(--accent); }
+#help-btn { background:none; border:1px solid var(--border); border-radius:50%; color:var(--text-dim); cursor:pointer;
+  width:16px; height:16px; font-size:10px; font-weight:700; line-height:1; padding:0; margin-right:2px; }
+#help-btn:hover, #help-btn.active { color:var(--accent); border-color:var(--accent); }
+
+/* ── User guide ─────────────────────────────────────────────────────── */
+.help-sec { border:1px solid var(--border); border-radius:var(--r); margin:6px 10px; background:var(--bg-card); }
+.help-sec > summary { cursor:pointer; padding:9px 12px; font-size:13px; font-weight:700; color:var(--text-bright); list-style:none; }
+.help-sec > summary::-webkit-details-marker { display:none; }
+.help-sec > summary::before { content:'▶'; color:var(--accent); font-size:10px; margin-right:8px; display:inline-block; }
+.help-sec[open] > summary::before { content:'▼'; }
+.help-sec .help-inner { padding:2px 12px 12px; font-size:12px; line-height:1.55; color:var(--text); }
+.help-sec h4 { margin:12px 0 4px; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); }
+.help-sec p { margin:6px 0; }
+.help-sec ol.help-howto, .help-sec ul.help-tips { margin:4px 0; padding-left:18px; }
+.help-sec li { margin:3px 0; }
+.help-fig { margin:12px 0 4px; }
+.help-fig .help-fig-title { font-weight:700; color:var(--accent); margin-bottom:4px; }
+.help-fig img { width:100%; display:block; border:1px solid var(--border); border-radius:var(--r); background:#050b14; }
+.help-fig .help-caption { font-size:11px; color:var(--text-dim); margin-top:4px; }
+.help-legend { list-style:none; margin:8px 0 0; padding:0; }
+.help-legend li { display:flex; gap:8px; align-items:flex-start; margin:5px 0; }
+.help-badge { flex-shrink:0; width:18px; height:18px; border-radius:50%; background:#ffb020; color:#111; font-size:11px;
+  font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+.help-faq dt { font-weight:700; color:var(--text-bright); margin-top:8px; }
+.help-faq dd { margin:2px 0 0; color:var(--text); }
 
 /* ── Content ───────────────────────────────────────────────────────── */
 #content { flex:1; overflow:hidden; position:relative; }
@@ -281,6 +306,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 .craft-ingredients { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
 .craft-ing         { font-size:10px; background:var(--bg-hover); color:var(--text-dim); padding:2px 7px; border-radius:10px; white-space:nowrap; }
 .craft-ing.stocked { background:var(--success-dim); color:var(--success); }
+.craft-ing.partial { background:var(--warn-dim); color:var(--warn); }
 .craft-owned-btn { background:none; border:1px solid var(--border); border-radius:3px; color:var(--text-dim); cursor:pointer; font-size:10px; padding:2px 8px; transition:all .15s; white-space:nowrap; flex-shrink:0; line-height:1.4; }
 .craft-owned-btn.owned { background:var(--success-dim); border-color:var(--success); color:var(--success); }
 .inv-row  { display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); }
@@ -544,6 +570,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       </div>
     </div>
 
+    <!-- HELP -->
+    <div class="panel" id="panel-help">
+      <div class="panel-header" style="display:flex;gap:6px;align-items:center">
+        <div class="search-bar" style="flex:1">
+          <span class="ico">🔍</span>
+          <input type="text" id="help-search" placeholder="Search the user guide…" oninput="renderHelp()">
+        </div>
+        <button class="btn btn-sm" onclick="setAllHelp(true)" style="flex-shrink:0">Expand all</button>
+        <button class="btn btn-sm" onclick="setAllHelp(false)" style="flex-shrink:0">Collapse</button>
+      </div>
+      <div class="scroll-area" id="help-body"></div>
+    </div>
+
     <!-- CRAFTING -->
     <div class="panel" id="panel-crafting">
       <div class="panel-header">
@@ -567,6 +606,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
               <option value="all" data-i18n="craft.all">All</option>
               <option value="owned" data-i18n="craft.owned">Owned</option>
               <option value="missing" data-i18n="craft.missing">Missing</option>
+              <option value="craftable" id="owned-filter-craftable" data-i18n="craft.craftableNow">Craftable now</option>
             </select>
           </div>
           <div style="display:flex;gap:6px">
@@ -872,6 +912,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <span style="flex:1"></span>
     <span id="active-jobs-label">0 active jobs</span>
     <button id="lock-btn" onclick="toggleSizeLock()" title="Lock window size" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;line-height:1;padding:2px 4px;border-radius:3px;transition:color .15s">🔓</button>
+    <button id="help-btn" onclick="switchTab('help')" title="Open the illustrated user guide">?</button>
     <button id="settings-btn" onclick="switchTab('settings')" title="Settings">⚙</button>
   </div>
 </div>
@@ -1152,6 +1193,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 </div>
 
 <script src="i18n.js"></script>
+<script src="help-content.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
 // State
@@ -1828,6 +1870,9 @@ function switchTab(name) {
   if (name === 'mining')   { if (miningView === 'halo') initHalo(); else renderMining(); }
   if (name === 'refinery') { if (refineryView === 'bonuses') renderBonuses(); }
   if (name === 'crafting') initCrafting();
+  if (name === 'help') renderHelp();
+  const hb = document.getElementById('help-btn');
+  if (hb) hb.classList.toggle('active', name === 'help');
   syncErkulWindow();
 }
 
@@ -2486,6 +2531,7 @@ function applyPriceRows(rows) {
   const bestSell    = {};  // id -> price
   const bestSellRow = {};  // id -> row (for terminal name)
   const bestBuy     = {};
+  const bestBuyRow  = {};
   rows.forEach(p => {
     if (p.price_sell > 0) {
       if (bestSell[p.id_commodity] == null || p.price_sell > bestSell[p.id_commodity]) {
@@ -2494,8 +2540,10 @@ function applyPriceRows(rows) {
       }
     }
     if (p.price_buy > 0) {
-      if (bestBuy[p.id_commodity] == null || p.price_buy < bestBuy[p.id_commodity])
+      if (bestBuy[p.id_commodity] == null || p.price_buy < bestBuy[p.id_commodity]) {
         bestBuy[p.id_commodity] = p.price_buy;
+        bestBuyRow[p.id_commodity] = p;
+      }
     }
   });
   let changed = false;
@@ -2504,7 +2552,8 @@ function applyPriceRows(rows) {
     const buy  = bestBuy[c.id];
     if (sell || buy) {
       const sellAt = bestSellRow[c.id] ? rowLocation(bestSellRow[c.id]) : null;
-      profitCache[c.id] = { sell: sell || null, buy: buy || null, margin: (sell && buy) ? sell - buy : null, sellAt };
+      const buyAt = bestBuyRow[c.id] ? rowLocation(bestBuyRow[c.id]) : null;
+      profitCache[c.id] = { sell: sell || null, buy: buy || null, margin: (sell && buy) ? sell - buy : null, sellAt, buyAt };
       if (sell && priceCache[c.id] == null) priceCache[c.id] = sell;
       changed = true;
     }
@@ -2884,6 +2933,7 @@ async function selectCom(com, el) {
 
     // Best buy line
     let _topBuyPrice = null;
+    let _topBuyAt = null;
     if (buyRes.status === 'ok') {
       const topBuy = (buyRes.data || [])
         .filter(p => p.price_buy > 0)
@@ -2891,6 +2941,7 @@ async function selectCom(com, el) {
         .shift();
       if (topBuy) {
         _topBuyPrice = topBuy.price_buy;
+        _topBuyAt = rowLocation(topBuy);
         const loc = [topBuy.city_name || topBuy.outpost_name || topBuy.poi_name, topBuy.planet_name]
           .filter(Boolean).join(' · ');
         bestBuyLoc.textContent   = topBuy.terminal_name + (loc ? ` · ${loc}` : '');
@@ -2911,7 +2962,7 @@ async function selectCom(com, el) {
       // Update profit cache with fresh click data
       const topSell = prices[0].price_sell;
       const sellAt  = rowLocation(prices[0]);
-      profitCache[com.id] = { sell: topSell, buy: _topBuyPrice, margin: _topBuyPrice ? topSell - _topBuyPrice : null, sellAt };
+      profitCache[com.id] = { sell: topSell, buy: _topBuyPrice, margin: _topBuyPrice ? topSell - _topBuyPrice : null, sellAt, buyAt: _topBuyAt };
       api.setStore('profitCache', profitCache);
       api.setStore('priceCache',  priceCache);
       renderComs();
@@ -3381,6 +3432,71 @@ function initUpdateCheck() {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// User guide — illustrated manual (content: help-content.js)
+// ════════════════════════════════════════════════════════════════════
+const helpOpen = new Set(['start']);
+
+// Minimal inline markup in guide text: **bold**.
+function helpFmt(text) {
+  return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+
+function helpSectionText(sec) {
+  const shots = (sec.shots || []).map(id => HELP_SHOTS[id]).filter(Boolean);
+  return [
+    sec.title, ...(sec.intro || []), ...(sec.howto || []), ...(sec.tips || []),
+    ...(sec.faq || []).flat(),
+    ...shots.flatMap(sh => [sh.title, sh.caption || '', ...sh.points.map(p => p.text)]),
+  ].join(' ').toLowerCase();
+}
+
+function renderHelp() {
+  const body = document.getElementById('help-body');
+  if (!body || typeof HELP_SECTIONS === 'undefined') return;
+  const q = (document.getElementById('help-search')?.value || '').toLowerCase().trim();
+  const secs = HELP_SECTIONS.filter(sec => !q || helpSectionText(sec).includes(q));
+  if (!secs.length) {
+    body.innerHTML = '<div class="empty-state"><div class="ico">🔍</div><div class="lbl">Nothing in the guide matches that.</div></div>';
+    return;
+  }
+  body.innerHTML = secs.map(sec => {
+    const open = q ? true : helpOpen.has(sec.id);
+    const shots = (sec.shots || []).map(id => HELP_SHOTS[id]).filter(Boolean).map(sh => `
+      <figure class="help-fig">
+        <div class="help-fig-title">${esc(sh.title)}</div>
+        <img src="help/${esc(sh.file)}" alt="${esc(sh.title)}" loading="lazy">
+        ${sh.caption ? `<div class="help-caption">${helpFmt(sh.caption)}</div>` : ''}
+        <ol class="help-legend">${sh.points.map((p, i) =>
+          `<li><span class="help-badge">${i + 1}</span><span>${helpFmt(p.text)}</span></li>`).join('')}</ol>
+      </figure>`).join('');
+    return `
+    <details class="help-sec" data-id="${esc(sec.id)}" ${open ? 'open' : ''} ontoggle="onHelpToggle(this)">
+      <summary>${esc(sec.icon || '')} ${esc(sec.title)}</summary>
+      <div class="help-inner">
+        ${(sec.intro || []).map(t => `<p>${helpFmt(t)}</p>`).join('')}
+        ${(sec.howto || []).length ? `<h4>How to</h4><ol class="help-howto">${sec.howto.map(t => `<li>${helpFmt(t)}</li>`).join('')}</ol>` : ''}
+        ${shots}
+        ${(sec.tips || []).length ? `<h4>Good to know</h4><ul class="help-tips">${sec.tips.map(t => `<li>${helpFmt(t)}</li>`).join('')}</ul>` : ''}
+        ${(sec.faq || []).length ? `<dl class="help-faq">${sec.faq.map(([qn, an]) => `<dt>${esc(qn)}</dt><dd>${helpFmt(an)}</dd>`).join('')}</dl>` : ''}
+      </div>
+    </details>`;
+  }).join('');
+}
+
+function onHelpToggle(el) {
+  if ((document.getElementById('help-search')?.value || '').trim()) return; // search forces everything open
+  if (el.open) helpOpen.add(el.dataset.id); else helpOpen.delete(el.dataset.id);
+}
+
+function setAllHelp(open) {
+  helpOpen.clear();
+  if (open) HELP_SECTIONS.forEach(sec => helpOpen.add(sec.id));
+  const input = document.getElementById('help-search');
+  if (input) input.value = '';
+  renderHelp();
+}
+
+// ════════════════════════════════════════════════════════════════════
 // Hover hints — a short "what does this do" tooltip on anything clickable
 // ════════════════════════════════════════════════════════════════════
 // Hints are looked up when you hover, not baked into each element, so they also
@@ -3397,6 +3513,8 @@ const HINTS_BY_CALL = {
   'switchTab:prices': 'Live commodity prices and buying/selling at stations',
   'switchTab:crafting': 'Blueprints, inventory, assets and ships',
   'switchTab:settings': 'App settings, backup and restore',
+  'switchTab:help': 'Open the illustrated user guide',
+  'setAllHelp': 'Expand or collapse every section of the guide',
   'api.minimize': 'Minimize the window',
   'api.close': 'Hide the window (or quit, depending on your Close Button setting)',
   'toggleSizeLock': 'Lock or unlock resizing the window',
@@ -3542,7 +3660,7 @@ const HINTS_BY_ID = {
   'lock-btn': 'Lock or unlock resizing the window',
   'opacity-range': 'How see-through the overlay is',
   'capture-job-btn': 'Screenshot the in-game refinery screen and try to pre-fill a job (you review it before starting)',
-  'owned-filter': 'Show all blueprints, only ones you own, or only ones you don\'t',
+  'owned-filter': 'Show all blueprints, only ones you own, only ones you don\'t, or only ones you can craft from your current stock',
   'owned-cat-filter': 'Only show blueprints in this category',
   'owned-size-filter': 'Only show components of this size',
   'owned-sort': 'Change how blueprints are ordered',
@@ -3559,6 +3677,8 @@ const HINTS_BY_ID = {
   'ships-search': 'Search your ships',
   'com-search': 'Search commodities',
   'scanner-input': 'Type the RS signature your scanner shows',
+  'help-search': 'Search the whole user guide',
+  'help-btn': 'Open the illustrated user guide',
   'station-select': 'Choose a station to see its refinery yield bonus or penalty for each material',
   'shortcut-select': 'The key that shows or hides the overlay, even while the game has focus',
   'price-source-select': 'Where prices come from — only UEX Corp is available for now',
@@ -3892,6 +4012,61 @@ async function backfillStockAssets() {
 function renderHangarLists() {
   renderShips();
   if (document.getElementById('crafting-view-assets')?.style.display === 'flex') renderAssets();
+}
+
+// Erkul can't be iframed (it sends X-Frame-Options: DENY), so it's hosted in an
+// Electron <webview> — a separate top-level browsing context that isn't subject
+// to that header. main.js locks the guest down (see will-attach-webview). Its
+// calculator only renders at >= ~1000px wide, so the overlay is widened while
+// this view is open and restored afterwards.
+const ERKUL_MIN_WIDTH = 1040;
+let shipsSub = 'list';
+let erkulWebview = null;
+let erkulWidened = false;
+
+function ensureErkulWebview() {
+  if (erkulWebview) return;
+  const wv = document.createElement('webview');
+  wv.setAttribute('partition', 'persist:erkul'); // must be set before src
+  wv.setAttribute('src', ERKUL_URL);
+  wv.style.cssText = 'display:inline-flex;flex:1;width:100%;height:100%';
+  document.getElementById('erkul-host').appendChild(wv);
+  erkulWebview = wv;
+}
+
+// The window should be wide exactly when Hangar → Ships → Erkul is on screen.
+async function syncErkulWindow() {
+  const want = document.getElementById('panel-crafting').classList.contains('active')
+    && craftingView === 'ships' && shipsSub === 'erkul';
+  if (want && !erkulWidened) {
+    erkulWidened = true;
+    await api.expandWindowForEmbed(ERKUL_MIN_WIDTH);
+    ensureErkulWebview();
+  } else if (!want && erkulWidened) {
+    erkulWidened = false;
+    await api.restoreWindowFromEmbed();
+  }
+}
+
+function switchShipsSub(sub) {
+  shipsSub = sub;
+  document.getElementById('ships-sub-list').classList.toggle('active', sub === 'list');
+  document.getElementById('ships-sub-erkul').classList.toggle('active', sub === 'erkul');
+  document.getElementById('ships-pane-list').style.display  = sub === 'list'  ? 'flex' : 'none';
+  document.getElementById('ships-pane-erkul').style.display = sub === 'erkul' ? 'flex' : 'none';
+  if (sub === 'list') renderShips();
+  syncErkulWindow();
+}
+
+function erkulNav(action) {
+  const wv = erkulWebview;
+  if (!wv) return;
+  try {
+    if (action === 'back'    && wv.canGoBack())    wv.goBack();
+    if (action === 'forward' && wv.canGoForward()) wv.goForward();
+    if (action === 'reload')  wv.reload();
+    if (action === 'browser') api.openExternal(wv.getURL() || ERKUL_URL);
+  } catch { if (action === 'browser') api.openExternal(ERKUL_URL); }
 }
 
 function openErkul() { switchShipsSub('erkul'); }
@@ -4654,15 +4829,49 @@ function sizeChipHtml(size) {
   return size == null ? '' : ` <span class="craft-ing" style="margin-left:6px">S${size}</span>`;
 }
 
-function bpIngHtml(bp, stocked) {
-  return (bp.ingredients || []).map(ing => {
-    const has = stocked?.has(ing.name);
-    return `<span class="craft-ing${has ? ' stocked' : ''}">${esc(ing.name)} ${esc(fmtSCU(ing.quantity_scu))}</span>`;
+// ── What can be crafted from the stock you hold ──────────────────────────────
+// A box counts toward an ingredient when it's the same material, has SCU in it,
+// and meets the ingredient's minimum quality (blueprint option min_quality, on
+// the same 0–999 scale as inventory quality). A box with no quality recorded is
+// given the benefit of the doubt.
+function buildStockIndex() {
+  const idx = new Map();
+  (craftInventory || []).forEach(box => {
+    const scu = itemSCU(box);
+    if (scu <= 0.004) return;
+    const key = (box.name || '').toLowerCase();
+    const q = box.quality === '' || box.quality == null ? null : parseFloat(box.quality);
+    if (!idx.has(key)) idx.set(key, []);
+    idx.get(key).push({ scu, q: isNaN(q) ? null : q });
+  });
+  return idx;
+}
+
+const round2 = n => Math.round(n * 100) / 100;
+
+function bpStockStatus(bp, idx) {
+  const rows = (bp.ingredients || []).map(ing => {
+    const need = round2(ing.quantity_scu || 0);
+    const minQ = ing.options?.[0]?.min_quality ?? 0;
+    const boxes = idx.get((ing.name || '').toLowerCase()) || [];
+    const have = round2(boxes.filter(b => b.q == null || b.q >= minQ).reduce((t, b) => t + b.scu, 0));
+    const haveAny = round2(boxes.reduce((t, b) => t + b.scu, 0));
+    return { name: ing.name, need, have, haveAny, minQ, short: Math.max(0, round2(need - have)) };
+  });
+  return { rows, ok: rows.length > 0 && rows.every(r => r.have + 0.004 >= r.need) };
+}
+
+function bpIngHtml(bp, idx) {
+  const status = bpStockStatus(bp, idx);
+  return status.rows.map(r => {
+    const cls = r.have + 0.004 >= r.need ? ' stocked' : (r.have > 0 ? ' partial' : '');
+    const extra = cls === ' partial' ? ` · have ${esc(fmtSCU(r.have))}` : '';
+    return `<span class="craft-ing${cls}">${esc(r.name)} ${esc(fmtSCU(r.need))}${extra}</span>`;
   }).join('');
 }
 
 function renderOwned() {
-  const stocked = new Set(craftInventory.map(i => i.name));
+  const stockIdx = buildStockIndex();
   const q   = (document.getElementById('owned-search')?.value || '').toLowerCase().trim();
   const f   = document.getElementById('owned-filter')?.value || 'all';
   const cat = document.getElementById('owned-cat-filter')?.value || '';
@@ -4687,10 +4896,18 @@ function renderOwned() {
     });
   }
 
+  // Show how many blueprints the current stock can cover right now.
+  const craftableOpt = document.getElementById('owned-filter-craftable');
+  if (craftableOpt) {
+    const n = allBlueprints.reduce((c, bp) => c + (bpStockStatus(bp, stockIdx).ok ? 1 : 0), 0);
+    craftableOpt.textContent = `${t('craft.craftableNow')} (${n})`;
+  }
+
   let bps = allBlueprints;
   if (q)   bps = bps.filter(bp => bp.name.toLowerCase().includes(q) || (bp.category || '').toLowerCase().includes(q));
   if (f === 'owned')   bps = bps.filter(bp => ownedBlueprints[bp.blueprint_id]);
   if (f === 'missing') bps = bps.filter(bp => !ownedBlueprints[bp.blueprint_id]);
+  if (f === 'craftable') bps = bps.filter(bp => bpStockStatus(bp, stockIdx).ok);
   if (cat) bps = bps.filter(bp => (bp.category || '').startsWith(cat));
   const sizeSel = document.getElementById('owned-size-filter')?.value || '';
   if (sizeSel !== '') bps = bps.filter(bp => bpSize(bp) === parseInt(sizeSel, 10));
@@ -4713,8 +4930,7 @@ function renderOwned() {
 
   list.innerHTML = bps.map(bp => {
     const owned = !!ownedBlueprints[bp.blueprint_id];
-    const ings = bp.ingredients || [];
-    const craftable = ings.length > 0 && ings.every(ing => stocked.has(ing.name));
+    const craftable = bpStockStatus(bp, stockIdx).ok;
     return `
     <div class="craft-card${craftable ? ' craftable' : ''}" style="cursor:pointer" onclick="openBpDetails('${esc(bp.blueprint_id)}')" title="Click for quality effects and mission drops">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
@@ -4726,7 +4942,7 @@ function renderOwned() {
           ${owned ? '✓ Owned' : '+ Own'}
         </button>
       </div>
-      <div class="craft-ingredients">${bpIngHtml(bp, stocked)}</div>
+      <div class="craft-ingredients">${bpIngHtml(bp, stockIdx)}</div>
     </div>`;
   }).join('');
 }
@@ -4844,6 +5060,44 @@ function cleanMissionName(name) {
   return (name || '').replace(/~mission\(([^)]+)\)/g, '[$1]');
 }
 
+// Everything still missing for one craft, with where to get it: mining spots
+// from the ore reference and the cheapest known shop price (when a shop sells it).
+function bpTopMiningSpots(name, n = 4) {
+  const entries = (typeof ORE_DATA !== 'undefined' && ORE_DATA[name]) || [];
+  return entries
+    .map(e => ({ location: e.location, pct: parseFloat(String(e.share).replace(/[^0-9.]/g, '')) || 0, share: e.share }))
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, n);
+}
+
+function bpShoppingHtml(bp) {
+  const { rows, ok } = bpStockStatus(bp, buildStockIndex());
+  if (!rows.length) return '<div style="font-size:12px;color:var(--text-dim)">No ingredients listed.</div>';
+  if (ok) return '<div style="font-size:12px;color:var(--success)">✓ You have everything needed to craft this from your inventory.</div>';
+  const missing = rows.filter(r => r.have + 0.004 < r.need);
+  let total = 0, priced = true;
+  const items = missing.map(r => {
+    const spots = bpTopMiningSpots(r.name);
+    const com = invCom(r.name);
+    const pc = com ? profitCache[com.id] : null;
+    const price = pc?.buy || null;
+    if (price) total += price * r.short; else priced = false;
+    const below = r.haveAny > r.have + 0.004
+      ? `<div style="font-size:10px;color:var(--warn)">${esc(fmtSCU(round2(r.haveAny - r.have)))} you hold is below the minimum quality (${r.minQ}).</div>` : '';
+    return `<div style="padding:6px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
+        <span><b>${esc(r.name)}</b> <span style="color:var(--text-dim)">need ${esc(fmtSCU(r.need))}, have ${esc(fmtSCU(r.have))}</span></span>
+        <span style="color:var(--danger);white-space:nowrap">short ${esc(fmtSCU(r.short))}</span>
+      </div>${below}
+      ${spots.length ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Mine at: ${spots.map(x => `${esc(x.location)} (${esc(x.share)})`).join(' · ')}</div>` : ''}
+      ${price ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Buy: ~${price.toLocaleString()} aUEC/SCU${pc.buyAt ? ` at ${esc(pc.buyAt)}` : ''} · ≈ ${fmtAuec(Math.round(price * r.short))} aUEC for the shortfall</div>`
+                : (spots.length ? '' : '<div style="font-size:10px;color:var(--text-dim);margin-top:2px">No mining spots or shop price known for this material.</div>')}
+    </div>`;
+  }).join('');
+  const summary = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">${missing.length} of ${rows.length} ingredient${rows.length === 1 ? '' : 's'} short${total > 0 ? ` · shop price for what's buyable ≈ ${fmtAuec(Math.round(total))} aUEC${priced ? '' : ' (some items have no shop price)'}` : ''}</div>`;
+  return summary + items;
+}
+
 function renderBpDetailsBody(bp) {
   const state = bpQualityState[bp.blueprint_id];
   const ings = bp.ingredients || [];
@@ -4895,6 +5149,9 @@ function renderBpDetailsBody(bp) {
 
     <div style="font-size:12px;font-weight:700;margin:14px 0 4px">Stat</div>
     <div id="bp-stat-table">${bpStatTableHtml(bp, state)}</div>
+
+    <div style="font-size:12px;font-weight:700;margin:14px 0 4px">Shopping list</div>
+    <div id="bp-shopping">${bpShoppingHtml(bp)}</div>
 
     <div style="font-size:12px;font-weight:700;margin:14px 0 4px">Drops (${missions.length} missions)</div>
     <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Mission names and drop chance only — exact locations aren't in this data source.</div>
@@ -5114,6 +5371,8 @@ function bpRefreshAll(bp) {
   });
   const statTable = document.getElementById('bp-stat-table');
   if (statTable) statTable.innerHTML = bpStatTableHtml(bp, state);
+  const shop = document.getElementById('bp-shopping');
+  if (shop) shop.innerHTML = bpShoppingHtml(bp);
 
   const fromStock = allocs.filter(a => a.hasBox && a.taken > 0);
   const anyShort = allocs.some(a => a.hasBox && a.short > 0);

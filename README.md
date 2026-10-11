@@ -30,10 +30,14 @@ Star Citizen companion overlay — refinery timers, commodity prices with statio
 - **Commodity prices** — live sell/buy prices from UEX Corp, browsable by commodity or by station
 - **Station buy/sell tracking** — buy a commodity at a station (marks it in-transit automatically) and sell your in-transit stock back, with a summary of what you made
 - **Mining reference tools** — ore location lookup by rock/moon, a signature scanner (both a reference chart and a live RS-signature solver), and an Aaron Halo quantum-drop calculator
-- **Full inventory system** — track ore and materials by box, grouped by ore type or by location, with quality %, box size, split/merge of stacked boxes, and bulk move/sell/in-transit actions
-- **Blueprint tracking** — browse craftable item blueprints, mark which ones you own, and filter/sort them
-- **Asset tracker** — a simple list for ships, vehicles, and components you own
-- **Backup & restore** — export everything (jobs, inventory, settings) to a file and restore it later or on another PC
+- **Experimental refinery capture** — screenshot + OCR the in-game refinery job screen to pre-fill a new job for you to review
+- **Full inventory system** — track ore and materials by box, grouped by ore type or by location, with quality, box size, split/merge of stacked boxes, and bulk move/sell/in-transit actions
+- **Blueprints & crafting** — browse craftable items, see what you can craft **right now** from your stock, plan material quality against the resulting stats, build a shopping list for what you're missing, and craft straight from chosen inventory boxes
+- **Assets & ships** — track everything you own; add your ships and see, swap and exchange their stock components, liveries and component sizes
+- **Built-in Erkul calculator** — the Erkul DPS/loadout calculator runs inside the app
+- **Illustrated user guide** — open it from the **?** button in the status bar; every section has annotated screenshots
+- **Hover hints** — short "what does this do" descriptions on controls, in English, Deutsch, Français and Español (can be turned off)
+- **Backup & restore** — export everything (jobs, inventory, assets, ships, settings) to a file and restore it later or on another PC
 - **Auto-updater** — checks for new versions on launch and every 3 hours while running, with an in-app download/install banner
 
 ---
@@ -91,6 +95,8 @@ The Mining tab has three views, switchable via the chips at the top.
 
 Jobs count down live in the list. When a job's timer hits zero, you get a desktop notification and the card turns green with a **Delivered** button.
 
+**📷 Capture (experimental)**: turn it on under **Settings → Refinery Job Capture**. With the in-game refinery job screen visible, click **📷 Capture** — the app checks Star Citizen is running, takes four screenshots a couple of seconds apart (scroll a long material list between them), reads them with OCR, and pre-fills the Add Job form with whatever it recognised: materials with quality and yield, the method, the duration and the station. It **never** starts a job by itself — you review and correct the form first. Anything it couldn't read is left blank to fill in by hand.
+
 **Collecting a finished job**: click **Delivered** on a ready job. A modal lets you record the actual box sizes and quantities you pulled from the cargo elevator for each ore in that job (pre-filled with a suggested box breakdown if you entered an expected yield when creating the job). Confirming adds those boxes straight into your **Hangar → Inventory**, automatically tagged with the job's location and marked **in-transit**, and removes the completed job from the list.
 
 **Station Bonuses**
@@ -118,6 +124,10 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 **My Blueprints**
 - Browse craftable item blueprints (sourced from an external blueprint database, cached locally after first load)
 - Toggle each one as **Owned** to track your collection
+- Set the filter to **Craftable now** (it shows a live count) to see only what your current inventory can make. On every card the ingredient chips show your stock: **green** = enough (at or above the material's minimum quality), **amber** = some (with how much you hold), plain = none
+- **Click a card** for its window: base stats, a **Global Quality** slider (0–999) plus per-part quality, the Base/Crafted stat table, which missions drop it, and a **Shopping list**
+- The **Shopping list** shows only what you're short of, with where to mine it (top spots from the ore reference) and the cheapest known shop price, plus a rough cost for the shortfall
+- Under each part you can pick the **inventory box** to use — its quality is used and the SCU is deducted when you **Craft & add to assets**
 - Ship components show a size badge (**S0**–**S6**). Filter by Owned/Missing/All, by category, or by size, search by name, and sort alphabetically, by craft time, or by size (blueprints with no size, like armor, sort last)
 
 **Inventory** — the core stock tracker
@@ -159,6 +169,7 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 | **Price Data Source** | Currently locked to **UEX Corp**. A **SC Trader** option is planned but not yet available (shown disabled) |
 | **Hover Hints** | **On** (default) shows a short description when you hover over a button, tab, chip, dropdown or card for about a third of a second; **Off** turns all of them off, including the browser-style tooltips. The descriptions follow the language setting (English, Deutsch, Français, Español) |
 | **In-Transit Icon** | Choose whether in-transit inventory items show a 🚚 truck or 🚀 rocket icon |
+| **Refinery Job Capture** *(experimental)* | **Manual entry** (default) hides the 📷 Capture button; **Auto-detect on capture** shows it on the Refinery → Active Jobs screen. Capture only ever pre-fills the Add Job form — you always review it before the job starts |
 | **Clear Completed Jobs** | Removes every refinery job whose timer has already finished, keeping active ones |
 | **Clear All Jobs** | Removes every tracked refinery job, finished or not |
 | **Game Log Path** | Points the app at your Star Citizen `game.log` so it can watch it in the background. It currently tracks your last-known in-game station, laying the groundwork for future automation like auto-detecting refinery completions. The app looks for the log automatically at Star Citizen's default install path if you haven't set one yourself; the status dot shows whether a watcher is currently attached |
@@ -176,6 +187,7 @@ The bar along the bottom of the window (always visible) shows:
 - A colored dot + text for the UEX Corp connection status (green = connected, yellow = loading, red = unreachable)
 - The number of currently active refinery jobs
 - A 🔓/🔒 button that locks the window to its current size (disables resizing) — handy once you've got it positioned how you like
+- The **?** button, which opens the illustrated **user guide** (searchable, with annotated screenshots of every screen)
 - The ⚙ Settings shortcut
 
 ---
@@ -200,11 +212,19 @@ npm install
 # Run in development mode
 npm run dev
 
+# Sanity-check the code before a release (syntax + calls to undefined functions)
+npm run check
+
+# Re-generate the user-guide screenshots (renderer/help/*.webp)
+npm run help-images
+
 # Build Windows installer
 npm run dist
 ```
 
 Requires Node.js 18+ and a Windows environment for the installer build.
+
+**The user guide.** Its text and the numbered pointers live in `renderer/help-content.js`. `npm run help-images` launches the real app on a throw-away profile with demo data, outlines each listed element with its number, and saves the screenshots — so the numbers in the image and the legend beside it always match. Re-run it whenever a screen changes, and run `npm run check` before packaging.
 
 ---
 
