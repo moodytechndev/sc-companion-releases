@@ -95,7 +95,7 @@ The Mining tab has three views, switchable via the chips at the top.
 
 Jobs count down live in the list. When a job's timer hits zero, you get a desktop notification and the card turns green with a **Delivered** button.
 
-**📷 Capture (experimental)**: turn it on under **Settings → Refinery Job Capture**. With the in-game refinery job screen visible, click **📷 Capture** — the app checks Star Citizen is running, takes four screenshots a couple of seconds apart (scroll a long material list between them), reads them with OCR, and pre-fills the Add Job form with whatever it recognised: materials with quality and yield, the method, the duration and the station. It **never** starts a job by itself — you review and correct the form first. Anything it couldn't read is left blank to fill in by hand.
+**📷 Capture (experimental)**: turn it on under **Settings → Refinery Job Capture**. With the in-game refinery job screen visible, click **📷 Capture** — the app checks Star Citizen is running, takes four screenshots in quick succession, about half a second apart (scroll a long material list while it counts), then reads them with OCR — enlarging the material table, method and station name so small text reads cleanly — and pre-fills the Add Job form with whatever it recognised: materials with quality and yield, the method, the duration and the station. It **never** starts a job by itself — you review and correct the form first. Anything it couldn't read is left blank to fill in by hand.
 
 **Collecting a finished job**: click **Delivered** on a ready job. A modal lets you record the actual box sizes and quantities you pulled from the cargo elevator for each ore in that job (pre-filled with a suggested box breakdown if you entered an expected yield when creating the job). Confirming adds those boxes straight into your **Hangar → Inventory**, automatically tagged with the job's location and marked **in-transit**, and removes the completed job from the list.
 
@@ -174,7 +174,7 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 | **Clear All Jobs** | Removes every tracked refinery job, finished or not |
 | **Game Log Path** | Points the app at your Star Citizen `game.log` so it can watch it in the background. It currently tracks your last-known in-game station, laying the groundwork for future automation like auto-detecting refinery completions. The app looks for the log automatically at Star Citizen's default install path if you haven't set one yourself; the status dot shows whether a watcher is currently attached |
 | **Backup & Restore** | **Export** saves all your jobs, inventory, assets, ships, blueprint ownership, and settings to a JSON file you choose. **Import** loads one back in, overwriting the matching data — useful for moving to a new PC or recovering after a reinstall |
-| **Report a Bug** | Sends a short description straight to the developer's Discord via a webhook, along with your app version and OS — no account or email needed |
+| **Report a Bug** | Sends a short description straight to the developer's Discord via a webhook, along with your app version and OS — no account or email needed. You can optionally attach a screenshot of the screen you were on, the last refinery capture (the screen it read plus the text it got), a fresh grab of the game window, or images you pick — each is previewed first and nothing is attached unless you tick or add it |
 
 The bottom of the Settings tab also shows the current app version and a reminder that prices come from UEX Corp, a community-maintained trade database.
 
@@ -198,7 +198,7 @@ Everything you track — jobs, inventory, assets, ships, blueprint ownership, an
 
 - **Commodity/station prices**: fetched live from the public [UEX Corp](https://uexcorp.space) API
 - **Blueprint data**: fetched from an external blueprint database and cached locally after the first load
-- **Bug reports**: only sent if you explicitly use the Report a Bug button, and only contain the text you typed plus your app version and OS
+- **Bug reports**: only sent if you explicitly use the Report a Bug button. They contain the text you typed plus your app version and OS — and any screenshots or images you chose to attach (each is previewed first; game screens can show your character name and balance, so look before you send). The app keeps the screen you were on, and the last refinery capture, in memory only so they can be offered; they are never sent unless you tick them
 - **Update checks**: the app pings GitHub Releases to check for new versions on launch and every 3 hours while running
 
 ---

@@ -586,170 +586,9 @@ async function getOcrWorker() {
   return _ocrWorker;
 }
 
-// Parsing rules, tuned against real refinery-terminal screenshots (setup screen,
-// after a processing method is chosen — that's the state that actually shows a
-// duration and cost; the pre-selection state shows "--" for both).
-//
-// Two lessons from those screenshots drive the approach here:
-// 1. The station's left-hand "Material Specializations" sidebar lists ~6 ore
-//    names totally unrelated to the active job (it's the station's general yield
-//    bonus table). A blind whole-screen search for known ore names picks those up
-//    as false positives. So material extraction is anchored on the "MATERIALS
-//    SELECTED" label, which only appears in the job panel, never the sidebar.
-// 2. Refinery jobs aren't limited to mined ore — one real job had "Construction
-//    Pieces" (ship salvage) as the material. A closed ore whitelist misses that
-//    entirely, so matching now covers a broader material list, and duration uses
-//    the in-game "32m 0s" letter-suffixed format, not HH:MM:SS.
-const REFINERY_METHODS = [
-  'Cormack Method', 'Dinyx Solventation', 'Electrostarolysis', 'Ferron Exchange',
-  'Gaskin Process', 'Kazen Winnowing', 'Pyrometric Chromalysis',
-  'Thermonatic Deposition', 'XCR Reaction',
-];
-const KNOWN_MATERIALS = [
-  'Agricium', 'Aluminum', 'Beryl', 'Bexalite', 'Borase', 'Carbon', 'Chlorine',
-  'Copper', 'Corundum', 'Diamond', 'Fluorine', 'Gold', 'Hadanite', 'Hephaestanite',
-  'Hydrogen', 'Ice', 'Inertite', 'Iron', 'Laranite', 'Quantainium', 'Quartz',
-  'Silicon', 'Stileron', 'Taranite', 'Tin', 'Titanium', 'Tungsten',
-  'Construction Pieces', 'Construction Rubble', 'Construction Salvage',
-  'Construction Materials', 'Scrap', 'Waste',
-  'Recycled Material Composite', 'Inert Materials',
-];
-
-// Method names are safe to substring-match across the whole screen — unlike ore
-// names, they don't also appear in the sidebar.
-function extractMethod(lowerText) {
-  for (const m of REFINERY_METHODS) {
-    if (lowerText.includes(m.toLowerCase())) return m;
-  }
-  return null;
-}
-
-// Column headers/labels are two or three words wide (e.g. "MATERIALS SELECTED"),
-// and a column narrower than the label can make Tesseract wrap it onto its own
-// line — the literal character between the words then becomes a newline instead
-// of a space, which an exact-substring search (`indexOf('materials selected')`)
-// would silently fail to find. Every multi-word anchor below matches on flexible
-// whitespace (`\s+`, which matches newlines too) instead, for that reason.
-function findLabel(lowerText, pattern, fromIndex = 0) {
-  const m = lowerText.slice(fromIndex).match(pattern);
-  if (!m) return null;
-  const start = fromIndex + m.index;
-  return { start, end: start + m[0].length };
-}
-
-// In-game format is "32m 0s" / "1h 5m 30s" (letters, not colons). This used to
-// anchor on the "PROCESSING TIME" label, but real captures show that label is
-// almost never OCR'd intact ("iis TIME", "EROGESSING JHE") even when the actual
-// duration digits right next to it come through fine — so this searches the
-// whole text for an h+m(+s) or m+s cluster instead of requiring the label.
-// Requiring two adjacent units (not just a lone "12m") is what keeps this from
-// matching an unrelated stray number elsewhere on screen.
-function extractDuration(text) {
-  let m = text.match(/(\d{1,3})\s*h[^a-zA-Z0-9]{0,6}(\d{1,2})\s*m(?:[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s)?\b/i);
-  if (m) return { h: parseInt(m[1], 10), m: parseInt(m[2], 10), s: m[3] ? parseInt(m[3], 10) : 0 };
-  m = text.match(/(\d{1,3})\s*m[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s\b/i);
-  if (m) return { h: 0, m: parseInt(m[1], 10), s: parseInt(m[2], 10) };
-  return null;
-}
-
-// The "MATERIALS SELECTED / QUALITY / QTY / YIELD / REFINE" column headers sit on
-// the same visual row as (and sometimes the same OCR line as) "MATERIALS SELECTED"
-// itself, so anchoring there and taking "whatever comes next" risks grabbing the
-// header remainder instead of the actual material row. "REFINE" is the last header
-// column — anchor past *that* instead, so the search always starts at the data row.
-function materialRowStart(lowerText, fromIdx) {
-  const refine = findLabel(lowerText, /refine/, fromIdx);
-  return refine ? refine.end : fromIdx;
-}
-
-// Anchored on "MATERIALS SELECTED" (unique to the job panel) rather than a blind
-// scan, to avoid the sidebar false-positive problem. Handles a materials list
-// longer than one screen the same way a single row is handled: each line in the
-// block is tried independently, so a frame that only shows rows 3-5 (because the
-// user scrolled the in-game list before this shot) still contributes those rows —
-// see the burst-capture loop below, which merges rows found across several shots.
-// A real material row's line isn't just the name — OCR glues on neighboring UI
-// noise ("bie ae CONSTRUCTIONPI", "oil ADDED. TT  TRUCTION PIECES"), and the name
-// itself can be clipped at either end (missing "CONS" prefix, or missing "ECES"
-// suffix). Whole-line containment breaks on the first, and exact-name containment
-// breaks on the second — so this checks whether any long contiguous chunk of the
-// known name (spaces stripped from both sides) shows up anywhere in the line.
-function fuzzyChunkIncludes(lineCompact, nameCompact) {
-  if (lineCompact.includes(nameCompact)) return true;
-  const minLen = Math.max(6, Math.floor(nameCompact.length * 0.6));
-  for (let len = nameCompact.length; len >= minLen; len--) {
-    for (let start = 0; start + len <= nameCompact.length; start++) {
-      if (lineCompact.includes(nameCompact.slice(start, start + len))) return true;
-    }
-  }
-  return false;
-}
-
-function extractMaterialRows(text, lowerText) {
-  const label = findLabel(lowerText, /materials\s+selected/);
-  if (!label) return [];
-  const from = materialRowStart(lowerText, label.start);
-  const totalCost = findLabel(lowerText, /total\s+cost/, from);
-  const to = totalCost ? totalCost.start : from + 500; // generous cap for a long scrolled list
-  const lines = text.slice(from, to).split('\n').map(s => s.trim()).filter(Boolean);
-
-  const rows = [];
-  for (const line of lines) {
-    const nums = line.match(/\d+(?:\.\d+)?/g) || [];
-    if (nums.length < 3) continue; // not a data row — [QUALITY, QTY, YIELD] per row
-    const lineCompact = line.replace(/[^a-zA-Z]/g, '').toLowerCase();
-    if (lineCompact.length < 3) continue;
-    const match = KNOWN_MATERIALS.find(name => fuzzyChunkIncludes(lineCompact, name.toLowerCase().replace(/[^a-z]/g, '')));
-    if (!match) continue;
-    const tail = nums.slice(-3); // last 3 numbers on the line = quality, qty, yield
-    rows.push({ name: match, quality: tail[0], yield: tail[2] });
-  }
-  return rows;
-}
-
-// Real capture confirms the station name sits on the SAME OCR line as the anchor
-// ("1 AMBITIOUS DREAM STATION REFINEMENT CENTER"), immediately before "STATION" —
-// and that "CENTER" itself is frequently clipped ("REFINEMENT C"), so the anchor
-// only requires "refinement". Pulling single/double-letter OCR noise tokens
-// ("|", "V7", "1", "§") off that line via a letters-only word filter is what
-// isolates the real name — grabbing the whole line (or two) as one blob, as this
-// used to, pulls in unrelated UI fragments from earlier on the same line.
-function extractNameWords(segment) {
-  const words = segment.match(/[a-zA-Z]{3,}/g) || [];
-  while (words.length && /^(station|refinement|center)$/i.test(words[words.length - 1])) {
-    words.pop();
-  }
-  return words;
-}
-
-// Returned as raw cleaned text, not matched against a location list: the renderer
-// owns the definitive station list (the Add Job modal's own dropdown), so it does
-// the fuzzy-matching itself rather than main.js duplicating that list.
-//
-// No same-line-above fallback: an icon frequently overlaps the station name
-// entirely (OCR reads it as a single "©" glyph), and when that happens the
-// previous line is just unrelated UI text — a real capture proved this by
-// returning "pad aie proses TEREST" from two lines up. Returning nothing here
-// is safer than returning confident-looking garbage.
-function extractLocation(text, lowerText) {
-  const label = findLabel(lowerText, /refinement(\s+center)?/);
-  if (!label) return null;
-  const lineStart = text.lastIndexOf('\n', label.start - 1) + 1;
-  const words = extractNameWords(text.slice(lineStart, label.start));
-  const candidate = words.slice(-4).join(' ');
-  return candidate.length >= 3 ? candidate : null;
-}
-
-function parseRefineryOcrText(text) {
-  const lowerText = text.toLowerCase();
-  return {
-    method: extractMethod(lowerText),
-    duration: extractDuration(text),
-    materials: extractMaterialRows(text, lowerText),
-    location: extractLocation(text, lowerText),
-    rawText: text,
-  };
-}
+// The text parsing and the region-by-region reading of the refinery screen live in
+// refinery-ocr.js (it is also what the tests drive).
+const refineryOcr = require('./refinery-ocr');
 
 // Live client process name — RSI's launcher is a separate process we don't care about.
 const GAME_PROCESS_NAME = 'StarCitizen.exe';
@@ -773,7 +612,9 @@ async function getGameWindowSource(thumbnailSize) {
   return sources.find(s => s.name.toLowerCase().includes('star citizen')) || null;
 }
 
-async function captureOneFrame() {
+// Grabs the screen (or just the game window) and returns the image — no OCR here,
+// so a burst of grabs can run back-to-back and the slow reading happens afterwards.
+async function grabFrame() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.size;
   const scale = primaryDisplay.scaleFactor || 1;
@@ -790,23 +631,30 @@ async function captureOneFrame() {
     source = sources.find(s => s.display_id === String(primaryDisplay.id)) || sources[0];
   }
 
-  const dataUrl = source.thumbnail.toDataURL();
-  if (!dataUrl || source.thumbnail.isEmpty()) throw new Error('Captured image was empty');
+  if (!source.thumbnail || source.thumbnail.isEmpty()) throw new Error('Captured image was empty');
+  return { capturedWindow, image: source.thumbnail };
+}
 
-  const worker = await getOcrWorker();
-  const { data } = await worker.recognize(dataUrl);
-  return { capturedWindow, ...parseRefineryOcrText(data.text || '') };
+// True when two frames are visually the same screen (the user didn't scroll between
+// them) — compared on a tiny downscale so glow/cursor animation doesn't count.
+function framesAlike(a, b) {
+  const small = (img) => img.resize({ width: 64, height: 36, quality: 'good' }).toBitmap();
+  const pa = small(a), pb = small(b);
+  if (pa.length !== pb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < pa.length; i++) diff += Math.abs(pa[i] - pb[i]);
+  return diff / pa.length < 3;
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Takes several shots a couple seconds apart instead of one, so a materials list
-// longer than the screen can be captured by scrolling between shots. Method and
-// duration don't change mid-scroll, so the first frame that finds them wins;
-// materials are unioned across all frames, deduped by name (first sighting's
-// quality/yield kept — scrolling back over an already-seen row shouldn't matter).
+// Takes several shots in quick succession instead of one, so a materials list longer
+// than the screen can be captured by scrolling between shots. All the shots are
+// grabbed first (cheap, so the gap stays short), then each distinct one is read.
+// Method and duration don't change mid-scroll, so the first frame that finds them
+// wins; materials are unioned across frames (see mergeRows in refinery-ocr.js).
 const BURST_SHOTS = 4;
-const BURST_INTERVAL_MS = 2000;
+const BURST_INTERVAL_MS = 600;
 
 ipcMain.handle('refinery:captureAndParse', async () => {
   try {
@@ -819,25 +667,53 @@ ipcMain.handle('refinery:captureAndParse', async () => {
     let duration = null;
     let location = null;
     let capturedWindow = true;
-    const materialsByName = new Map();
+    const materials = [];
     const rawTexts = []; // kept so the renderer can log/inspect actual OCR output when extraction misses
+    const progress = (info) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('refinery:captureProgress', info);
+    };
 
+    // 1. grab every frame, quickly — this is the window the user scrolls in
+    const frames = [];
     for (let i = 0; i < BURST_SHOTS; i++) {
-      const frame = await captureOneFrame();
-      capturedWindow = frame.capturedWindow;
+      const grabbed = await grabFrame();
+      capturedWindow = grabbed.capturedWindow;
+      frames.push(grabbed.image);
+      progress({ phase: 'capture', current: i + 1, total: BURST_SHOTS });
+      if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
+    }
+
+    // Kept in memory so "Report a Bug" can offer to attach what was on screen and what
+    // was read from it — set now (before the slow part) so even a crash while reading
+    // leaves something to attach.
+    try {
+      const first = encodeShot(frames[0]);
+      bugLastCapture = { at: Date.now(), jpeg: first, thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
+        text: 'Capture started; reading did not finish.', summary: null };
+    } catch { bugLastCapture = null; }
+    let captureShotState = { bestIdx: 0, bestScore: -1 };
+
+    // 2. read the frames that actually differ
+    const distinct = frames.filter((img, i) => !frames.slice(0, i).some(prev => framesAlike(prev, img)));
+    const worker = await getOcrWorker();
+    for (let i = 0; i < distinct.length; i++) {
+      progress({ phase: 'reading', current: i + 1, total: distinct.length });
+      const frame = await refineryOcr.readFrame(distinct[i], worker);
       if (!method && frame.method) method = frame.method;
       if (!duration && frame.duration) duration = frame.duration;
       if (!location && frame.location) location = frame.location;
-      for (const row of frame.materials) {
-        if (!materialsByName.has(row.name)) materialsByName.set(row.name, row);
-      }
+      refineryOcr.mergeRows(materials, frame.materials);
       rawTexts.push(frame.rawText);
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('refinery:captureProgress', { current: i + 1, total: BURST_SHOTS });
-      }
-      if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
+      // the frame that yielded the most is the most useful one to show in a report
+      const score = frame.materials.length * 4 + (frame.method ? 1 : 0) + (frame.location ? 1 : 0) + (frame.duration ? 1 : 0);
+      if (score > captureShotState.bestScore) captureShotState = { bestIdx: i, bestScore: score };
     }
+    try {
+      const best = encodeShot(distinct[captureShotState.bestIdx]);
+      const summary = { method, duration, location, materials: materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
+      bugLastCapture = { at: Date.now(), jpeg: best, thumb: thumbDataUrl(nativeImage.createFromBuffer(best)), summary,
+        text: `Parsed: ${JSON.stringify(summary)}\n\n` + rawTexts.map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`).join('\n\n') };
+    } catch { /* attaching is a convenience */ }
 
     // Written every capture so the user can just open the file and paste its
     // contents back to us, instead of fishing text out of the DevTools console.
@@ -849,8 +725,10 @@ ipcMain.handle('refinery:captureAndParse', async () => {
       fs.writeFileSync(debugPath, debugContents, 'utf8');
     } catch { /* debug file is a convenience, never block the capture on it */ }
 
-    return { status: 'ok', capturedWindow, method, duration, location, materials: [...materialsByName.values()], rawTexts, debugPath };
+    return { status: 'ok', capturedWindow, method, duration, location,
+      materials: materials.map(({ name, quality, yield: y }) => ({ name, quality, yield: y })), rawTexts, debugPath };
   } catch (e) {
+    if (bugLastCapture) bugLastCapture.text = `Capture failed while reading: ${e.message}`;
     return { status: 'error', error: e.message };
   }
 });
@@ -886,26 +764,151 @@ ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
 
 // ─── IPC: Bug report ──────────────────────────────────────────────────────────
 const BUG_WEBHOOK = 'https://discord.com/api/webhooks/1549166537305362532/ygN4GsizQ21ibHHCnCn1wahjgQvgFJ9aZ5ctZj8N9IhChRZSNMLNIEshbDPPyWZEDaVK';
-ipcMain.handle('bug:report', async (_, { description }) => {
+// ── Attachments ──────────────────────────────────────────────────────────────
+// Three things can ride along with a report, and only when the user ticks/adds them in
+// the Report a Bug form (which previews each one first):
+//   • the screen they were on just before opening Settings (the form lives in Settings,
+//     so a shot taken at send time would only ever show Settings)
+//   • the last refinery capture — the frame it read plus the text it read from it
+//   • images they pick themselves
+const MAX_ATTACH_BYTES = 2.5 * 1024 * 1024;   // per image, after re-encoding
+const MAX_ATTACH_TOTAL = 8 * 1024 * 1024;     // Discord's default upload limit is ~10 MB per message
+const MAX_ATTACH_FILES = 6;
+const JPEG_DATA_PREFIX = 'data:image/jpeg;base64,';
+
+let bugViewShot = null;      // { image: nativeImage, tab, at } — kept in memory only
+let bugLastCapture = null;   // { at, jpeg, thumb, text, summary }
+
+function encodeShot(img) {
+  let im = img;
+  if (im.getSize().width > 2560) im = im.resize({ width: 2560, quality: 'best' });
+  for (const q of [88, 72, 55]) {
+    const buf = im.toJPEG(q);
+    if (buf.length <= MAX_ATTACH_BYTES) return buf;
+  }
+  return im.resize({ width: 1600, quality: 'good' }).toJPEG(60);
+}
+const jpegDataUrl = (buf) => JPEG_DATA_PREFIX + buf.toString('base64');
+const thumbDataUrl = (img) => jpegDataUrl(img.resize({ width: 360, quality: 'good' }).toJPEG(75));
+
+// Accepts only a JPEG data URL (everything the form attaches was re-encoded to JPEG by
+// this app); returns the bytes, or null if it isn't a readable image.
+function readJpegDataUrl(s) {
+  if (typeof s !== 'string' || !s.startsWith(JPEG_DATA_PREFIX) || s.length > MAX_ATTACH_BYTES * 1.4) return null;
+  const buf = Buffer.from(s.slice(JPEG_DATA_PREFIX.length), 'base64');
+  try { return nativeImage.createFromBuffer(buf).isEmpty() ? null : buf; } catch { return null; }
+}
+const safeAttachName = (n, fallback) => {
+  const base = String(n || '').replace(/\.[^.]*$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 40);
+  return (base || fallback) + '.jpg';
+};
+
+// Remember the screen the user was on; called by the renderer just before it switches to Settings.
+ipcMain.handle('bug:snapshotWindow', async (_, tab) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    const image = await mainWindow.webContents.capturePage();
+    if (image.isEmpty()) return false;
+    bugViewShot = { image, tab: String(tab || '').slice(0, 30), at: Date.now() };
+    return true;
+  } catch { return false; }
+});
+
+// What the form can offer to attach right now, with small previews.
+ipcMain.handle('bug:getAttachables', () => {
+  const age = (t) => Math.max(0, Math.round((Date.now() - t) / 1000));
+  return {
+    view: bugViewShot ? { tab: bugViewShot.tab, ageSec: age(bugViewShot.at), thumb: thumbDataUrl(bugViewShot.image) } : null,
+    capture: bugLastCapture ? { ageSec: age(bugLastCapture.at), thumb: bugLastCapture.thumb, summary: bugLastCapture.summary } : null,
+  };
+});
+
+// Opens a file picker and hands the raw bytes back; the renderer decodes it (Chromium reads
+// png/jpg/webp/bmp/gif, nativeImage doesn't) and returns a re-encoded JPEG at send time.
+ipcMain.handle('bug:pickImage', async () => {
+  const r = await dialog.showOpenDialog(mainWindow, {
+    title: 'Attach an image',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'] }],
+  });
+  if (r.canceled || !r.filePaths[0]) return { canceled: true };
+  const file = r.filePaths[0];
+  const ext = path.extname(file).slice(1).toLowerCase();
+  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', bmp: 'image/bmp', gif: 'image/gif' }[ext];
+  if (!mime) return { error: 'Pick a PNG, JPG, WebP, BMP or GIF image.' };
+  if (fs.statSync(file).size > 25 * 1024 * 1024) return { error: 'That file is larger than 25 MB.' };
+  return { name: path.basename(file), dataUrl: `data:${mime};base64,${fs.readFileSync(file).toString('base64')}` };
+});
+
+// "Capture the game screen now" — a one-off grab of the game window (the overlay isn't
+// in it), for when the refinery screen should be in the report but no capture ran, or
+// the capture couldn't start. Falls back to the whole display if the game window can't
+// be found, and says so, so the preview makes clear what is being attached.
+ipcMain.handle('bug:grabGame', async () => {
+  try {
+    const { capturedWindow, image } = await grabFrame();
+    const jpeg = encodeShot(image);
+    return { ok: true, capturedWindow, name: 'game-screen.jpg', dataUrl: jpegDataUrl(jpeg), thumb: thumbDataUrl(image) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+function buildMultipart(json, files) {
+  const boundary = '----scc' + require('crypto').randomBytes(12).toString('hex');
+  const parts = [Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n${json}\r\n`)];
+  files.forEach((f, i) => {
+    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="files[${i}]"; filename="${f.name}"\r\nContent-Type: ${f.mime}\r\n\r\n`));
+    parts.push(f.data, Buffer.from('\r\n'));
+  });
+  parts.push(Buffer.from(`--${boundary}--\r\n`));
+  return { body: Buffer.concat(parts), contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
+ipcMain.handle('bug:report', async (_, { description, includeView, includeCapture, images } = {}) => {
+  const files = [];
+  if (includeView && bugViewShot) files.push({ name: 'app-window.jpg', mime: 'image/jpeg', data: encodeShot(bugViewShot.image) });
+  if (includeCapture && bugLastCapture) {
+    files.push({ name: 'refinery-frame.jpg', mime: 'image/jpeg', data: bugLastCapture.jpeg });
+    files.push({ name: 'refinery-ocr.txt', mime: 'text/plain', data: Buffer.from(bugLastCapture.text, 'utf8') });
+  }
+  (Array.isArray(images) ? images.slice(0, 3) : []).forEach((im, i) => {
+    const data = readJpegDataUrl(im && im.dataUrl);
+    if (data) files.push({ name: safeAttachName(im.name, `image-${i + 1}`), mime: 'image/jpeg', data });
+  });
+  files.splice(MAX_ATTACH_FILES);
+  let total = files.reduce((n, f) => n + f.data.length, 0);
+  while (files.length && total > MAX_ATTACH_TOTAL) total -= files.pop().data.length;
+
+  // the picture shown inline in the Discord message: the refinery screen if there is one
+  const firstImage = files.find(f => f.name === 'refinery-frame.jpg') || files.find(f => f.name === 'game-screen.jpg')
+    || files.find(f => f.mime === 'image/jpeg');
+  const fields = [
+    { name: 'Version', value: CURRENT_VERSION, inline: true },
+    { name: 'Platform', value: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim(), inline: true },
+  ];
+  if (files.length) fields.push({ name: 'Attachments', value: files.map(f => f.name).join(', ').slice(0, 1000) });
   const payload = JSON.stringify({
     embeds: [{
       title: '🐛 Bug Report',
       description: String(description || '').slice(0, 1500),
       color: 0xE8AC3C,
-      fields: [
-        { name: 'Version', value: CURRENT_VERSION, inline: true },
-        { name: 'Platform', value: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim(), inline: true }
-      ],
+      fields,
+      ...(firstImage ? { image: { url: `attachment://${firstImage.name}` } } : {}),
       timestamp: new Date().toISOString()
     }]
   });
+  const out = files.length ? buildMultipart(payload, files) : { body: Buffer.from(payload), contentType: 'application/json' };
+
   return new Promise((resolve, reject) => {
     const url = new URL(BUG_WEBHOOK);
-    const req = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+    const req = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'POST',
+      headers: { 'Content-Type': out.contentType, 'Content-Length': out.body.length } }, (res) => {
+      res.resume();
       resolve(res.statusCode >= 200 && res.statusCode < 300);
     });
     req.on('error', reject);
-    req.write(payload);
+    req.write(out.body);
     req.end();
   });
 });

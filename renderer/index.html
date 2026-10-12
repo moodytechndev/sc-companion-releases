@@ -888,6 +888,25 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </div>
           <textarea id="bug-report-input" rows="3" placeholder="What went wrong? Steps to reproduce…"
             style="width:100%;box-sizing:border-box;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;font-family:inherit;resize:vertical;outline:none"></textarea>
+          <div id="bug-attach" style="width:100%;display:flex;flex-direction:column;gap:6px">
+            <label id="bug-view-row" style="display:none;align-items:center;gap:8px;font-size:11px;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="bug-include-view">
+              <span style="flex:1">Screenshot of the screen you were on <span id="bug-view-tab" style="color:var(--text-dim)"></span></span>
+              <img id="bug-view-thumb" alt="" style="height:44px;border:1px solid var(--border);border-radius:4px">
+            </label>
+            <label id="bug-capture-row" style="display:none;align-items:center;gap:8px;font-size:11px;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="bug-include-capture">
+              <span style="flex:1">Last refinery capture — the screen it read and the text it got <span id="bug-capture-age" style="color:var(--text-dim)"></span></span>
+              <img id="bug-capture-thumb" alt="" style="height:44px;border:1px solid var(--border);border-radius:4px">
+            </label>
+            <div id="bug-images" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-sm" onclick="grabGameScreen()" id="bug-grab-btn">📷 Capture the game screen now</button>
+              <button class="btn btn-sm" onclick="pickBugImage()" id="bug-pick-btn">📎 Attach image…</button>
+            </div>
+            <div id="bug-attach-msg" style="font-size:10px;color:var(--text-dim)"></div>
+            <div style="font-size:10px;color:var(--text-dim)">Anything you attach is sent to the developer with your message — check the previews first. Game screens can show your character name and balance.</div>
+          </div>
           <div style="display:flex;align-items:center;gap:8px;width:100%">
             <button class="btn btn-sm" onclick="submitBugReport()" id="bug-report-btn">Send Report</button>
             <span id="bug-report-msg" style="font-size:10px;color:var(--text-dim)"></span>
@@ -1862,7 +1881,31 @@ async function init() {
 // ════════════════════════════════════════════════════════════════════
 // Tabs
 // ════════════════════════════════════════════════════════════════════
-function switchTab(name) {
+// Opening Settings is how a bug report is started, so the screen the problem was on
+// is photographed first (kept in memory only; it is sent only if the user ticks it).
+// The switch itself waits for that snapshot — taken after the panel changed it would
+// just be a picture of Settings.
+let _bugSnapBusy = false;
+function switchTab(name, done) {
+  if (name === 'settings' && !_bugSnapBusy) {
+    const prev = ((document.querySelector('.panel.active') || {}).id || '').replace(/^panel-/, '');
+    if (prev && prev !== 'settings') {
+      _bugSnapBusy = true;
+      Promise.resolve(api.bugSnapshotWindow(prev)).catch(() => {}).then(() => {
+        _bugSnapBusy = false;
+        switchTabNow(name);
+        refreshBugAttachables();
+        if (done) done();
+      });
+      return;
+    }
+  }
+  switchTabNow(name);
+  if (name === 'settings') refreshBugAttachables();
+  if (done) done();
+}
+
+function switchTabNow(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
   const sb = document.getElementById('settings-btn');
@@ -3209,7 +3252,10 @@ let _captureBtnBusy = false;
 function onRefineryCaptureProgressTick(info) {
   if (!_captureBtnBusy) return;
   const btn = document.getElementById('capture-job-btn');
-  if (btn) btn.textContent = `📷 ${info.current}/${info.total} — scroll now!`;
+  if (!btn) return;
+  btn.textContent = info.phase === 'reading'
+    ? `📷 Reading ${info.current}/${info.total}…`
+    : `📷 ${info.current}/${info.total} — scroll now!`;
 }
 
 async function captureRefineryJob() {
@@ -3257,9 +3303,15 @@ async function captureRefineryJob() {
 
   openAddJob();
 
-  if (res.debugPath) {
+  {
     const debugEl = document.getElementById('modal-capture-debug');
-    debugEl.textContent = `Raw OCR text saved to: ${res.debugPath}`;
+    debugEl.textContent = res.debugPath ? `Raw OCR text saved to: ${res.debugPath} · ` : '';
+    const rep = document.createElement('a');
+    rep.href = '#';
+    rep.textContent = 'Report a problem with this capture';
+    rep.style.color = 'var(--accent)';
+    rep.onclick = (e) => { e.preventDefault(); reportCaptureProblem(); };
+    debugEl.appendChild(rep);
     debugEl.style.display = '';
   }
 
@@ -3355,6 +3407,130 @@ async function onLangChange(lang) {
   await api.setStore('language', lang);
 }
 
+// ── Bug report attachments ──────────────────────────────────────────────────
+// Everything here is opt-in and previewed. Images the user adds are re-encoded to JPEG
+// (and shrunk) in the page — Chromium reads png/jpg/webp/bmp/gif — before they are sent.
+let bugImages = [];            // [{ name, dataUrl, thumb? }]
+const BUG_IMAGE_MAX = 3;
+const BUG_TAB_NAMES = { mining: 'Mining', refinery: 'Refinery', prices: 'Prices', crafting: 'Hangar', help: 'Guide' };
+
+function bugSay(text, bad) {
+  const el = document.getElementById('bug-attach-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = bad ? 'var(--danger)' : 'var(--text-dim)';
+}
+
+async function refreshBugAttachables() {
+  const vr = document.getElementById('bug-view-row'), cr = document.getElementById('bug-capture-row');
+  if (!vr || !cr) return;
+  let a;
+  try { a = await api.bugGetAttachables(); } catch { return; }
+  const ago = (s) => s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
+  vr.style.display = a.view ? 'flex' : 'none';
+  if (a.view) {
+    document.getElementById('bug-view-thumb').src = a.view.thumb;
+    document.getElementById('bug-view-tab').textContent = `(${BUG_TAB_NAMES[a.view.tab] || a.view.tab}, ${ago(a.view.ageSec)})`;
+  }
+  cr.style.display = a.capture ? 'flex' : 'none';
+  if (a.capture) {
+    document.getElementById('bug-capture-thumb').src = a.capture.thumb;
+    document.getElementById('bug-capture-age').textContent = `(${ago(a.capture.ageSec)})`;
+  }
+}
+
+function renderBugImages() {
+  const box = document.getElementById('bug-images');
+  if (!box) return;
+  box.textContent = '';
+  bugImages.forEach((im, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative';
+    const img = document.createElement('img');
+    img.src = im.thumb || im.dataUrl;
+    img.alt = im.name;
+    img.title = im.name;
+    img.style.cssText = 'height:56px;max-width:150px;border:1px solid var(--border);border-radius:4px;display:block';
+    const x = document.createElement('button');
+    x.textContent = '✕';
+    x.title = 'Remove';
+    x.style.cssText = 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;padding:0;line-height:14px;font-size:10px;border-radius:50%;border:1px solid var(--border);background:var(--bg-card);color:var(--text);cursor:pointer';
+    x.onclick = () => { bugImages.splice(i, 1); renderBugImages(); bugSay(''); };
+    wrap.append(img, x);
+    box.appendChild(wrap);
+  });
+}
+
+// Re-encode any image as a JPEG that fits the report's per-image limit.
+async function bugReencode(dataUrl) {
+  const img = new Image();
+  img.src = dataUrl;
+  await img.decode();
+  for (const shrink of [1, 0.7, 0.5]) {
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (w > 2560) { h = Math.round(h * 2560 / w); w = 2560; }
+    w = Math.max(1, Math.round(w * shrink)); h = Math.max(1, Math.round(h * shrink));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    for (const q of [0.88, 0.7]) {
+      const out = c.toDataURL('image/jpeg', q);
+      if (out.length < 3.2e6) return out;
+    }
+  }
+  throw new Error('image too large');
+}
+
+async function pickBugImage() {
+  if (bugImages.length >= BUG_IMAGE_MAX) { bugSay(`Up to ${BUG_IMAGE_MAX} images per report.`, true); return; }
+  const r = await api.bugPickImage();
+  if (!r || r.canceled) return;
+  if (r.error) { bugSay(r.error, true); return; }
+  try {
+    bugImages.push({ name: r.name, dataUrl: await bugReencode(r.dataUrl) });
+    renderBugImages();
+    bugSay('Image added — it is shown below; remove it with ✕ if you change your mind.');
+  } catch {
+    bugSay("Couldn't read that image.", true);
+  }
+}
+
+// One-off grab of the game window (the overlay isn't part of it) — for the refinery
+// screen when no capture ran, or the capture couldn't start.
+async function grabGameScreen() {
+  if (bugImages.length >= BUG_IMAGE_MAX) { bugSay(`Up to ${BUG_IMAGE_MAX} images per report.`, true); return; }
+  const btn = document.getElementById('bug-grab-btn');
+  btn.disabled = true;
+  try {
+    const r = await api.bugGrabGame();
+    if (!r || !r.ok) { bugSay("Couldn't capture the screen" + (r && r.error ? ': ' + r.error : '.'), true); return; }
+    bugImages.push({ name: r.name, dataUrl: r.dataUrl, thumb: r.thumb });
+    renderBugImages();
+    bugSay(r.capturedWindow
+      ? 'Game screen captured — check the preview below.'
+      : "Star Citizen's window wasn't found, so the whole screen was captured — check the preview below.");
+  } catch {
+    bugSay("Couldn't capture the screen.", true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Linked from the capture result in the Add Job form.
+function reportCaptureProblem() {
+  closeModal();
+  switchTab('settings', async () => {
+    await refreshBugAttachables();
+    const row = document.getElementById('bug-capture-row');
+    if (row && row.style.display !== 'none') document.getElementById('bug-include-capture').checked = true;
+    const input = document.getElementById('bug-report-input');
+    if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); }
+  });
+}
+
 async function submitBugReport() {
   const input = document.getElementById('bug-report-input');
   const btn = document.getElementById('bug-report-btn');
@@ -3366,9 +3542,19 @@ async function submitBugReport() {
   msg.textContent = 'Sending…';
   msg.style.color = 'var(--text-dim)';
   try {
-    const ok = await api.reportBug(text);
+    const shown = (id) => { const r = document.getElementById(id); return !!r && r.style.display !== 'none'; };
+    const ticked = (box, row) => shown(row) && !!document.getElementById(box).checked;
+    const ok = await api.reportBug(text, {
+      includeView: ticked('bug-include-view', 'bug-view-row'),
+      includeCapture: ticked('bug-include-capture', 'bug-capture-row'),
+      images: bugImages.map(({ name, dataUrl }) => ({ name, dataUrl })),
+    });
     if (ok) {
       input.value = '';
+      document.getElementById('bug-include-view').checked = false;
+      document.getElementById('bug-include-capture').checked = false;
+      bugImages = [];
+      renderBugImages();
       msg.textContent = '✓ Report sent — thank you!';
       msg.style.color = 'var(--success)';
     } else {
@@ -3652,7 +3838,10 @@ const HINTS_BY_CALL = {
   'clearAll': 'Remove every refinery job',
   'doExport': 'Save all your data to a backup file',
   'doImport': 'Restore data from a backup file (overwrites what\'s there)',
-  'submitBugReport': 'Send your description to the developer',
+  'submitBugReport': 'Send your description (and anything you ticked or attached) to the developer',
+  'pickBugImage': 'Attach a picture to your report — you see a preview before sending',
+  'grabGameScreen': 'Grab the Star Citizen window right now and attach it to your report',
+  'reportCaptureProblem': 'Report this refinery capture to the developer, with the screen it read',
 };
 
 const HINTS_BY_ID = {

@@ -63,5 +63,9 @@ contextBridge.exposeInMainWorld('api', {
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
-  reportBug: (description) => ipcRenderer.invoke('bug:report', { description }),
+  reportBug: (description, extras) => ipcRenderer.invoke('bug:report', { description, ...(extras || {}) }),
+  bugSnapshotWindow: (tab) => ipcRenderer.invoke('bug:snapshotWindow', tab),
+  bugGetAttachables: () => ipcRenderer.invoke('bug:getAttachables'),
+  bugPickImage: () => ipcRenderer.invoke('bug:pickImage'),
+  bugGrabGame: () => ipcRenderer.invoke('bug:grabGame'),
 });

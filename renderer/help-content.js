@@ -56,7 +56,7 @@ const HELP_SECTIONS = [
     shots: ['refinery-jobs', 'refinery-add', 'refinery-deliver', 'refinery-bonuses'],
     howto: [
       '**Start a job:** + Add Refinery Job → add the ore(s), pick the method, enter the duration shown on the in-game terminal, set the location, then Start Timer.',
-      '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. It takes four shots a couple of seconds apart (scroll the list between them if it is long) and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
+      '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. It takes four shots in quick succession (scroll the list while the button counts if it is long), then reads them and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
       '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory.',
       '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material.',
     ],
@@ -153,7 +153,7 @@ const HELP_SECTIONS = [
     tips: [
       '**Backup & Restore:** Export saves jobs, inventory, assets, ships, blueprint ownership and settings to one file; Import loads it back (overwriting what is there).',
       '**Game Log Path:** points the app at Star Citizen\'s Game.log so it can notice where you are. It is found automatically in the default install location.',
-      '**Report a Bug:** sends your text, the app version and your OS to the developer.',
+      '**Report a Bug:** sends your text, the app version and your OS to the developer. You can also attach a screenshot of the screen you were on, the last refinery capture, a fresh grab of the game window, or your own images — each one is previewed first, and nothing is attached unless you tick or add it.',
     ],
   },
   {
@@ -416,7 +416,7 @@ const HELP_SHOTS = {
 
   'settings-top': {
     file: 'settings-top.webp', title: 'Settings (1 of 2)', viewport: { w: 440, h: 700 },
-    setup: "switchTab('settings'); const s = document.querySelector('#panel-settings .scroll-area') || document.getElementById('panel-settings'); s.scrollTop = 0;",
+    setup: "await new Promise(r => switchTab('settings', r)); const s = document.querySelector('#panel-settings .scroll-area') || document.getElementById('panel-settings'); s.scrollTop = 0;",
     points: [
       { sel: '#language-select', text: '**Language** — English, Deutsch, Français, Español.' },
       { sel: '#opacity-range', text: '**Window Opacity** — how see-through the overlay is.' },
@@ -429,12 +429,12 @@ const HELP_SHOTS = {
 
   'settings-bottom': {
     file: 'settings-bottom.webp', title: 'Settings (2 of 2)', viewport: { w: 440, h: 700 },
-    setup: "switchTab('settings'); const s = document.querySelector('#panel-settings .scroll-area') || document.getElementById('panel-settings'); s.scrollTop = s.scrollHeight;",
+    setup: "await new Promise(r => switchTab('settings', r)); const s = document.querySelector('#panel-settings .scroll-area') || document.getElementById('panel-settings'); s.scrollTop = s.scrollHeight;",
     points: [
       { sel: '#log-path-input', text: '**Game.log path** — found automatically; set it only if the game is installed somewhere unusual.' },
       { sel: '#panel-settings button', contains: 'Export', text: '**Export** saves everything to a backup file.' },
       { sel: '#panel-settings button', contains: 'Import', text: '**Import** restores from a backup file (overwrites current data).' },
-      { sel: '#bug-report-input', text: '**Report a bug** — describe the problem and press Send.' },
+      { sel: '#bug-report-input', text: '**Report a bug** — describe the problem, add screenshots if they help, and press Send.' },
       { sel: '#settings-version', text: 'The installed **version**.' },
     ],
   },

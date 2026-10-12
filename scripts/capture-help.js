@@ -17,7 +17,10 @@ const os = require('os');
 
 const ROOT = path.resolve(__dirname, '..');
 const { HELP_SHOTS } = require(path.join(ROOT, 'renderer', 'help-content.js'));
-const OUT = path.join(ROOT, 'renderer', 'help');
+// CAPTURE_CLEAN=1 skips the numbered pointers and writes PNGs (for promo posts, not the guide);
+// CAPTURE_OUT=<dir> sends the files somewhere other than renderer/help.
+const CLEAN = !!process.env.CAPTURE_CLEAN;
+const OUT = process.env.CAPTURE_OUT ? path.resolve(process.env.CAPTURE_OUT) : path.join(ROOT, 'renderer', 'help');
 const PORT = 9400 + Math.floor(Math.random() * 400);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -204,9 +207,10 @@ const ANNOTATE = `(points) => {
       await ev(`(async () => { ${shot.setup} })()`);
       await sleep(shot.wait || 900);
       await sleep(250);
-      const missing = await ev(`(${ANNOTATE})(${JSON.stringify(shot.points.map(p => ({ sel: p.sel, contains: p.contains, nth: p.nth, at: p.at })))})`);
-      const shotRes = await send('Page.captureScreenshot', { format: 'webp', quality: 90, fromSurface: true });
+      const missing = CLEAN ? [] : await ev(`(${ANNOTATE})(${JSON.stringify(shot.points.map(p => ({ sel: p.sel, contains: p.contains, nth: p.nth, at: p.at })))})`);
+      const shotRes = await send('Page.captureScreenshot', CLEAN ? { format: 'png', fromSurface: true } : { format: 'webp', quality: 90, fromSurface: true });
       if (!shotRes.result?.data) throw new Error('screenshot failed');
+      if (CLEAN) shot.file = shot.file.replace(/\.webp$/, '.png');
       fs.writeFileSync(path.join(OUT, shot.file), Buffer.from(shotRes.result.data, 'base64'));
       await ev("(() => { const l = document.getElementById('__help_layer'); if (l) l.remove(); })()");
       if (shot.after) await ev(`(async () => { ${shot.after} })()`);
