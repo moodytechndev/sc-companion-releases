@@ -103,7 +103,7 @@ const HELP_SECTIONS = [
     intro: ['Track ore and materials box by box, grouped by ore or by location.'],
     shots: ['hangar-inventory'],
     howto: [
-      '**Add stock:** + Add → pick the material, quality, one or more box sizes, and where it is.',
+      '**Add stock:** + Add → pick the material, quality, one or more box sizes, and where it is. The last location you used is remembered, so adding several boxes to the same place is quick.',
       '**Move or sell several boxes:** tick their checkboxes, then use the bar that appears to move them, mark them in transit, or sell them.',
       '**Edit one box in a stack:** Split pulls a number of identical boxes out of the ×N row so they can be edited individually; ↩ Merge folds them back.',
     ],
@@ -296,13 +296,13 @@ const HELP_SHOTS = {
 
   'prices-station': {
     file: 'prices-station.webp', title: 'Station prices — Buy and Sell', viewport: { w: 440, h: 700 },
-    setup: "switchTab('prices'); switchPricesView('station', [...document.querySelectorAll('#prices-view-chips .chip')][1]); const s = document.getElementById('prices-station-select'); for (let i = 0; i < 60 && s.options.length < 5; i++) await new Promise(r => setTimeout(r, 500)); const o = [...s.options].findIndex(x => /TDD.*(Lorville|Area 18|New Babbage)/i.test(x.text)); s.selectedIndex = o > 0 ? o : Math.min(4, s.options.length - 1); s.dispatchEvent(new Event('change'));",
+    setup: "switchTab('prices'); switchPricesView('station', [...document.querySelectorAll('#prices-view-chips .chip')][1]); const s = document.getElementById('prices-station-select'); for (let i = 0; i < 60 && s.options.length < 5; i++) await new Promise(r => setTimeout(r, 500)); const o = [...s.options].findIndex(x => /(Lorville|Area 18|New Babbage).*TDD/i.test(x.text)); s.selectedIndex = o > 0 ? o : Math.min(4, s.options.length - 1); s.dispatchEvent(new Event('change'));",
     after: "switchPricesView('commodity', document.querySelector('#prices-view-chips .chip'));",
     wait: 3500,
     points: [
       { sel: '#prices-station-select', text: '**Pick a station** (or terminal) to list everything it trades.' },
       { sel: '.station-row-actions button:not([disabled])', nth: 0, text: '**Buy** opens Add Inventory pre-filled and marks it in transit. **Sell** (shown) sells your in-transit stock of that commodity here.' },
-      { sel: '.station-row-actions button[disabled]', text: 'A **greyed-out** button means the station does not trade it in that direction.' },
+      { sel: '.station-row-actions button[disabled]', nth: 2, text: 'A **greyed-out** button means the station does not trade it in that direction.' },
     ],
   },
 

@@ -2316,6 +2316,7 @@ function openAddJob() {
   debugEl.style.display = 'none';
   debugEl.textContent = '';
   resetOreRows();
+  document.getElementById('job-location').value = lastLocations.job || '';
   document.getElementById('modal-overlay').classList.add('show');
   setTimeout(() => document.querySelector('#ore-rows .ore-input')?.focus(), 50);
 }
@@ -2376,6 +2377,7 @@ function addJob() {
         durationSeconds: dur };
     }
   } else {
+    rememberLocation('job', location);
     jobs.push({ id: Date.now().toString(), ores, qualities, yields, method: method || 'Custom', location, startTime: Date.now(), durationSeconds: dur, notes });
   }
 
@@ -2562,9 +2564,32 @@ async function prefetchInventoryPrices() {
   }
 }
 
+// Where a terminal is, system first — the same path style SC Trade Tools uses, so
+// stations with the same name in different systems (the gateways) are easy to tell
+// apart: ["Stanton", "MicroTech", "Calliope", "Shubin Mining Facility SMCa-8"].
+// Works on both terminal records and commodity-price rows (they share these fields).
+function placeParts(t) {
+  const place = t.city_name || t.outpost_name || t.space_station_name || t.poi_name || '';
+  const parts = [t.star_system_name, t.planet_name, t.moon_name, place].filter(Boolean);
+  return parts.filter((p, i) => i === 0 || p.toLowerCase() !== parts[i - 1].toLowerCase());
+}
+
+// The path plus the terminal itself, without repeating the place when the terminal's
+// name already ends in it ("Rust - Dunboro" at Dunboro → "… > Dunboro > Rust").
+function terminalPath(t) {
+  const parts = placeParts(t);
+  const place = parts.length > 1 ? parts[parts.length - 1] : '';
+  let name = t.terminal_name || t.name || '';
+  if (place) {
+    const lower = name.toLowerCase(), pl = place.toLowerCase();
+    if (lower === pl) name = '';
+    else if (lower.endsWith(' - ' + pl)) name = name.slice(0, name.length - pl.length - 3);
+  }
+  return [...parts, name].filter(Boolean).join(' > ');
+}
+
 function rowLocation(p) {
-  const place = [p.city_name || p.outpost_name || p.poi_name, p.moon_name, p.planet_name].filter(Boolean).join(' · ');
-  return p.terminal_name + (place ? ` · ${place}` : '');
+  return terminalPath(p);
 }
 
 const terminalIndex = {};
@@ -2668,9 +2693,8 @@ async function renderStations() {
       const res = await api.getTerminals();
       if (res.status === 'ok') {
         (res.data || []).filter(t => t.is_available && t.type === 'commodity').forEach(t => {
-          const loc = [t.city_name || t.outpost_name, t.moon_name, t.planet_name]
-            .filter(Boolean).join(' · ') || t.space_station_name || t.star_system_name || '';
-          terminalIndex[t.id] = { id_terminal: t.id, terminal_name: t.name, loc };
+          const row = { ...t, terminal_name: t.name };
+          terminalIndex[t.id] = { id_terminal: t.id, terminal_name: t.name, loc: placeParts(row).join(' > '), path: terminalPath(row) };
         });
         terminalsLoaded = true;
       }
@@ -2678,7 +2702,7 @@ async function renderStations() {
   }
 
   const terminals = Object.values(terminalIndex)
-    .sort((a, b) => a.terminal_name.localeCompare(b.terminal_name));
+    .sort((a, b) => a.path.localeCompare(b.path));
 
   if (!terminals.length) {
     sel.innerHTML = '<option value="">Select a station…</option>';
@@ -2692,7 +2716,7 @@ async function renderStations() {
   const prev = sel.value;
   sel.innerHTML = '<option value="">Select a station…</option>' +
     terminals.map(t =>
-      `<option value="${esc(String(t.id_terminal))}"${String(t.id_terminal) === prev ? ' selected' : ''}>${esc(t.terminal_name)}${t.loc ? ` · ${esc(t.loc)}` : ''}</option>`
+      `<option value="${esc(String(t.id_terminal))}"${String(t.id_terminal) === prev ? ' selected' : ''}>${esc(t.path)}</option>`
     ).join('');
 
   if (prev && sel.value === prev) {
@@ -2985,9 +3009,7 @@ async function selectCom(com, el) {
       if (topBuy) {
         _topBuyPrice = topBuy.price_buy;
         _topBuyAt = rowLocation(topBuy);
-        const loc = [topBuy.city_name || topBuy.outpost_name || topBuy.poi_name, topBuy.planet_name]
-          .filter(Boolean).join(' · ');
-        bestBuyLoc.textContent   = topBuy.terminal_name + (loc ? ` · ${loc}` : '');
+        bestBuyLoc.textContent   = terminalPath(topBuy);
         bestBuyPrice.textContent = topBuy.price_buy.toLocaleString() + ' aUEC';
         bestBuyEl.style.display  = 'flex';
       }
@@ -3018,18 +3040,18 @@ async function selectCom(com, el) {
 
     plist.innerHTML = prices.map((p, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
-      const loc = [p.city_name || p.outpost_name || p.poi_name, p.moon_name, p.planet_name].filter(Boolean).join(' · ');
+      const loc = placeParts(p).join(' > ');
       const rowData = encodeURIComponent(JSON.stringify({
         terminal_name: p.terminal_name,
         id_terminal: p.id_terminal,
-        loc: loc || p.star_system_name || '',
+        loc,
       }));
       return `
         <div class="price-row" style="cursor:pointer" onclick="showTerminalPrices('${rowData}')">
           <span class="price-rank">${medal}</span>
           <div class="price-location">
             <div class="price-terminal">${esc(p.terminal_name)}</div>
-            <div class="price-place">${esc(loc || p.star_system_name || '')}</div>
+            <div class="price-place">${esc(loc)}</div>
           </div>
           <div style="text-align:right">
             <div class="price-value">${p.price_sell.toLocaleString()}</div>
@@ -3333,7 +3355,7 @@ async function captureRefineryJob() {
     document.getElementById('job-s').value = res.duration.s || '';
   }
   const matchedLoc = matchJobLocation(res.location);
-  if (matchedLoc) document.getElementById('job-location').value = matchedLoc;
+  document.getElementById('job-location').value = matchedLoc || '';
 
   const foundAnything = materials.length || res.method || res.duration || matchedLoc;
   document.getElementById('modal-title').textContent = foundAnything
@@ -4018,6 +4040,7 @@ initShortcut();
 initLogWatcher();
 initCloseBehavior();
 initPriceSource();
+loadLastLocations();
 initTransitIcon();
 initRefineryCaptureMode();
 initHoverHints();
@@ -4638,7 +4661,7 @@ async function setShipSlot(slotIdx, assetUid) {
 async function openAddShip() {
   pickedVehicle = null;
   ['ship-pick-search', 'ship-nick-input', 'ship-notes-input'].forEach(id => { document.getElementById(id).value = ''; });
-  fillLocationSelect('ship-location-select', 'ship-location-custom');
+  fillLocationSelect('ship-location-select', 'ship-location-custom', lastLocations.ship || '');
   document.getElementById('ship-pick-selected').textContent = '';
   document.getElementById('add-ship-modal').style.display = 'flex';
   const listEl = document.getElementById('ship-pick-list');
@@ -4685,6 +4708,7 @@ async function saveShip() {
   }
   const v = pickedVehicle;
   const shipLocation = await readLocationPick('ship-location-select', 'ship-location-custom');
+  rememberLocation('ship', shipLocation);
   const newShip = {
     uid: newUid(),
     vid: v.id,
@@ -4829,6 +4853,21 @@ function onAssetTypeChange() {
   if (!isPart) document.getElementById('asset-size-input').value = '';
 }
 
+// The last place used in each "add" dialog, so adding a run of items to the same
+// spot is one pick instead of many. Remembered per dialog (inventory / asset / ship /
+// job) and kept across restarts. Only *adding* remembers or pre-fills — editing shows
+// the item's own location — and "In Transit" is never remembered.
+let lastLocations = {};
+async function loadLastLocations() {
+  try { lastLocations = (await api.getStore('lastLocations')) || {}; } catch { lastLocations = {}; }
+}
+function rememberLocation(kind, value) {
+  const v = String(value || '').trim();
+  if (v === 'In Transit' || (lastLocations[kind] || '') === v) return;
+  lastLocations[kind] = v;
+  api.setStore('lastLocations', lastLocations);
+}
+
 // One location picker for every "where is it" field (assets, ships): the same
 // station list as Inventory, any custom places already used anywhere, and a
 // Custom… option that's remembered for next time.
@@ -4887,7 +4926,7 @@ async function openAssetDialog(asset) {
   onAssetTypeChange();
   if (asset && asset.size != null) document.getElementById('asset-size-input').value = String(asset.size);
 
-  await fillLocationSelect('asset-location-select', 'asset-location-custom', asset ? (asset.location || '') : '');
+  await fillLocationSelect('asset-location-select', 'asset-location-custom', asset ? (asset.location || '') : (lastLocations.asset || ''));
 }
 
 function openAddAsset() { return openAssetDialog(); }
@@ -4909,6 +4948,7 @@ async function saveAsset() {
   };
   const assetSize = document.getElementById('asset-size-input').value;
   const existing = editingAssetUid ? assetByUid(editingAssetUid) : null;
+  if (!existing) rememberLocation('asset', location);
   if (existing) {
     // Editing keeps everything the dialog doesn't show (crafted parts, stock info, uid).
     Object.assign(existing, fields);
@@ -6734,10 +6774,9 @@ const ALL_SC_LOCATIONS = Object.values(SC_LOCATIONS).flat();
 function populateLocSelect(currentVal) {
   const sel    = document.getElementById('inv-loc-select');
   const custom = document.getElementById('inv-loc-custom');
-  const isCustom = currentVal && !ALL_SC_LOCATIONS.includes(currentVal);
-
   // Any custom locations saved in inventory go in a "Saved" group at the top
   const saved = [...new Set(craftInventory.map(i => i.location).filter(l => l && !ALL_SC_LOCATIONS.includes(l)))];
+  const isCustom = currentVal && !ALL_SC_LOCATIONS.includes(currentVal) && !saved.includes(currentVal);
   let html = '';
   if (saved.length) {
     html += `<optgroup label="Saved">` +
@@ -7012,7 +7051,7 @@ function openAddInventory() {
   invRows = [{ qty: '', unit: '1' }];
   renderInvRows();
   document.getElementById('inv-add-row-btn').hidden = false;
-  populateLocSelect('');
+  populateLocSelect(lastLocations.inventory || '');
   document.getElementById('inv-modal-overlay').style.display = 'flex';
 }
 
@@ -7056,6 +7095,7 @@ async function saveInventoryItem() {
     const row = rows[0] || { qty: '1', unit: '1' };
     craftInventory[editingInvId] = { name, quality, qty: row.qty, unit: row.unit, location };
   } else {
+    if (!markTransit) rememberLocation('inventory', location);
     for (const row of rows) {
       const qty = parseFloat(row.qty) || 1;
       const whole = Math.floor(qty);

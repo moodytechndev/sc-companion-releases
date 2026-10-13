@@ -460,7 +460,7 @@ ipcMain.handle('api:getCommodityPrices', async (_, { id, type }) => {
 
 ipcMain.handle('api:getTerminals', async () => {
   try {
-    const res = await fetchJson('https://api.uexcorp.space/2.0/terminals?id_star_system=68');
+    const res = await fetchJson('https://api.uexcorp.space/2.0/terminals?type=commodity');   // every system (Stanton, Pyro, Nyx)
     return { status: 'ok', data: res.data || [] };
   } catch (e) {
     return { status: 'error', error: e.message };
@@ -763,6 +763,13 @@ ipcMain.handle('updater:install', () => {
 ipcMain.handle('shell:openExternal', (_, url) => { shell.openExternal(url); });
 
 // ─── IPC: Bug report ──────────────────────────────────────────────────────────
+// Who to @mention on every report — set either or both (empty = no ping).
+// Discord: User Settings → Advanced → Developer Mode on, then right-click yourself (or the
+// role in Server Settings → Roles) → Copy ID. They are numeric IDs, not secrets, but note
+// this file is in a public repo. A role only pings if it is mentionable (or the webhook is
+// allowed to mention it).
+const BUG_PING_USER_ID = '';
+const BUG_PING_ROLE_ID = '637593821659529227';
 const BUG_WEBHOOK = 'https://discord.com/api/webhooks/1549166537305362532/ygN4GsizQ21ibHHCnCn1wahjgQvgFJ9aZ5ctZj8N9IhChRZSNMLNIEshbDPPyWZEDaVK';
 // ── Attachments ──────────────────────────────────────────────────────────────
 // Three things can ride along with a report, and only when the user ticks/adds them in
@@ -888,7 +895,16 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
     { name: 'Platform', value: `${process.platform} ${process.getSystemVersion?.() || ''}`.trim(), inline: true },
   ];
   if (files.length) fields.push({ name: 'Attachments', value: files.map(f => f.name).join(', ').slice(0, 1000) });
+  // A webhook only pings through `content` (embeds never do). allowed_mentions is always
+  // sent so that nothing in a user's report text can mention anyone — only the IDs
+  // above, and only when they are set.
+  const idOk = (v) => /^\d{15,25}$/.test(v);
+  const pingUser = idOk(BUG_PING_USER_ID) ? BUG_PING_USER_ID : null;
+  const pingRole = idOk(BUG_PING_ROLE_ID) ? BUG_PING_ROLE_ID : null;
+  const mentions = [pingRole && `<@&${pingRole}>`, pingUser && `<@${pingUser}>`].filter(Boolean).join(' ');
   const payload = JSON.stringify({
+    ...(mentions ? { content: `${mentions} 🐛 New bug report — v${CURRENT_VERSION}` } : {}),
+    allowed_mentions: { parse: [], users: pingUser ? [pingUser] : [], roles: pingRole ? [pingRole] : [] },
     embeds: [{
       title: '🐛 Bug Report',
       description: String(description || '').slice(0, 1500),

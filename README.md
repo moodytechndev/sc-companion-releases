@@ -131,7 +131,7 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 - Ship components show a size badge (**S0**–**S6**). Filter by Owned/Missing/All, by category, or by size, search by name, and sort alphabetically, by craft time, or by size (blueprints with no size, like armor, sort last)
 
 **Inventory** — the core stock tracker
-- **+ Add** opens a form: pick the ore/material, its quality %, one or more box sizes (SCU), and a location (pick from known Star Citizen stations or type a custom one)
+- **+ Add** opens a form: pick the ore/material, its quality %, one or more box sizes (SCU), and a location (pick from known Star Citizen stations or type a custom one). The location you used last is **remembered** — so adding a run of boxes to the same place is one pick, not many (the Add Asset, Add Ship and Add Job dialogs remember theirs too)
 - Toggle **By Location** / **By Ore** to change how the list is grouped
 - Each box shows a **locked box size** (fixed once created — it can't be changed afterward, only the amount inside it can), a read-only **fill %**, and an editable **Remainder** — the actual SCU currently in that box. Editing the Remainder is the only way to adjust how full a box is
 - **Identical boxes condense** into a single `×N` row automatically. Use **Split** on a condensed row to pull a chosen number of boxes back out into their own line for individual editing or moving, and **↩ Merge** to fold them back together
