@@ -154,6 +154,7 @@ const HELP_SECTIONS = [
     intro: ['Everything is saved on this PC. Back it up from Settings if you reinstall or change machines.'],
     shots: ['settings-top', 'settings-bottom'],
     tips: [
+      '**Bring everything home:** after a game update returns your gear to your home base, click Bring home… and pick the place (the four landing zones are at the top; any station or a custom name works). Tick what to move — inventory boxes, assets, ships, and optionally cargo in transit — check the count, then Move everything. Ship stock parts follow their ship. Undo puts every location back as it was.',
       '**Backup & Restore:** Export saves jobs, inventory, assets, ships, blueprint ownership and settings to one file; Import loads it back (overwriting what is there).',
       '**Price Data Source:** UEX Corp (default) or SC Trade Tools, a community-reported feed. SC Trade Tools covers fewer stations and refreshes about hourly, so a quiet station can show no prices; the logo at the top right of the Prices tab shows which source you are on (click it to open that site).',
       '**Game Log Path:** points the app at Star Citizen\'s Game.log so it can notice where you are. It is found automatically in the default install location.',

@@ -38,6 +38,7 @@ Star Citizen companion overlay — refinery timers, commodity prices with statio
 - **Built-in Erkul calculator** — the Erkul DPS/loadout calculator runs inside the app
 - **Illustrated user guide** — open it from the **?** button in the status bar; every section has annotated screenshots
 - **Hover hints** — short "what does this do" descriptions on controls, in English, Deutsch, Français and Español (can be turned off)
+- **Bring everything home** — one click in Settings sets all your inventory, assets and ships to your home base after a game update (with undo)
 - **Backup & restore** — export everything (jobs, inventory, assets, ships, settings) to a file and restore it later or on another PC
 - **Auto-updater** — checks for new versions on launch and every 3 hours while running, with an in-app download/install banner
 
@@ -174,6 +175,7 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 | **Clear Completed Jobs** | Removes every refinery job whose timer has already finished, keeping active ones |
 | **Clear All Jobs** | Removes every tracked refinery job, finished or not |
 | **Game Log Path** | Points the app at your Star Citizen `game.log` so it can watch it in the background. It currently tracks your last-known in-game station, laying the groundwork for future automation like auto-detecting refinery completions. The app looks for the log automatically at Star Citizen's default install path if you haven't set one yourself; the status dot shows whether a watcher is currently attached |
+| **Bring everything home** | After a game update returns your gear to your home base: **Bring home…** asks for the place (the four landing zones — Area 18, Lorville, New Babbage, Orison — are listed first, then every station and your own custom names), lets you tick inventory boxes / assets / ships / cargo in transit, shows how many things will move, and applies it. Ship stock parts follow their ship. **Undo** (next to the button) restores every location |
 | **Backup & Restore** | **Export** saves all your jobs, inventory, assets, ships, blueprint ownership, and settings to a JSON file you choose. **Import** loads one back in, overwriting the matching data — useful for moving to a new PC or recovering after a reinstall |
 | **Report a Bug** | Sends a short description straight to the developer's Discord via a webhook, along with your app version and OS — no account or email needed. You can optionally attach a screenshot of the screen you were on, the last refinery capture (the screen it read plus the text it got), a fresh grab of the game window, or images you pick — each is previewed first and nothing is attached unless you tick or add it |
 

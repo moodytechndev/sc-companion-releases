@@ -871,6 +871,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 
         <div class="setting-row" style="margin-top:4px">
           <div>
+            <div class="setting-label">Bring everything home</div>
+            <div class="setting-desc">After a game update, set your items, assets and ships back to your home base</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" id="home-undo-btn" style="display:none" onclick="undoBringHome()">Undo</button>
+            <button class="btn btn-sm" onclick="openBringHome()">Bring home…</button>
+          </div>
+        </div>
+
+        <div class="setting-row" style="margin-top:4px">
+          <div>
             <div class="setting-label" data-i18n="settings.backup">Backup &amp; Restore</div>
             <div class="setting-desc" data-i18n="settings.backup.desc">Save or load all your jobs, inventory &amp; settings</div>
           </div>
@@ -1063,6 +1074,30 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 </div>
 
 <!-- ── Deliver Job Modal ── -->
+<div id="bring-home-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
+  <div class="modal">
+    <h3>🏠 Bring everything home</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">A game update returns everything you own to your home base. This sets the same place for your tracked items, so the app matches the game again.</p>
+    <label style="font-size:11px;color:var(--text-dim)">Home base</label>
+    <select id="home-location-select" onchange="onLocPickChange('home-location-select', 'home-location-custom'); updateBringHome()" style="width:100%;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none;margin-bottom:6px"></select>
+    <input type="text" id="home-location-custom" placeholder="Name of your home base" oninput="updateBringHome()" style="display:none;width:100%;margin-bottom:6px;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px">The four landing zones (Area 18, Lorville, New Babbage, Orison) are at the top of the list; any station you have a hab at is there too.</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;font-size:12px">
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="home-inc-inv" checked onchange="updateBringHome()"><span>Inventory boxes <span id="home-n-inv" style="color:var(--text-dim)"></span></span></label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="home-inc-assets" checked onchange="updateBringHome()"><span>Assets <span id="home-n-assets" style="color:var(--text-dim)"></span></span></label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="home-inc-ships" checked onchange="updateBringHome()"><span>Ships <span id="home-n-ships" style="color:var(--text-dim)"></span></span></label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="home-inc-transit" onchange="updateBringHome()"><span>Also cargo that's in transit <span id="home-n-transit" style="color:var(--text-dim)"></span></span></label>
+    </div>
+    <div id="home-summary" style="font-size:12px;color:var(--text);min-height:16px"></div>
+    <div id="bring-home-msg" style="font-size:11px;color:var(--danger);min-height:14px;margin-top:4px"></div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn" id="home-apply-btn" style="flex:1" onclick="applyBringHome()">Move everything</button>
+      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeBringHome()">Cancel</button>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:8px">Ship stock parts follow their ship. You can undo the move from Settings.</div>
+  </div>
+</div>
+
 <div id="import-jobs-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal" style="max-height:90vh;display:flex;flex-direction:column">
     <h3>📥 Import running jobs</h3>
@@ -2194,20 +2229,26 @@ function clearMiningOreSelect() {
   if (scannerMode === 'ref') renderScannerRef();
 }
 
+// Search box matching: every word typed must appear somewhere in the searched text, in any
+// order ("rifle laser" finds "Laser Rifle"). `q` is the already lower-cased query.
+function matchesAll(q, ...fields) {
+  if (!q) return true;
+  const hay = fields.map(f => String(f || '').toLowerCase()).join(' ');
+  return q.split(/\s+/).every(w => hay.includes(w));
+}
+
 function renderMining(query) {
   const q = (query || document.getElementById('mining-search')?.value || '').toLowerCase().trim();
   const list = document.getElementById('mining-list');
   const entries = Object.entries(ORE_DATA).filter(([ore, locs]) =>
-    !q || ore.toLowerCase().includes(q) || locs.some(l => l.location.toLowerCase().includes(q))
+    !q || matchesAll(q, ore) || locs.some(l => matchesAll(q, ore, l.location))
   );
   if (!entries.length) {
     list.innerHTML = `<div class="empty-state"><div class="lbl">No ores match "${esc(q)}"</div></div>`;
     return;
   }
   list.innerHTML = entries.map(([ore, locs]) => {
-    const filtered = q ? locs.filter(l =>
-      ore.toLowerCase().includes(q) || l.location.toLowerCase().includes(q)
-    ) : locs;
+    const filtered = q ? locs.filter(l => matchesAll(q, ore, l.location)) : locs;
     const isSel = selectedMiningOres.has(ore);
     return `
     <div class="mining-row" data-ore="${esc(ore)}" onclick="toggleMiningOreSelect(this.dataset.ore)" style="cursor:pointer;${isSel ? 'background:var(--accent-dim);outline:1px solid rgba(100,180,255,0.25);' : ''}">
@@ -2254,7 +2295,7 @@ function buildOreDropdown(input, dropdown) {
   // EXTRA_REFINABLE_MATERIALS is appended after ORE_DATA's keys, so without an
   // explicit sort it always lands at the bottom regardless of alphabetical order.
   const all = [...Object.keys(ORE_DATA), ...EXTRA_REFINABLE_MATERIALS].sort((a, b) => a.localeCompare(b));
-  const filtered = q ? all.filter(o => o.toLowerCase().includes(q)) : all;
+  const filtered = q ? all.filter(o => matchesAll(q, o)) : all;
   dropdown.innerHTML = filtered.map(o =>
     `<div class="ore-option">${esc(o)}</div>`
   ).join('') || '<div class="ore-option" style="color:var(--text-dim);cursor:default">No match</div>';
@@ -3197,7 +3238,7 @@ function renderComs() {
 
   const q = document.getElementById('com-search').value.toLowerCase();
   let filtered = commodities.filter(c => {
-    if (q && !c.name.toLowerCase().includes(q) && !c.code.toLowerCase().includes(q)) return false;
+    if (q.trim() && !matchesAll(q.trim(), c.name, c.code)) return false;
     if (comFilter === 'mineral')   return c.is_mineral;
     if (comFilter === 'raw')       return c.is_raw;
     if (comFilter === 'refined')   return c.is_refined;
@@ -4169,7 +4210,7 @@ function renderHelp() {
   const body = document.getElementById('help-body');
   if (!body || typeof HELP_SECTIONS === 'undefined') return;
   const q = (document.getElementById('help-search')?.value || '').toLowerCase().trim();
-  const secs = HELP_SECTIONS.filter(sec => !q || helpSectionText(sec).includes(q));
+  const secs = HELP_SECTIONS.filter(sec => !q || matchesAll(q, helpSectionText(sec)));
   if (!secs.length) {
     body.innerHTML = '<div class="empty-state"><div class="ico">🔍</div><div class="lbl">Nothing in the guide matches that.</div></div>';
     return;
@@ -4323,6 +4364,9 @@ const HINTS_BY_CALL = {
   'addInvRow': 'Add another box size',
   'removeInvRow': 'Remove this box size',
   'saveInventoryItem': 'Save this to your inventory',
+  'openBringHome': 'After a game update, set your items, assets and ships back to your home base',
+  'undoBringHome': 'Put everything back where it was before the last "bring home"',
+  'applyBringHome': 'Set every ticked item, asset and ship to this home base',
   'closeInvModal': 'Close without saving',
   'onLocSelectChange': 'Choose where this is stored',
   // hangar: assets & ships
@@ -4548,6 +4592,7 @@ initLogWatcher();
 initCloseBehavior();
 initPriceSource();
 loadLastLocations();
+loadHomeUndo();
 initTransitIcon();
 initRefineryCaptureMode();
 initHoverHints();
@@ -4799,7 +4844,7 @@ function renderShips() {
   const list = document.getElementById('ships-list');
   const ships = craftShips || [];
   const rows = ships.map((s, i) => ({ s, i })).filter(({ s }) =>
-    !q || [s.name, s.nickname, s.company, s.location].some(f => (f || '').toLowerCase().includes(q)));
+    !q || matchesAll(q, s.name, s.nickname, s.company, s.location));
   if (!rows.length) {
     list.innerHTML = `<div class="empty-state"><div class="ico">🛸</div>
       <div class="lbl">${ships.length ? 'No ships match your search.' : 'No ships tracked yet.<br>Add the ships you own with + Add.'}</div></div>`;
@@ -5057,7 +5102,7 @@ function liveryResultsHtml(ship) {
   if (!tag) return '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">No livery slot is listed for this ship.</div>';
   const all = liveryCache[tag] || [];
   const q = (st.liveryQuery || '').toLowerCase().trim();
-  const list = q ? all.filter(l => l.name.toLowerCase().includes(q) || (l.source || '').toLowerCase().includes(q)) : all;
+  const list = q ? all.filter(l => matchesAll(q, l.name, l.source)) : all;
   const cur = ship.livery?.uuid || '';
   const row = (uuid, name, source, equipped, extra) => `
     <div style="padding:6px 0;border-top:1px solid var(--border)">
@@ -5187,7 +5232,7 @@ async function openAddShip() {
 function renderShipPicker() {
   if (!uexVehicles) return;
   const q = document.getElementById('ship-pick-search').value.toLowerCase().trim();
-  const matches = (q ? uexVehicles.filter(v => (v.name_full || '').toLowerCase().includes(q)) : uexVehicles).slice(0, 60);
+  const matches = (q ? uexVehicles.filter(v => matchesAll(q, v.name_full)) : uexVehicles).slice(0, 60);
   document.getElementById('ship-pick-list').innerHTML = matches.length
     ? matches.map(v => `
       <div onclick="pickShip(${v.id})" style="padding:6px 10px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border)${pickedVehicle?.id === v.id ? ';background:var(--accent-dim)' : ''}"
@@ -5290,14 +5335,13 @@ function renderAssets() {
   const source = document.getElementById('assets-source')?.value || 'all';
   const list = document.getElementById('assets-list');
   const assets = craftAssets || [];
-  const has = (f) => (f || '').toLowerCase().includes(q);
   const shipOrder = new Map((craftShips || []).map((sh, n) => [sh.uid, n]));
 
   const items = assets.map((a, i) => ({ a, i, spot: assetInstallSpot(a.uid) })).filter(({ a, spot }) => {
     if (source === 'mine' && a.stock) return false;
     if (source === 'stock' && !a.stock) return false;
-    return !q || [a.name, a.type, a.stock?.maker, a.stock?.slotLabel, a.notes, a.location,
-      spot && shipLabel(spot.ship), spot && spot.slotLabel].some(has);
+    return !q || matchesAll(q, a.name, a.type, a.stock?.maker, a.stock?.slotLabel, a.notes, a.location,
+      spot && shipLabel(spot.ship), spot && spot.slotLabel);
   });
 
   const loose = items.filter(x => !x.spot);
@@ -5373,6 +5417,126 @@ function rememberLocation(kind, value) {
   if (v === 'In Transit' || (lastLocations[kind] || '') === v) return;
   lastLocations[kind] = v;
   api.setStore('lastLocations', lastLocations);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Bring everything home
+// ════════════════════════════════════════════════════════════════════
+// A game update returns every item, asset and ship to the player's home base. This sets one
+// location on everything tracked in the app, and keeps a snapshot of the old locations so the
+// move can be undone.
+let homeUndo = null;
+
+async function loadHomeUndo() {
+  try { homeUndo = (await api.getStore('homeUndo')) || null; } catch { homeUndo = null; }
+  const btn = document.getElementById('home-undo-btn');
+  if (btn) btn.style.display = homeUndo ? '' : 'none';
+}
+
+async function openBringHome() {
+  const saved = (await api.getStore('homeBase')) || '';
+  await fillLocationSelect('home-location-select', 'home-location-custom', saved);
+  document.getElementById('bring-home-msg').textContent = '';
+  document.getElementById('bring-home-overlay').style.display = 'flex';
+  updateBringHome();
+}
+
+function closeBringHome() {
+  document.getElementById('bring-home-overlay').style.display = 'none';
+}
+
+function homePickedLocation() {
+  const v = document.getElementById('home-location-select').value;
+  return v === '__custom__' ? document.getElementById('home-location-custom').value.trim() : v;
+}
+
+// What would move to `home`, given the ticked boxes.
+function homePlan(home) {
+  const on = id => document.getElementById(id).checked;
+  const withTransit = on('home-inc-transit');
+  const plan = { inv: [], assets: [], ships: [] };
+  if (on('home-inc-inv')) craftInventory.forEach((it, i) => {
+    if (it.inTransit && !withTransit) return;
+    if ((it.location || '') !== home || it.inTransit) plan.inv.push(i);
+  });
+  if (on('home-inc-assets')) craftAssets.forEach((a, i) => {
+    if (a.stock) return;                       // stock parts travel with their ship
+    if ((a.location || '') !== home) plan.assets.push(i);
+  });
+  if (on('home-inc-ships')) craftShips.forEach((sh, i) => {
+    if ((sh.location || '') !== home) plan.ships.push(i);
+  });
+  return plan;
+}
+
+function updateBringHome() {
+  const home = homePickedLocation();
+  const set = (id, txt) => { document.getElementById(id).textContent = txt; };
+  set('home-n-inv', `(${craftInventory.filter(i => !i.inTransit).length})`);
+  set('home-n-assets', `(${craftAssets.filter(a => !a.stock).length})`);
+  set('home-n-ships', `(${craftShips.length})`);
+  set('home-n-transit', `(${craftInventory.filter(i => i.inTransit).length})`);
+  const btn = document.getElementById('home-apply-btn');
+  const summary = document.getElementById('home-summary');
+  if (!home) { summary.textContent = 'Pick your home base.'; btn.disabled = true; return; }
+  const plan = homePlan(home);
+  const n = plan.inv.length + plan.assets.length + plan.ships.length;
+  btn.disabled = n === 0;
+  summary.textContent = n
+    ? `${n} thing${n === 1 ? '' : 's'} will move to ${home} (${plan.inv.length} inventory, ${plan.assets.length} asset${plan.assets.length === 1 ? '' : 's'}, ${plan.ships.length} ship${plan.ships.length === 1 ? '' : 's'}).`
+    : `Nothing to move — everything ticked is already at ${home}.`;
+}
+
+async function applyBringHome() {
+  const msg = document.getElementById('bring-home-msg');
+  const home = homePickedLocation();
+  if (!home) { msg.textContent = 'Pick your home base first.'; return; }
+  const plan = homePlan(home);
+  if (!plan.inv.length && !plan.assets.length && !plan.ships.length) return;
+  await readLocationPick('home-location-select', 'home-location-custom'); // remembers a custom name
+
+  const snap = { at: Date.now(), home, inv: [], assets: [], ships: [] };
+  plan.inv.forEach(i => {
+    const it = craftInventory[i];
+    snap.inv.push({ i, name: it.name, loc: it.location || '', transit: !!it.inTransit });
+    it.location = home; delete it.inTransit;
+  });
+  plan.assets.forEach(i => { const a = craftAssets[i]; snap.assets.push({ uid: a.uid, loc: a.location || '' }); a.location = home; });
+  plan.ships.forEach(i => { const sh = craftShips[i]; snap.ships.push({ uid: sh.uid, loc: sh.location || '' }); sh.location = home; });
+
+  if (plan.inv.length) await api.setStore('craftInventory', craftInventory);
+  if (plan.assets.length) await api.setStore('craftAssets', craftAssets);
+  if (plan.ships.length) await api.setStore('craftShips', craftShips);
+  await api.setStore('homeBase', home);
+  await api.setStore('homeUndo', snap);
+  homeUndo = snap;
+  document.getElementById('home-undo-btn').style.display = '';
+  closeBringHome();
+  renderInventory(); renderAssets(); renderShips();
+  const n = snap.inv.length + snap.assets.length + snap.ships.length;
+  showBackupMsg(`✓ ${n} thing${n === 1 ? '' : 's'} moved to ${home}. Undo is next to the button.`, 'var(--success)');
+}
+
+async function undoBringHome() {
+  if (!homeUndo) return;
+  const snap = homeUndo;
+  let restored = 0;
+  (snap.inv || []).forEach(r => {
+    const it = craftInventory[r.i];
+    if (it && it.name === r.name && it.location === snap.home) {
+      it.location = r.loc; if (r.transit) it.inTransit = true; restored++;
+    }
+  });
+  (snap.assets || []).forEach(r => { const a = assetByUid(r.uid); if (a && a.location === snap.home) { a.location = r.loc; restored++; } });
+  (snap.ships || []).forEach(r => { const sh = craftShips.find(x => x.uid === r.uid); if (sh && sh.location === snap.home) { sh.location = r.loc; restored++; } });
+  await api.setStore('craftInventory', craftInventory);
+  await api.setStore('craftAssets', craftAssets);
+  await api.setStore('craftShips', craftShips);
+  await api.setStore('homeUndo', null);
+  homeUndo = null;
+  document.getElementById('home-undo-btn').style.display = 'none';
+  renderInventory(); renderAssets(); renderShips();
+  showBackupMsg(`✓ Move undone — ${restored} thing${restored === 1 ? '' : 's'} put back.`, 'var(--success)');
 }
 
 // One location picker for every "where is it" field (assets, ships): the same
@@ -5640,7 +5804,7 @@ function renderOwned() {
   }
 
   let bps = allBlueprints;
-  if (q)   bps = bps.filter(bp => bp.name.toLowerCase().includes(q) || (bp.category || '').toLowerCase().includes(q));
+  if (q)   bps = bps.filter(bp => matchesAll(q, bp.name, bp.category));
   if (f === 'owned')   bps = bps.filter(bp => ownedBlueprints[bp.blueprint_id]);
   if (f === 'missing') bps = bps.filter(bp => !ownedBlueprints[bp.blueprint_id]);
   if (f === 'craftable') bps = bps.filter(bp => bpStockStatus(bp, stockIdx).ok);
@@ -6445,10 +6609,7 @@ function renderInventory() {
   }
 
   let items = craftInventory.map((item, i) => ({ item, i }));
-  if (q) items = items.filter(({ item }) =>
-    item.name.toLowerCase().includes(q) ||
-    (item.location || '').toLowerCase().includes(q)
-  );
+  if (q) items = items.filter(({ item }) => matchesAll(q, item.name, item.location));
 
   if (!items.length) {
     list.innerHTML = '<div class="empty-state"><div class="lbl">No items match this search</div></div>';

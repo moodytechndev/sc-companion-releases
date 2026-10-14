@@ -243,6 +243,18 @@ function findTableAnchor(words) {
     if (u < hh * 0.6 || u > hh * 1.7) u = hh;            // implausible — a stray word, fall back
     return { left: m.x0, top: m.y0, right: right > sel.x1 ? right : m.x0 + hh * 34, hh, u };
   }
+  // "MATERIALS SELECTED" can come back unreadable (glare, an angled screen) while the column
+  // headers QUALITY … REFINE are fine; QUALITY's left edge to REFINE's right edge is ~18.6u
+  // and the whole header is 34u, so the same geometry follows from them.
+  for (const q of words.filter(w => /^quali[a-z]{1,3}$/.test(lettersOf(w.text)))) {
+    const qh = Math.max(q.y1 - q.y0, 6);
+    const refine = words.find(w => lettersOf(w.text) === 'refine' && Math.abs(w.y0 - q.y0) <= qh * 0.8 &&
+      w.x0 > q.x1 && w.x0 - q.x0 <= qh * 40);
+    if (!refine) continue;
+    let u = (refine.x1 - q.x0) / 18.6;
+    if (u < qh * 0.6 || u > qh * 1.7) u = qh;
+    return { left: refine.x1 - 34 * u, top: q.y0, right: refine.x1, hh: qh, u, fromHeaders: true };
+  }
   return null;
 }
 
@@ -429,6 +441,22 @@ function stretchGray(g) {
   return { w: g.w, h: g.h, v: out };
 }
 
+// Bilinear enlargement of a gray image by factor f.
+function resizeGray(g, f) {
+  const w = Math.max(1, Math.round(g.w * f)), h = Math.max(1, Math.round(g.h * f));
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.min(g.h - 1, Math.max(0, (y + 0.5) / f - 0.5)), y0 = Math.floor(sy), y1 = Math.min(g.h - 1, y0 + 1), fy = sy - y0;
+    for (let x = 0; x < w; x++) {
+      const sx = Math.min(g.w - 1, Math.max(0, (x + 0.5) / f - 0.5)), x0 = Math.floor(sx), x1 = Math.min(g.w - 1, x0 + 1), fx = sx - x0;
+      const top = g.v[y0 * g.w + x0] * (1 - fx) + g.v[y0 * g.w + x1] * fx;
+      const bot = g.v[y1 * g.w + x0] * (1 - fx) + g.v[y1 * g.w + x1] * fx;
+      out[y * w + x] = Math.round(top * (1 - fy) + bot * fy);
+    }
+  }
+  return { w, h, v: out };
+}
+
 // A margin of paper around a small image — Tesseract reads a number far better with room around it.
 function padGray(g, n) {
   const w = g.w + 2 * n, h = g.h + 2 * n;
@@ -452,7 +480,7 @@ async function ocrWhitelist(worker, png, psm, whitelist) {
 // A table cut into its rows at the rules. Each row comes back twice: `trimmed` (cleaned,
 // trimmed to its ink — what a line read wants) and `band` (the same full-width strip, so the
 // columns keep their positions — what cutting out single numbers wants).
-function tableRowGrays(image, rect, scale) {
+function tableRowGrays(image, rect, scale, u) {
   const full = grayRegion(image, rect, scale);
   const { g, rules } = wipeRules(full);
   const bounds = [-1, ...rules.map(r => Math.round((r[0] + r[1]) / 2)), g.h];
@@ -464,11 +492,39 @@ function tableRowGrays(image, rect, scale) {
     const t = trimToInk(band, 8);
     if (t && t.w >= 40 && t.h >= 12) out.push({ trimmed: t, band });
   }
+  // No usable rules (the grid lines slope on an angled screen, or are lost to compression):
+  // the rows are the bands of ink between the gaps instead.
+  if (out.length < 2 && u) {
+    const pxU = u * scale;
+    const has = new Array(g.h).fill(false);
+    for (let y = 0; y < g.h; y++) {
+      let c = 0;
+      for (let x = 0; x < g.w; x++) if (g.v[y * g.w + x] < INK) c++;
+      has[y] = c >= 2;
+    }
+    const gapMax = Math.max(2, Math.round(0.45 * pxU));
+    const alt = [];
+    for (let y = 0; y < g.h;) {
+      if (!has[y]) { y++; continue; }
+      let y2 = y, last = y;
+      while (y2 < g.h && (has[y2] || y2 - last <= gapMax)) { if (has[y2]) last = y2; y2++; }
+      const h = last - y + 1;
+      if (h >= 0.45 * pxU && h <= 2.6 * pxU) {
+        const pad = Math.round(0.3 * pxU);
+        const a = Math.max(0, y - pad), b = Math.min(g.h - 1, last + pad);
+        const band = { w: g.w, h: b - a + 1, v: g.v.slice(a * g.w, (b + 1) * g.w) };
+        const t = trimToInk(band, 8);
+        if (t && t.w >= 40 && t.h >= 12) alt.push({ trimmed: t, band });
+      }
+      y = y2;
+    }
+    if (alt.length > out.length) return alt;
+  }
   return out;
 }
 
-function tableRowPngs(image, rect, scale, sharpen) {
-  return tableRowGrays(image, rect, scale).map(r => encodeGray(sharpen ? sharpenGray(r.trimmed) : r.trimmed));
+function tableRowPngs(image, rect, scale, sharpen, u) {
+  return tableRowGrays(image, rect, scale, u).map(r => encodeGray(sharpen ? sharpenGray(r.trimmed) : r.trimmed));
 }
 
 // Where the number columns sit, in text-heights (u) right of the panel's left edge. They are
@@ -542,6 +598,39 @@ function plausibleStation(name) {
   return words.length >= 1 && lettersOf(name).length >= 6;
 }
 
+// Stations a refinery can be at, in the names the app's location lists use. Misreads of the
+// title ("EET FATHWAY STATION", "ARC-12 IVELY PATHWAY") are snapped to the nearest one when a
+// distinctive word of it is recognisable; anything else is left as read.
+const KNOWN_STATIONS = [
+  'Area 18', 'Lorville', 'New Babbage', 'Orison',
+  'Baijini Point', 'Everus Harbor', 'Port Tressler', 'Seraphim Station',
+  'ARC-L1 Wide Forest', 'ARC-L2 Lively Pathway', 'ARC-L3 Modern Express', 'ARC-L4 Faint Glen', 'ARC-L5 Yellow Core',
+  'CRU-L1 Ambitious Dream', 'CRU-L4 Shallow Fields', 'CRU-L5 Beautiful Glen',
+  'HUR-L1 Green Glade', 'HUR-L2 Faithful Dream', 'HUR-L3 Thundering Express', 'HUR-L4 Melodic Fields', 'HUR-L5 High Course',
+  'MIC-L1 Shallow Frontier', 'MIC-L2 Long Forest', 'MIC-L3 Endless Odyssey', 'MIC-L4 Red Crossroads', 'MIC-L5 Modern Icarus',
+  'Checkmate', 'Orbituary', 'Pyro Gateway', 'Ruin Station', 'Stanton Gateway', 'Levski',
+];
+
+function snapStation(raw) {
+  if (!raw) return null;
+  const words = String(raw).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3 && w !== 'station');
+  if (!words.length) return null;
+  const scored = [];
+  for (const st of KNOWN_STATIONS) {
+    const sw = st.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3 && w !== 'station');
+    let score = 0;
+    for (const w of words) {
+      const hit = sw.find(x => x === w || (w.length >= 5 && x.length >= 5 && levenshtein(w, x) <= (w.length >= 8 ? 2 : 1)));
+      if (hit) score += hit.length;
+    }
+    scored.push([score, st]);
+  }
+  scored.sort((a, b) => b[0] - a[0]);
+  // needs a solid match, and a clear winner ("Gateway" alone fits two stations)
+  if (!scored.length || scored[0][0] < 6 || (scored[1] && scored[1][0] === scored[0][0])) return null;
+  return scored[0][1];
+}
+
 // One number column cell → candidate integers. Letters that OCR substitutes for
 // digits are mapped back; "B" yields two candidates (8, 6).
 function numberCandidates(rawToken) {
@@ -586,7 +675,12 @@ function parseTableText(text) {
     if (cells.length < 3) continue;
     rows.push({ name, cells });
   }
+  return finalizeTableRows(rows);
+}
 
+// Rows of { name, cells: [quality, qty, yield] } (each cell { cands, clean }) → settled rows.
+// Shared by the text reading and the cell-by-cell digits reading.
+function finalizeTableRows(rows) {
   // Yield ÷ qty is the same for every box of one ore (same station, same method), so
   // the rows of an ore vouch for each other: the ratio most rows agree on settles
   // ambiguous digits (B = 8 or 6) and restores a digit the OCR dropped ("73" for
@@ -617,21 +711,32 @@ function parseTableText(text) {
 
   const out = [];
   for (const r of rows) {
-    const qty = r.cells[1].cands[0];
+    let qty = r.cells[1].cands[0];
     const quality = r.cells[0].cands.find(v => v <= 1000) ?? r.cells[0].cands[0];
     const ref = refFor[r.name];
     let yld = r.cells[2].cands[0];
-    let repaired = false;
+    let repaired = false, fits = false;
+    // a yield that was read cleanly vouches for a qty that lost a digit ("33" beside a yield of
+    // 151): mend the qty, not the yield
+    if (ref && qty > 0 && !r.cells[1].clean && r.cells[2].clean && yld > 0) {
+      const exp0 = Math.round(qty * ref);
+      if (Math.abs(yld - exp0) > Math.max(1, exp0 * TOL)) {
+        const eq = Math.round(yld / ref);
+        if (editDistanceOne(String(qty), String(eq))) { qty = eq; repaired = true; }
+      }
+    }
     if (ref && qty > 0) {
       const expected = Math.round(qty * ref);
       const near = (v) => Math.abs(v - expected) <= Math.max(1, expected * TOL);
       const ok = r.cells[2].cands.find(near);
-      if (ok !== undefined) yld = ok;
+      if (ok !== undefined) { yld = ok; fits = true; }
       else if (r.cells[2].cands.some(v => editDistanceOne(String(v), String(expected)))) { yld = expected; repaired = true; }
+      else repaired = true;          // doesn't fit its ore's ratio and can't be mended: flag it for review
     }
     if (r.name === 'Inert Materials' || yld === 0) continue;   // not refined — no yield to record
     out.push({ name: r.name, quality: String(quality), qty: String(qty), yield: String(yld),
-      clean: !repaired && r.cells.every(c => c.clean) });
+      // a reading that disagreed with itself is still trusted when it fits its ore's yield ratio
+      clean: !repaired && (r.cells.every(c => c.clean) || (fits && r.cells[0].clean)) });
   }
   return out;
 }
@@ -683,6 +788,111 @@ function voteRows(readings) {
     out.push(row);
   }
   return out;
+}
+
+// Reads the setup table number by number. The text reading of a whole table lets one smudged
+// cell drop a whole row (a qty read as "es" leaves two numbers, not three) and confuses
+// 6/8/9 and 1/7. Here the table is cut into rows at the gaps between lines of ink, each row's
+// three numbers are cut out at the columns under the QUALITY / QTY / YIELD headers, and every
+// number is read alone with only digits allowed, at a few sizes. Disagreement between sizes
+// marks the row for review. Returns [] when the table can't be cut sensibly.
+async function readSetupTableCells(image, worker, rect, geo) {
+  const { u, scale, colCenters } = geo;                 // u and colCenters in source pixels
+  const MULTS = [1, 1.5, 2];
+  const passes = [];
+  for (const m of MULTS) {
+    const sc = scale * m;
+    const g = wipeRules(grayRegion(image, rect, sc)).g;
+    const has = new Array(g.h).fill(false);
+    for (let y = 0; y < g.h; y++) {
+      let c = 0;
+      for (let x = 0; x < g.w; x++) if (g.v[y * g.w + x] < INK) c++;
+      has[y] = c >= 2;
+    }
+    const gapMax = Math.max(2, Math.round(0.4 * u * sc));
+    const bands = [];
+    for (let y = 0; y < g.h;) {
+      if (!has[y]) { y++; continue; }
+      let y2 = y, last = y;
+      while (y2 < g.h && (has[y2] || y2 - last <= gapMax)) { if (has[y2]) last = y2; y2++; }
+      const h = last - y + 1;
+      if (h >= 0.45 * u * sc && h <= 2.6 * u * sc) bands.push([y, last]);
+      y = y2;
+    }
+    passes.push({ sc, g, bands });
+  }
+  const n = passes[0].bands.length;
+  if (!n || passes.some(p => p.bands.length !== n)) return [];
+
+  const half = 2.1 * u;
+  const cellsOf = (pass, bi) => {
+    const [y0, y1] = pass.bands[bi];
+    const { g, sc } = pass;
+    const h = y1 - y0 + 1;
+    const out = [];
+    const inkCol = new Array(g.w).fill(false);
+    for (let x = 0; x < g.w; x++) for (let y = y0; y <= y1; y++) if (g.v[y * g.w + x] < INK) { inkCol[x] = true; break; }
+    for (const cx of colCenters) {
+      const c = (cx - rect.x) * sc;
+      let x0 = -1, x1 = -1;
+      for (let x = Math.max(0, Math.round(c - half * sc)); x <= Math.min(g.w - 1, Math.round(c + half * sc)); x++) {
+        if (inkCol[x]) { if (x0 < 0) x0 = x; x1 = x; }
+      }
+      if (x0 < 0) return null;
+      const pad = 6, X0 = Math.max(0, x0 - pad), X1 = Math.min(g.w - 1, x1 + pad), nw = X1 - X0 + 1;
+      const buf = new Uint8Array(nw * h).fill(255);
+      for (let y = 0; y < h; y++) for (let x = 0; x < nw; x++) buf[y * nw + x] = g.v[(y0 + y) * g.w + X0 + x];
+      const cell = trimToInk({ w: nw, h, v: buf }, 6);
+      if (!cell || cell.h < 10) return null;
+      out.push(cell);
+    }
+    return out;
+  };
+
+  const rows = [];
+  const debug = [];
+  for (let bi = 0; bi < n; bi++) {
+    const perPass = passes.map(p => cellsOf(p, bi));
+    if (perPass.some(c => !c)) continue;                  // no number in a column: not a data row
+    // the name, from the left part of the first pass's band
+    const p0 = passes[0], [by0, by1] = p0.bands[bi];
+    const nameEnd = Math.round((colCenters[0] - rect.x - 2.6 * u) * p0.sc);
+    if (nameEnd < 10) continue;
+    const nameBuf = new Uint8Array(nameEnd * (by1 - by0 + 1));
+    for (let y = 0; y <= by1 - by0; y++) for (let x = 0; x < nameEnd; x++) nameBuf[y * nameEnd + x] = p0.g.v[(by0 + y) * p0.g.w + x];
+    const nameImg = trimToInk({ w: nameEnd, h: by1 - by0 + 1, v: nameBuf }, 8);
+    let nameText = '';
+    if (nameImg) { try { nameText = await ocrRegion(worker, encodeGray(nameImg), '7'); } catch { nameText = ''; } }
+    const compact = lettersOf(nameText);
+    const name = compact.length >= 3 ? KNOWN_MATERIALS.find(k => fuzzyChunkIncludes(compact, lettersOf(k))) : null;
+    if (!name) { debug.push(`row ${bi + 1}: name? "${nameText}"`); continue; }
+
+    const cells = [];
+    const texts = [];
+    for (let c = 0; c < 3; c++) {
+      const vals = [];
+      for (let k = 0; k < passes.length; k++) {
+        let cell = perPass[k][c];
+        if (cell.h < 40) cell = resizeGray(cell, 40 / cell.h);     // digits read best at ~40 px tall
+        const png = encodeGray(padGray(sharpenGray(stretchGray(cell)), 24));
+        let t = '';
+        for (const psm of ['7', '8', '13']) {
+          try { t = (await ocrWhitelist(worker, png, psm, '0123456789')).replace(/\D/g, ''); } catch { t = ''; }
+          if (t) break;
+        }
+        vals.push(t);
+      }
+      texts.push(vals.join('/'));
+      const tally = {};
+      vals.filter(v => v).forEach(v => { tally[v] = (tally[v] || 0) + 1; });
+      const ranked = Object.keys(tally).sort((a, b) => tally[b] - tally[a] || vals.indexOf(b) - vals.indexOf(a));
+      if (!ranked.length) { cells.length = 0; break; }
+      cells.push({ cands: [Number(ranked[0])], clean: vals.every(v => v === ranked[0]) });
+    }
+    debug.push(`row ${bi + 1}: ${name} ${texts.join('  ')}`);
+    if (cells.length === 3) rows.push({ name, cells });
+  }
+  return { rows: finalizeTableRows(rows), debug: debug.join('\n') };
 }
 
 async function ocrRegion(worker, png, psm) {
@@ -742,18 +952,52 @@ function findProcessingPanels(words) {
   const panels = [];
   for (const m of words) {
     const mk = lettersOf(m.text);
-    if (!/^mat[a-z]{3,6}$/.test(mk) || m.text.length < 6) continue;
+    if (mk.length < 6 || mk.length > 10 || levenshtein(mk, 'materials') > 2) continue;
     const mw = Math.max(m.x1 - m.x0, 20);
     const sameRow = (w) => Math.abs(w.y0 - m.y0) <= mw * 0.35;
     if (words.some(w => w !== m && sameRow(w) && w.x1 <= m.x0 + 2 && m.x0 - w.x1 < mw * 0.3)) continue;   // a word right against it: a row ("CONSTRUCTION MATERIALS"), not a header
-    const y = words.find(w => sameRow(w) && w.x0 >= m.x1 - 2 && w.x0 - m.x1 <= mw && /^yiel(d|de|ded|deo)$/.test(lettersOf(w.text)) && lettersOf(w.text).length >= 5);
+    const y = words.find(w => sameRow(w) && w.x0 >= m.x1 - 2 && w.x0 - m.x1 <= mw && lettersOf(w.text).length >= 5 && lettersOf(w.text).length <= 8 && levenshtein(lettersOf(w.text), 'yielded') <= 2);
     if (!y) continue;
-    const q = words.find(w => sameRow(w) && w.x0 > y.x1 && w.x0 - m.x0 < mw * 8 && /^qual[a-z]{2,4}$/.test(lettersOf(w.text)));
+    const q = words.find(w => sameRow(w) && w.x0 > y.x1 && w.x0 - m.x0 < mw * 8 && lettersOf(w.text).length >= 5 && levenshtein(lettersOf(w.text), 'quality') <= 2);
     if (!q && lettersOf(y.text).length < 6) continue;                     // neither "YIELDED" nor a QUALITY heading
     panels.push({ left: m.x0, top: m.y0, u: Math.min(48, Math.max(6, mw / 6)) });
   }
   panels.sort((a, b) => a.left - b.left);
   return panels.filter((p, i) => i === 0 || p.left - panels[i - 1].left > p.u * 8);   // the same header twice
+}
+
+// Panels found from their "TIME REMAINING" label instead of the table header. The label is much
+// bigger and brighter than the header text, so it is often read when the header is not (small
+// text, compression, an angled screen). The layout below the header is fixed, so the panel's
+// left edge, text size (u) and header row follow from the label alone: the label is ~10.2u
+// wide and the header row sits 41u above it.
+function findProcessingPanelsByLabels(words) {
+  const panels = [];
+  for (const r of words) {
+    const rk = lettersOf(r.text);
+    if (rk.length < 5 || rk.length > 10 || levenshtein(rk, 'remaining') > 3) continue;
+    const rh = Math.max(r.y1 - r.y0, 6);
+    const time = words.find(w => w !== r && w.x1 <= r.x0 + 4 && r.x0 - w.x1 <= rh * 2.5 &&
+      Math.abs(w.y0 - r.y0) <= rh * 0.8 && lettersOf(w.text).length >= 3 && levenshtein(lettersOf(w.text), 'time') <= 1);
+    const u = time ? (r.x1 - time.x0) / 10.2 : (r.x1 - r.x0) / 7.6;
+    if (!(u >= 6 && u <= 48)) continue;
+    const left = (time ? time.x0 : r.x1 - 10.2 * u) + 0.5 * u;
+    panels.push({ left, top: (r.y0 + r.y1) / 2 - 41 * u, u, fromLabel: true });
+  }
+  panels.sort((a, b) => a.left - b.left);
+  return panels.filter((p, i) => i === 0 || p.left - panels[i - 1].left > p.u * 8);
+}
+
+// Header-found panels, plus any that only their label gave away.
+function allProcessingPanels(words) {
+  const fromHeaders = findProcessingPanels(words);
+  const fromLabels = findProcessingPanelsByLabels(words);
+  const out = [...fromHeaders];
+  for (const lp of fromLabels) {
+    if (!out.some(p => Math.abs(p.left - lp.left) <= Math.max(p.u, lp.u) * 6)) out.push(lp);
+  }
+  out.sort((a, b) => a.left - b.left);
+  return out;
 }
 
 // Per-panel geometry. Panels sit side by side; each ends where the next begins. Below the
@@ -967,7 +1211,7 @@ async function readProcessingPanels(image, worker, panels, words, W, H) {
     // (these crops are small, so they take more enlargement than the setup screen's — up to ~6.5x)
     for (const sc of [scale, scale * 1.35, scale * 1.7, scale * 2.2]) {
       if (!g.table) break;
-      const strips = tableRowPngs(image, g.table, sc);
+      const strips = tableRowPngs(image, g.table, sc, false, p.u);
       const parsed = [];
       for (const png of strips) {
         let txt = '';
@@ -983,13 +1227,47 @@ async function readProcessingPanels(image, worker, panels, words, W, H) {
     const letterRows = voteProcessingRows(reads);
     const digitTexts = [];
     const digitReads = [];
-    if (g.table && letterRows.length) {
+    // The rows are the bands the table was cut into — not the rows the text happened to parse
+    // as. A band whose text came out as garbage still has its numbers read cell by cell, and
+    // its name is read from the name column when no text reading gave one.
+    const stripCounts = {};
+    reads.forEach(r => { if (r.length) stripCounts[r.length] = (stripCounts[r.length] || 0) + 1; });
+    const bandCount = Number(Object.keys(stripCounts).sort((a, b) => stripCounts[b] - stripCounts[a] || b - a)[0] || 0);
+    const bandNames = [];
+    for (let k = 0; k < bandCount; k++) {
+      const votes = {};
+      reads.filter(r => r.length === bandCount).forEach(r => {
+        const nm = r[k].rows[0] && r[k].rows[0].name;
+        if (nm) votes[nm] = (votes[nm] || 0) + 1;
+      });
+      bandNames.push(Object.keys(votes).sort((a, b) => votes[b] - votes[a])[0] || '');
+    }
+    digitTexts.push(`strips per scale: ${reads.map(r => r.length).join(',')}`);
+    if (g.table && bandCount) {
       for (const mult of DIGIT_SCALES) {
-        const grays = tableRowGrays(image, g.table, scale * mult);
-        if (grays.length !== letterRows.length) continue;           // strips don't line up — skip rather than misalign
+        const grays = tableRowGrays(image, g.table, scale * mult, p.u);
+        digitTexts.push(`bands at ${mult}x: ${grays.length}`);
+        if (grays.length !== bandCount) continue;                   // bands don't line up — skip rather than misalign
         const parsed = [];
         for (let k = 0; k < grays.length; k++) {
-          const need = QUALITYLESS.test(letterRows[k].name) ? 3 : 4;
+          if (!bandNames[k]) {
+            // no text reading named this band: read its name column on its own
+            const band = grays[k].band, pxU = p.u * scale * mult;
+            const endX = Math.min(band.w, Math.round((1.2 + NUMBER_COLUMNS_U[0] - 2.3) * pxU));
+            if (endX > 20) {
+              const buf = new Uint8Array(endX * band.h);
+              for (let y = 0; y < band.h; y++) for (let x = 0; x < endX; x++) buf[y * endX + x] = band.v[y * band.w + x];
+              const nameImg = trimToInk({ w: endX, h: band.h, v: buf }, 8);
+              if (nameImg) {
+                let txt = '';
+                try { txt = await ocrRegion(worker, encodeGray(nameImg), '7'); } catch { txt = ''; }
+                const cleaned = txt.replace(/[^A-Za-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+                if (lettersOf(cleaned).length >= 3) bandNames[k] = closestMaterialName(cleaned);
+              }
+            }
+          }
+          if (!bandNames[k]) { digitTexts.push(`${mult}x: (unnamed band ${k})`); parsed.push({ text: '', rows: [] }); continue; }
+          const need = QUALITYLESS.test(bandNames[k]) ? 3 : 4;
           // a long name (Construction Materials) crowds the first number, and those rows read well as text
           const cellImgs = need === 4 ? numberCells(grays[k].band, need, 1.2, p.u, scale * mult) : null;
           let row = null, txt = '';
@@ -1008,7 +1286,7 @@ async function readProcessingPanels(image, worker, panels, words, W, H) {
             txt = nums.join(' ');
             if (nums.every(n => n.length)) {
               const r = interpretProcessingCells(nums.map(n => ({ cands: [Number(n)], clean: true })), need === 4);
-              if (r) row = { name: letterRows[k].name, quality: r.quality, yield: r.yield, todo: r.todo, done: r.done, clean: r.clean, fromDigits: true };
+              if (r) row = { name: bandNames[k], quality: r.quality, yield: r.yield, todo: r.todo, done: r.done, clean: r.clean, fromDigits: true };
             }
           }
           digitTexts.push(`${mult}x: ${txt}`);
@@ -1108,7 +1386,7 @@ async function readFrame(image, worker) {
     if (firstText === null) firstText = text;
     const w = flattenWords(full.data).map(x => (f === 1 ? x : { text: x.text, x0: x.x0 / f, y0: x.y0 / f, x1: x.x1 / f, y1: x.y1 / f }));
     const anchor = findTableAnchor(w);
-    const panels = anchor ? [] : findProcessingPanels(w);
+    const panels = anchor ? [] : allProcessingPanels(w);
     if (anchor || panels.length || !words.length) { fullText = text; words = w; t = anchor; procPanels = panels; }
     if (anchor || panels.length) break;
     // not a refinery screen at all (map, inventory, desktop…) — don't burn time
@@ -1168,6 +1446,37 @@ async function readFrame(image, worker) {
       tableRows = voteRows(reads);
       regionTexts.table = texts.join('\n--\n');
     }
+    // Number-by-number pass (see readSetupTableCells). It wins when it finds at least as many
+    // rows as the text reading did — a dropped row is the worse mistake, and every number in it
+    // was read alone with only digits allowed.
+    try {
+      const refineX = (name) => { const w = words.find(x => lettersOf(x.text) === name && Math.abs(x.y0 - t.top) <= t.hh * 1.2 && x.x0 > t.left); return w ? (w.x0 + w.x1) / 2 : null; };
+      const hq = refineX('quality'), hn = refineX('qty'), hy = refineX('yield');
+      const colCenters = (hq && hn && hy && hq < hn && hn < hy) ? [hq, hn, hy]
+        : [t.left + 17.5 * t.u, t.left + 22.3 * t.u, t.left + 27.2 * t.u];
+      const cellRead = await readSetupTableCells(image, worker, rects.table, { u: t.u, scale, colCenters });
+      if (cellRead && cellRead.rows) {
+        regionTexts.cells = cellRead.debug;
+        if (cellRead.rows.length && cellRead.rows.length >= tableRows.length) {
+          // A digits-only read is best at telling 6/8/9 apart but sometimes loses a faint digit
+          // outright ("21" for "521"). Where the text reading of the same row (same ore, two
+          // numbers equal) has that number with extra digits, those digits are taken back.
+          const isSubseq = (a, b) => { let i = 0; for (const ch of b) if (ch === a[i]) i++; return i === a.length; };
+          for (const row of cellRead.rows) {
+            const twin = tableRows.find(t2 => t2.name === row.name &&
+              ((t2.quality === row.quality) + (t2.qty === row.qty) + (t2.yield === row.yield)) >= 2);
+            if (!twin) continue;
+            for (const k of ['quality', 'qty', 'yield']) {
+              if (twin[k] !== row[k]) {
+                if (twin[k].length > row[k].length && isSubseq(row[k], twin[k])) row[k] = twin[k];
+                row.clean = false;
+              }
+            }
+          }
+          tableRows = cellRead.rows;
+        }
+      }
+    } catch (e) { regionTexts.cells = 'cell pass failed: ' + (e && e.message || e); }
     // The dropdown is white text inside an outlined box; the outline and the chevron
     // are what confuse a single-line read, so also try just the text area, and a
     // hard black-and-white version of both.
@@ -1176,14 +1485,36 @@ async function readFrame(image, worker) {
       ['7', scale, false, inner], ['7', scale, true, inner], ['7', scale], ['6', scale], ['7', scale, true],
       ['7', scale * 0.75, false, inner], ['7', scale * 1.3, true, inner], ['11', scale], ['7', scale * 0.75],
     ], txt => !!methodFromRegion(txt));
-    regionTexts.title = await firstUsable(rects.title,
-      [['7', scale], ['6', scale], ['7', scale * 0.75]], txt => !!plausibleStation(locationFromRegion(txt)));
-    if (!plausibleStation(locationFromRegion(regionTexts.title)) && ta && ta.c) {
-      // fall back to where the "REFINEMENT CENTER" landmark says the title row is
-      const ch = Math.max(ta.c.y1 - ta.c.y0, 6);
-      const alt = clampRect({ x0: titleX0, y0: ta.c.y0 - 0.4 * ch, x1: ta.refLeft - 0.3 * ch, y1: ta.c.y1 + 1.0 * ch }, W, H);
-      const txt = await firstUsable(alt, [['7', scale], ['6', scale]], x => !!plausibleStation(locationFromRegion(x)));
-      if (plausibleStation(locationFromRegion(txt))) regionTexts.title = txt;
+    // The title row. Its distance above the table shrinks when the screen is seen at an angle,
+    // so the row is also located from the "REFINEMENT CENTER" landmark that shares it, and read
+    // as the biggest text in that band (the small label above it is left out). The first
+    // reading that matches a known station wins; failing that, the first plausible reading.
+    {
+      const titleRects = [];
+      const refW = words.find(w => lettersOf(w.text).startsWith('refinem'));
+      if (ta && refW) {
+        const ch = Math.max(refW.y1 - refW.y0, 6);
+        titleRects.push(clampRect({ x0: titleX0, y0: refW.y0 - 2.4 * ch, x1: ta.refLeft - 0.5 * ch, y1: refW.y1 + 1.2 * ch }, W, H));
+      }
+      titleRects.push(rects.title);
+      let firstPlausible = '', last = '', snappedText = '';
+      scan: for (const rect of titleRects.filter(Boolean)) {
+        for (const sc of [scale, scale * 0.75, scale * 1.3]) {
+          const big = tallestLinePng(image, rect, sc, false, false);
+          const tries = [];
+          if (big) tries.push(() => ocrRegion(worker, big, '7'));
+          tries.push(() => read(rect, '7', sc));
+          for (const attempt of tries) {
+            let txt = '';
+            try { txt = await attempt(); } catch { txt = ''; }
+            if (txt) last = txt;
+            const nm = locationFromRegion(txt);
+            if (snapStation(nm)) { snappedText = txt; break scan; }
+            if (!firstPlausible && plausibleStation(nm)) firstPlausible = txt;
+          }
+        }
+      }
+      regionTexts.title = snappedText || firstPlausible || last;
     }
     if (rects.duration) regionTexts.duration = await read(rects.duration, '6', scale);
     await worker.setParameters({ tessedit_pageseg_mode: '3' });
@@ -1191,7 +1522,9 @@ async function readFrame(image, worker) {
     if (tableRows.length) { materials = tableRows; usedRegions = true; }
     if (regionTexts.method) method = methodFromRegion(regionTexts.method) || method;
     const fromTitle = locationFromRegion(regionTexts.title || '');
-    if (plausibleStation(fromTitle)) location = fromTitle;
+    if (snapStation(fromTitle)) location = snapStation(fromTitle);
+    else if (plausibleStation(fromTitle)) location = fromTitle;
+    else if (snapStation(location)) location = snapStation(location);
     else if (!plausibleStation(location)) location = null;
     if (!duration && regionTexts.duration) duration = extractDuration(regionTexts.duration);
     // the fee sits under the table, so the enlarged table read is the clearest copy of it
@@ -1226,6 +1559,7 @@ async function readFrame(image, worker) {
     await worker.setParameters({ tessedit_pageseg_mode: '3' });
     const dbg = [`[full frame ${W}x${H} — running jobs: ${procPanels.length} work order(s)]`, fullText.trim(),
       ...Object.entries(proc.regionTexts).map(([k, v]) => `[region: ${k}]\n${v}`)].join('\n\n');
+    if (snapStation(station)) station = snapStation(station);
     return { kind: 'processing', workOrders: proc.workOrders, location: plausibleStation(station) ? station : null,
       method: null, duration: null, cost: null, materials: [], usedRegions: true, anchor: null, rawText: dbg };
   }
@@ -1238,8 +1572,8 @@ async function readFrame(image, worker) {
 module.exports = {
   REFINERY_METHODS, KNOWN_MATERIALS, parseRefineryOcrText, readFrame, mergeRows,
   // exposed for tests
-  parseTableText, voteRows, extractTotalCost, methodFromRegion,
-  findProcessingPanels, parseProcessingRows, parseRemaining, parseFooterYield, closestMaterialName, voteProcessingRows, mergeWorkOrders,
+  parseTableText, finalizeTableRows, readSetupTableCells, snapStation, voteRows, extractTotalCost, methodFromRegion,
+  findProcessingPanels, findProcessingPanelsByLabels, allProcessingPanels, parseProcessingRows, parseRemaining, parseFooterYield, closestMaterialName, voteProcessingRows, mergeWorkOrders,
   grayRegion, wipeRules, trimToInk, cleanLinePng, tallestLinePng, tableRowPngs, encodeGray,
   tableRowGrays, numberCells, sharpenGray, stretchGray, padGray, locationFromRegion, plausibleStation, findTableAnchor, findTitleAnchor, numberCandidates,
 };
