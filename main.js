@@ -337,6 +337,48 @@ ipcMain.handle('store:setJobs', (_, jobs) => { store.set('jobs', jobs); });
 ipcMain.handle('store:get', (_, key, def) => { const v = store.get(key); return v !== undefined ? v : (def !== undefined ? def : null); });
 ipcMain.handle('store:set', (_, key, val) => { store.set(key, val); });
 
+// ─── Price source: UEX Corp (default) or SC Trade Tools ───────────────────────────
+// The renderer asks the same handlers either way; with priceSource = 'sctrader' they
+// answer from SC Trade Tools' community feed, shaped like UEX rows (see sctrade-prices.js).
+const sctrade = require('./sctrade-prices');
+let sctFeed = null;
+let uexLists = null;     // UEX commodity + terminal lists, used to resolve SC Trade Tools names
+let sctRows = null;      // { key, rows } — the feed as UEX-shaped rows
+
+const usingSctrade = () => store.get('priceSource') === 'sctrader';
+
+async function getUexLists() {
+  if (uexLists && Date.now() - uexLists.at < 60 * 60 * 1000) return uexLists;
+  const [c, t] = await Promise.all([
+    fetchJson('https://api.uexcorp.space/2.0/commodities'),
+    fetchJson('https://api.uexcorp.space/2.0/terminals?type=commodity'),
+  ]);
+  uexLists = {
+    at: Date.now(),
+    commodities: (c.data || []).filter(x => x.is_available && x.is_visible && !x.is_buggy),
+    terminals: (t.data || []).filter(x => x.is_available),
+  };
+  return uexLists;
+}
+
+async function getSctradeRows() {
+  if (!sctFeed) {
+    sctFeed = new sctrade.SctFeed({ cachePath: path.join(app.getPath('userData'), 'sctrade-feed.json'), version: CURRENT_VERSION });
+  }
+  await sctFeed.ensureFresh();                 // at most hourly (the server caches 60 min); stale data beats none
+  const lists = await getUexLists();
+  const key = `${sctFeed.fetchedAt}:${sctFeed.latest.size}:${lists.at}`;
+  if (!sctRows || sctRows.key !== key) {
+    sctRows = { key, rows: sctrade.entriesToRows(sctFeed.entries(), sctrade.buildResolvers(lists.commodities, lists.terminals)) };
+  }
+  return sctRows.rows;
+}
+
+ipcMain.handle('prices:sourceInfo', () => {
+  const info = sctFeed ? sctFeed.info() : { fetchedAt: 0, entries: 0 };
+  return { source: usingSctrade() ? 'sctrader' : 'uex', ...info };
+});
+
 // ─── IPC: UEX Corp API ────────────────────────────────────────────────────────
 ipcMain.handle('api:getCommodities', async () => {
   try {
@@ -450,6 +492,11 @@ ipcMain.handle('api:getShipLoadout', async (_, slug) => {
 
 ipcMain.handle('api:getCommodityPrices', async (_, { id, type }) => {
   try {
+    if (usingSctrade()) {
+      const dir = type === 'buy' ? 'price_buy' : 'price_sell';
+      const rows = await getSctradeRows();
+      return { status: 'ok', data: rows.filter(r => String(r.id_commodity) === String(id) && r[dir] > 0) };
+    }
     return await fetchJson(
       `https://api.uexcorp.space/2.0/commodities_prices?id_commodity=${id}&type=${type || 'sell'}`
     );
@@ -469,6 +516,10 @@ ipcMain.handle('api:getTerminals', async () => {
 
 ipcMain.handle('api:getTerminalPrices', async (_, { id_terminal }) => {
   try {
+    if (usingSctrade()) {
+      const rows = await getSctradeRows();
+      return { status: 'ok', data: rows.filter(r => String(r.id_terminal) === String(id_terminal)) };
+    }
     return await fetchJson(
       `https://api.uexcorp.space/2.0/commodities_prices?id_terminal=${id_terminal}`
     );
@@ -479,6 +530,7 @@ ipcMain.handle('api:getTerminalPrices', async (_, { id_terminal }) => {
 
 ipcMain.handle('api:getBulkPrices', async () => {
   try {
+    if (usingSctrade()) return { status: 'ok', rows: await getSctradeRows() };
     // Try a single unfiltered call first — returns all buy+sell records
     const all = await fetchJson('https://api.uexcorp.space/2.0/commodities_prices');
     const rows = all.data || [];
@@ -498,6 +550,10 @@ ipcMain.handle('api:getBulkPrices', async () => {
 
 ipcMain.handle('api:getCommodityPricesBatch', async (_, { ids }) => {
   try {
+    if (usingSctrade()) {
+      const want = new Set((ids || []).map(String));
+      return { status: 'ok', rows: (await getSctradeRows()).filter(r => want.has(String(r.id_commodity))) };
+    }
     const results = await Promise.all(
       ids.map(id => fetchJson(`https://api.uexcorp.space/2.0/commodities_prices?id_commodity=${id}`))
     );
@@ -666,6 +722,8 @@ ipcMain.handle('refinery:captureAndParse', async () => {
     let method = null;
     let duration = null;
     let location = null;
+    let cost = null;
+    let processing = null;     // running work orders, when the screen shown is the PROCESSING one
     let capturedWindow = true;
     const materials = [];
     const rawTexts = []; // kept so the renderer can log/inspect actual OCR output when extraction misses
@@ -687,7 +745,7 @@ ipcMain.handle('refinery:captureAndParse', async () => {
     // was read from it — set now (before the slow part) so even a crash while reading
     // leaves something to attach.
     try {
-      const first = encodeShot(frames[0]);
+      const first = encodeShot(frames[0], 3840);
       bugLastCapture = { at: Date.now(), jpeg: first, thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
         text: 'Capture started; reading did not finish.', summary: null };
     } catch { bugLastCapture = null; }
@@ -699,9 +757,17 @@ ipcMain.handle('refinery:captureAndParse', async () => {
     for (let i = 0; i < distinct.length; i++) {
       progress({ phase: 'reading', current: i + 1, total: distinct.length });
       const frame = await refineryOcr.readFrame(distinct[i], worker);
+      if (frame.kind === 'processing') {
+        processing = refineryOcr.mergeWorkOrders(processing, frame);
+        rawTexts.push(frame.rawText);
+        const n = frame.workOrders.reduce((k, w) => k + w.rows.length, 0);
+        if (n * 4 > captureShotState.bestScore) captureShotState = { bestIdx: i, bestScore: n * 4 };
+        continue;
+      }
       if (!method && frame.method) method = frame.method;
       if (!duration && frame.duration) duration = frame.duration;
       if (!location && frame.location) location = frame.location;
+      if (cost == null && frame.cost != null) cost = frame.cost;
       refineryOcr.mergeRows(materials, frame.materials);
       rawTexts.push(frame.rawText);
       // the frame that yielded the most is the most useful one to show in a report
@@ -709,8 +775,10 @@ ipcMain.handle('refinery:captureAndParse', async () => {
       if (score > captureShotState.bestScore) captureShotState = { bestIdx: i, bestScore: score };
     }
     try {
-      const best = encodeShot(distinct[captureShotState.bestIdx]);
-      const summary = { method, duration, location, materials: materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
+      const best = encodeShot(distinct[captureShotState.bestIdx], 3840);
+      const summary = processing
+        ? { kind: 'processing', location: processing.location, workOrders: processing.workOrders.map(w => ({ index: w.index, remainingSeconds: w.remainingSeconds, rows: w.rows.map(r => `${r.name} q${r.quality}/y${r.yield}`) })) }
+        : { method, duration, location, cost, materials: materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
       bugLastCapture = { at: Date.now(), jpeg: best, thumb: thumbDataUrl(nativeImage.createFromBuffer(best)), summary,
         text: `Parsed: ${JSON.stringify(summary)}\n\n` + rawTexts.map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`).join('\n\n') };
     } catch { /* attaching is a convenience */ }
@@ -725,7 +793,11 @@ ipcMain.handle('refinery:captureAndParse', async () => {
       fs.writeFileSync(debugPath, debugContents, 'utf8');
     } catch { /* debug file is a convenience, never block the capture on it */ }
 
-    return { status: 'ok', capturedWindow, method, duration, location,
+    if (processing && processing.workOrders.length) {
+      return { status: 'ok', kind: 'processing', capturedWindow, location: processing.location,
+        workOrders: processing.workOrders, rawTexts, debugPath };
+    }
+    return { status: 'ok', kind: 'setup', capturedWindow, method, duration, location, cost,
       materials: materials.map(({ name, quality, yield: y }) => ({ name, quality, yield: y })), rawTexts, debugPath };
   } catch (e) {
     if (bugLastCapture) bugLastCapture.text = `Capture failed while reading: ${e.message}`;
@@ -786,9 +858,11 @@ const JPEG_DATA_PREFIX = 'data:image/jpeg;base64,';
 let bugViewShot = null;      // { image: nativeImage, tab, at } — kept in memory only
 let bugLastCapture = null;   // { at, jpeg, thumb, text, summary }
 
-function encodeShot(img) {
+// maxWidth: window snapshots are plenty at 2560; a refinery capture keeps up to 3840 so a 4K
+// player's report still carries the detail the reader had to work with.
+function encodeShot(img, maxWidth = 2560) {
   let im = img;
-  if (im.getSize().width > 2560) im = im.resize({ width: 2560, quality: 'best' });
+  if (im.getSize().width > maxWidth) im = im.resize({ width: maxWidth, quality: 'best' });
   for (const q of [88, 72, 55]) {
     const buf = im.toJPEG(q);
     if (buf.length <= MAX_ATTACH_BYTES) return buf;
@@ -930,7 +1004,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['jobs', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['jobs', 'jobHistory', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -938,6 +1012,7 @@ const VK_RE = /^[0-9a-fA-F]{2}$/;
 
 function validateImport(data) {
   if (data.jobs !== undefined && !Array.isArray(data.jobs)) return 'jobs must be an array';
+  if (data.jobHistory !== undefined && !Array.isArray(data.jobHistory)) return 'jobHistory must be an array';
   if (data.craftInventory !== undefined && !Array.isArray(data.craftInventory)) return 'craftInventory must be an array';
   if (data.craftAssets !== undefined && !Array.isArray(data.craftAssets)) return 'craftAssets must be an array';
   if (data.craftShips !== undefined && !Array.isArray(data.craftShips)) return 'craftShips must be an array';

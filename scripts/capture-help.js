@@ -42,6 +42,16 @@ function demoData() {
       { id: 'demo2', ores: ['Titanium'], qualities: ['874'], yields: ['150'], method: 'Cormack Method',
         location: 'CRU-L1 Ambitious Dream', startTime: now - 5 * H, durationSeconds: 2 * 3600, notes: 'Collect on the way back' },
     ],
+    jobHistory: [
+      { id: 'h4', deliveredAt: now - 1 * 864e5, ores: ['Quantainium'], yields: ['210'], method: 'Dinyx Solventation', location: 'ARC-L1 Wide Forest',
+        durationSeconds: 3 * 3600, outCSCU: 210, gross: 357000, cost: 880, costKnown: true, costEstimated: false, net: 356120 },
+      { id: 'h3', deliveredAt: now - 2 * 864e5, ores: ['Gold', 'Titanium'], yields: ['300', '450'], method: 'Cormack Method', location: 'CRU-L1 Ambitious Dream',
+        durationSeconds: 2 * 3600, outCSCU: 750, gross: 128400, cost: 640, costKnown: true, costEstimated: false, net: 127760 },
+      { id: 'h2', deliveredAt: now - 4 * 864e5, ores: ['Laranite'], yields: ['500'], method: 'Dinyx Solventation', location: 'HUR-L1 Green Glade',
+        durationSeconds: 2.5 * 3600, outCSCU: 500, gross: 46000, cost: 410, costKnown: true, costEstimated: false, net: 45590 },
+      { id: 'h1', deliveredAt: now - 6 * 864e5, ores: ['Iron'], yields: ['736'], method: 'Ferron Exchange', location: 'MIC-L5 Modern Icarus',
+        durationSeconds: 1.3 * 3600, outCSCU: 736, gross: 29440, cost: 415, costKnown: true, costEstimated: false, net: 29025 },
+    ],
     craftInventory: [
       { name: 'Iron', quality: '852', qty: '1', unit: '1', location: 'Lorville' },
       { name: 'Iron', quality: '852', qty: '1', unit: '1', location: 'Lorville' },
@@ -175,7 +185,7 @@ const ANNOTATE = `(points) => {
   const demo = demoData();
   await ev(`(async () => { const d = ${JSON.stringify(demo)};
     await api.setJobs(d.jobs);
-    for (const k of ['craftInventory','craftShips','craftAssets','language','hoverHints','refineryCaptureMode']) await api.setStore(k, d[k]);
+    for (const k of ['craftInventory','craftShips','craftAssets','jobHistory','language','hoverHints','refineryCaptureMode']) await api.setStore(k, d[k]);
   })()`);
   await ev('location.reload()');
   await sleep(3000);

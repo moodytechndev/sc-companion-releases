@@ -53,16 +53,19 @@ const HELP_SECTIONS = [
     intro: [
       'Track every refinery job with a live countdown, get a desktop notification when it finishes, and record exactly what you collected so it lands in your inventory.',
     ],
-    shots: ['refinery-jobs', 'refinery-add', 'refinery-deliver', 'refinery-bonuses'],
+    shots: ['refinery-jobs', 'refinery-add', 'refinery-import', 'refinery-deliver', 'refinery-bonuses', 'refinery-profit'],
     howto: [
       '**Start a job:** + Add Refinery Job → add the ore(s), pick the method, enter the duration shown on the in-game terminal, set the location, then Start Timer.',
       '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. It takes four shots in quick succession (scroll the list while the button counts if it is long), then reads them and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
+      '**Bring in jobs that are already running:** open the terminal\'s PROCESSING screen (the one with a panel per work order) and click 📷 Capture. A dialog lists each work order with its materials, quality, yield and time left. Jobs the app already tracks are recognised and left unticked; tick or untick the rest, fix any highlighted number, then Import.',
       '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory.',
       '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material.',
+      '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison.',
     ],
     tips: [
       'Refining Construction Rubble, Pieces or Salvage produces **Construction Materials** — the delivery window shows this and saves it under the refined name.',
       'Quality and expected yield are optional when starting a job, but entering them pre-fills a suggested box breakdown when you collect.',
+      'The profit figures use today\'s best sell price of the refined material, less the **refinery fee** (the TOTAL COST on the terminal — Capture reads it, or type it into the job). With no fee entered the card shows the value "before the refinery fee"; after two delivered jobs with a known fee for a method, the fee is estimated from them and marked "est.".',
     ],
   },
   {
@@ -152,6 +155,7 @@ const HELP_SECTIONS = [
     shots: ['settings-top', 'settings-bottom'],
     tips: [
       '**Backup & Restore:** Export saves jobs, inventory, assets, ships, blueprint ownership and settings to one file; Import loads it back (overwriting what is there).',
+      '**Price Data Source:** UEX Corp (default) or SC Trade Tools, a community-reported feed. SC Trade Tools covers fewer stations and refreshes about hourly, so a quiet station can show no prices; the logo at the top right of the Prices tab shows which source you are on (click it to open that site).',
       '**Game Log Path:** points the app at Star Citizen\'s Game.log so it can notice where you are. It is found automatically in the default install location.',
       '**Report a Bug:** sends your text, the app version and your OS to the developer. You can also attach a screenshot of the screen you were on, the last refinery capture, a fresh grab of the game window, or your own images — each one is previewed first, and nothing is attached unless you tick or add it.',
     ],
@@ -236,7 +240,7 @@ const HELP_SHOTS = {
     file: 'refinery-jobs.webp', title: 'Active jobs', viewport: { w: 440, h: 700 },
     setup: "switchTab('refinery'); switchRefineryView('jobs');",
     points: [
-      { sel: '#refinery-chips', text: '**Active Jobs** or **Station Bonuses**.' },
+      { sel: '#refinery-chips', text: '**Active Jobs**, **Station Bonuses** or **Profit**.' },
       { sel: '#panel-refinery .panel-header button', contains: 'Add Refinery Job', text: '**+ Add Refinery Job** — start tracking a new job.' },
       { sel: '#capture-job-btn', text: '**📷 Capture** (experimental) — reads the in-game job screen and pre-fills the form.' },
       { sel: '#jobs-list .card:not(.ready)', text: '**A running job.** Ore, location, method, a progress bar and the time left.' },
@@ -253,8 +257,22 @@ const HELP_SHOTS = {
       { sel: '#ore-rows', text: '**Ore / materials.** Type or pick each one, with its quality (0–100) and expected yield in cSCU. Add more rows with **+ Add Ore**.' },
       { sel: '#job-method', text: '**Refinery method** used for the job.' },
       { sel: '#job-h', text: '**Duration** — copy the time shown on the in-game terminal.' },
+      { sel: '#job-cost', text: '**Refinery fee** (optional) — the TOTAL COST shown on the terminal. Capture fills it in; it is what the profit estimate subtracts.' },
       { sel: '#job-location', text: '**Station** where the job is running.' },
       { sel: '#modal-submit', text: '**Start Timer** — creates the job and begins the countdown.' },
+    ],
+  },
+
+  'refinery-import': {
+    file: 'refinery-import.webp', title: 'Importing running jobs', viewport: { w: 440, h: 800 },
+    setup: "switchTab('refinery'); openImportJobs({ location: 'Orbituary', workOrders: [ { index: 1, remainingSeconds: 66900, progress: 0.844, rows: [ { name: 'Iron', quality: 325, yield: 355, clean: true }, { name: 'Iron', quality: 907, yield: 63, clean: false }, { name: 'Titanium', quality: 516, yield: 5, clean: true }, { name: 'Aslarite', quality: 287, yield: 64, clean: true } ] }, { index: 2, remainingSeconds: 78060, progress: 0.039, rows: [ { name: 'Construction Materials', quality: null, yield: 15240, clean: true } ] } ] }); await new Promise(r => setTimeout(r, 300));",
+    after: "closeImportJobs();",
+    points: [
+      { sel: '#import-jobs-location', text: '**Station** the jobs are running at — filled in from the terminal when it is read.' },
+      { sel: '#import-jobs-list > div:first-child', text: '**One card per running work order.** Tick the ones to bring in; jobs the app already tracks show "Already in your jobs" and start unticked.' },
+      { sel: '.import-rem-h', text: '**Time left** — read from the terminal; correct it if it looks wrong.' },
+      { sel: '.import-q', nth: 1, text: '**Quality and yield** per material. A number the reader was not sure of is highlighted — check it against the terminal.' },
+      { sel: '#import-jobs-btn', text: '**Import** adds the ticked work orders as running jobs, with the progress they have already made.' },
     ],
   },
 
@@ -277,6 +295,20 @@ const HELP_SHOTS = {
     points: [
       { sel: '#station-select', text: '**Choose a station.**' },
       { sel: '#bonuses-list > *', text: '**Each material** with that station\'s yield bonus or penalty, best first. Use it to decide where to refine a given ore.' },
+    ],
+  },
+
+  'refinery-profit': {
+    file: 'refinery-profit.webp', title: 'Profit', viewport: { w: 440, h: 800 },
+    setup: "switchTab('refinery'); switchRefineryView('profit'); await new Promise(r => setTimeout(r, 2500)); renderProfit();",
+    after: "switchRefineryView('jobs');",
+    wait: 1500,
+    points: [
+      { sel: '#refinery-chips .chip:nth-child(3)', text: '**Profit** — estimates for your jobs.' },
+      { sel: '#profit-body > div:first-child', text: '**Totals** for delivered jobs: how many, net profit after fees, aUEC per refinery hour, and the best method so far.' },
+      { sel: '[data-profit="live"]', at: 'tr', text: '**In progress or waiting** — what your running jobs are worth right now.' },
+      { sel: '[data-profit="methods"]', at: 'tr', text: '**By refining method** — average net per job and per hour, to see which method pays best for you.' },
+      { sel: '[data-profit="history"]', at: 'tr', text: '**History** — each delivered job with its sold value and fee. Estimates are recorded at the moment you deliver.' },
     ],
   },
 

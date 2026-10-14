@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('api', {
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  getPriceSourceInfo: () => ipcRenderer.invoke('prices:sourceInfo'),
   reportBug: (description, extras) => ipcRenderer.invoke('bug:report', { description, ...(extras || {}) }),
   bugSnapshotWindow: (tab) => ipcRenderer.invoke('bug:snapshotWindow', tab),
   bugGetAttachables: () => ipcRenderer.invoke('bug:getAttachables'),

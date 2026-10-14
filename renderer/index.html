@@ -344,7 +344,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <span class="logo">⬡ SC Companion</span>
     <span class="spacer"></span>
     <button onclick="api.minimize()" title="Minimize">─</button>
-    <button class="btn-close" onclick="api.close()" title="Hide  (Alt+S to restore)">✕</button>
+    <button class="btn-close" onclick="api.close()" title="Hide  (press your show/hide key — Insert by default — to bring it back)">✕</button>
   </div>
   <!-- ── Update banner ── -->
   <div id="update-banner" style="display:none;align-items:center;gap:8px;padding:5px 12px;background:rgba(0,170,255,0.12);border-bottom:1px solid rgba(0,170,255,0.3);font-size:11px">
@@ -472,6 +472,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div class="filter-chips" id="refinery-chips">
           <div class="chip active" onclick="switchRefineryView('jobs',this)">Active Jobs</div>
           <div class="chip" onclick="switchRefineryView('bonuses',this)" data-i18n="mining.stationBonuses">Station Bonuses</div>
+          <div class="chip" onclick="switchRefineryView('profit',this)">Profit</div>
         </div>
       </div>
       <!-- Jobs view -->
@@ -486,6 +487,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <div class="lbl"><span data-i18n="refinery.empty.line1">No active refinery jobs.</span><br><span data-i18n="refinery.empty.line2">Add one to start tracking.</span></div>
           </div>
         </div>
+      </div>
+      <!-- Profit view -->
+      <div id="refinery-view-profit" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div class="scroll-area" id="profit-body"></div>
       </div>
       <!-- Station Bonuses view -->
       <div id="refinery-view-bonuses" style="display:none;flex-direction:column;flex:1;min-height:0">
@@ -528,9 +533,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <!-- PRICES -->
     <div class="panel" id="panel-prices">
       <div class="panel-header">
-        <div class="filter-chips" id="prices-view-chips" style="margin-top:0;margin-bottom:4px">
-          <div class="chip active" onclick="switchPricesView('commodity',this)">Commodity</div>
-          <div class="chip" onclick="switchPricesView('station',this)">Station</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;min-height:26px">
+          <div class="filter-chips" id="prices-view-chips" style="margin:0">
+            <div class="chip active" onclick="switchPricesView('commodity',this)">Commodity</div>
+            <div class="chip" onclick="switchPricesView('station',this)">Station</div>
+          </div>
+          <a id="price-source-logo" href="#" onclick="openPriceSourceSite();return false" style="display:flex;align-items:center;flex-shrink:0;text-decoration:none"></a>
         </div>
         <div id="com-search-bar" class="search-bar">
           <span class="ico">🔍</span>
@@ -783,13 +791,13 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         </div>
         <div class="setting-row">
           <div>
-            <div class="setting-label">Price Data Source <span style="font-size:9px;font-weight:700;color:var(--warn);background:rgba(255,180,0,0.15);border:1px solid var(--warn);border-radius:3px;padding:1px 5px;vertical-align:middle;letter-spacing:0.04em">COMING SOON</span></div>
-            <div class="setting-desc">SC Trader integration in development — UEX Corp active</div>
+            <div class="setting-label">Price Data Source</div>
+            <div class="setting-desc" id="price-source-desc">UEX Corp — live prices for every commodity terminal</div>
           </div>
-          <select id="price-source-select" disabled
-            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-dim);font-size:12px;font-weight:700;outline:none;opacity:0.5;cursor:not-allowed">
+          <select id="price-source-select" onchange="savePriceSource()"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
             <option value="uex">UEX Corp</option>
-            <option value="sctrader">SC Trader</option>
+            <option value="sctrader">SC Trade Tools</option>
           </select>
         </div>
 
@@ -876,8 +884,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div style="margin-top:16px;padding:12px;background:var(--bg-card);border-radius:var(--r);border:1px solid var(--border)">
           <div style="font-size:10px;color:var(--text-dim);line-height:1.6">
             <span style="font-weight:700;color:var(--text)">Prices via </span>
-            <span style="color:var(--accent)">UEX Corp</span> — community-maintained Star Citizen trade data.<br>
-            Press <span style="color:var(--accent)">Alt+S</span> to toggle this overlay from inside the game.
+            <span id="prices-via"><span style="color:var(--accent)">UEX Corp</span> — community-maintained Star Citizen trade data.</span><br>
+            Press your show/hide key (<span style="color:var(--accent)">Insert</span> by default, changeable above) to toggle this overlay from inside the game.
           </div>
         </div>
 
@@ -1055,6 +1063,24 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 </div>
 
 <!-- ── Deliver Job Modal ── -->
+<div id="import-jobs-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
+  <div class="modal" style="max-height:90vh;display:flex;flex-direction:column">
+    <h3>📥 Import running jobs</h3>
+    <p id="import-jobs-intro" style="font-size:12px;color:var(--text-dim);margin-bottom:10px"></p>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:11px;color:var(--text-dim);flex-shrink:0">Station</span>
+      <select id="import-jobs-location" style="flex:1;min-width:0;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none"></select>
+    </div>
+    <div id="import-jobs-list" style="overflow-y:auto;flex:1;min-height:0"></div>
+    <div id="import-jobs-msg" style="font-size:11px;color:var(--danger);min-height:14px;margin-top:6px"></div>
+    <div class="modal-actions" style="margin-top:8px">
+      <button class="btn" id="import-jobs-btn" style="flex:1" onclick="importSelectedJobs()">Import</button>
+      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeImportJobs()">Cancel</button>
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:8px">The terminal text is small, so check the highlighted numbers. <a href="#" style="color:var(--accent)" onclick="reportImportProblem();return false">Report a problem with this capture</a></div>
+  </div>
+</div>
+
 <div id="deliver-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal">
     <h3 data-i18n="modal.deliver.title">📦 Collect from Refinery</h3>
@@ -1160,6 +1186,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <input type="number" id="job-s" min="0" max="59" placeholder="0" style="width:72px">
         <span class="duration-lbl">s</span>
       </div>
+    </div>
+    <div class="form-group">
+      <label>Refinery fee (aUEC) <span style="font-weight:400;color:var(--text-dim)">— optional; Capture reads it from the screen</span></label>
+      <input type="number" id="job-cost" min="0" step="1" placeholder="e.g. 415" style="width:140px">
     </div>
     <div class="form-group">
       <label data-i18n="modal.addJob.location">Location</label>
@@ -1851,14 +1881,19 @@ async function init() {
 
   // Pre-load inventory so startup price prefetch knows what to fetch
   craftInventory = (await api.getStore('craftInventory', [])) || [];
+  jobHistory = (await api.getStore('jobHistory', [])) || [];
 
   // Restore persisted price data so Prices/Inventory tabs show values instantly
-  const [savedProfits, savedPrices] = await Promise.all([
+  const [savedProfits, savedPrices, savedSource, activeSource] = await Promise.all([
     api.getStore('profitCache', {}),
     api.getStore('priceCache', {}),
+    api.getStore('priceCacheSource', 'uex'),
+    api.getStore('priceSource', 'uex'),
   ]);
-  Object.assign(profitCache, savedProfits || {});
-  Object.assign(priceCache,  savedPrices  || {});
+  if ((savedSource || 'uex') === (activeSource || 'uex')) {
+    Object.assign(profitCache, savedProfits || {});
+    Object.assign(priceCache,  savedPrices  || {});
+  }
 
   document.querySelectorAll('.tab').forEach(t =>
     t.addEventListener('click', () => switchTab(t.dataset.tab))
@@ -2097,10 +2132,12 @@ function switchRefineryView(view, chipEl) {
   const chips = document.querySelectorAll('#refinery-chips .chip');
   chips.forEach(c => c.classList.remove('active'));
   if (chipEl) chipEl.classList.add('active');
-  else chips[view === 'jobs' ? 0 : 1]?.classList.add('active');
+  else chips[{ jobs: 0, bonuses: 1, profit: 2 }[view] ?? 0]?.classList.add('active');
   document.getElementById('refinery-view-jobs').style.display    = view === 'jobs'    ? 'flex' : 'none';
   document.getElementById('refinery-view-bonuses').style.display = view === 'bonuses' ? 'flex' : 'none';
+  document.getElementById('refinery-view-profit').style.display  = view === 'profit'  ? 'flex' : 'none';
   if (view === 'bonuses') renderBonuses();
+  if (view === 'profit') renderProfit();
 }
 
 function renderBonuses() {
@@ -2332,6 +2369,7 @@ function openEditJob(id) {
   document.getElementById('job-method').value   = job.method === 'Custom' ? '' : (job.method || '');
   document.getElementById('job-location').value = job.location || '';
   document.getElementById('job-notes').value    = job.notes || '';
+  document.getElementById('job-cost').value     = job.cost != null ? job.cost : '';
 
   const remaining = Math.max(0, job.durationSeconds - (Date.now() - job.startTime) / 1000);
   document.getElementById('job-h').value = Math.floor(remaining / 3600) || '';
@@ -2346,7 +2384,7 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('show');
   editingJobId = null;
   resetOreRows();
-  ['job-location','job-notes'].forEach(id => { document.getElementById(id).value = ''; });
+  ['job-location','job-notes','job-cost'].forEach(id => { document.getElementById(id).value = ''; });
   ['job-h','job-m','job-s'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('job-method').value = '';
   document.getElementById('modal-title').textContent = t('modal.addJob.title');
@@ -2363,6 +2401,8 @@ function addJob() {
   const m = parseInt(document.getElementById('job-m').value) || 0;
   const s = parseInt(document.getElementById('job-s').value) || 0;
   const notes    = document.getElementById('job-notes').value.trim();
+  const costRaw  = document.getElementById('job-cost').value.trim();
+  const cost     = costRaw === '' ? null : Math.max(0, parseFloat(costRaw) || 0);
 
   if (!ores.length) { document.querySelector('#ore-rows .ore-input')?.focus(); return; }
   const dur = h * 3600 + m * 60 + s;
@@ -2372,13 +2412,13 @@ function addJob() {
     const idx = jobs.findIndex(j => j.id === editingJobId);
     if (idx !== -1) {
       const existing = jobs[idx];
-      jobs[idx] = { ...existing, ores, qualities, yields, method: method || 'Custom', location, notes,
+      jobs[idx] = { ...existing, ores, qualities, yields, method: method || 'Custom', location, notes, cost,
         startTime: Date.now() - (existing.durationSeconds - dur) * 1000,
         durationSeconds: dur };
     }
   } else {
     rememberLocation('job', location);
-    jobs.push({ id: Date.now().toString(), ores, qualities, yields, method: method || 'Custom', location, startTime: Date.now(), durationSeconds: dur, notes });
+    jobs.push({ id: Date.now().toString(), ores, qualities, yields, method: method || 'Custom', location, startTime: Date.now(), durationSeconds: dur, notes, cost });
   }
 
   api.setJobs(jobs);
@@ -2433,6 +2473,225 @@ function renderJobs() {
   });
 
   updateStatusBar();
+  ensureJobPrices();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Refinery profit estimates
+// ════════════════════════════════════════════════════════════════════
+// What a job is worth: its output (the yield, in cSCU) × the best current sell price of
+// the refined material, minus the refinery fee. The fee is the "TOTAL COST" on the
+// refinery screen (the capture reads it; it can also be typed in). When a job has no fee,
+// it is estimated from the fees of YOUR delivered jobs with the same method (needs two or
+// more), and labelled as an estimate — UEX has no usable fee data to fall back on.
+// Delivered jobs are kept in jobHistory with the numbers as they were at delivery.
+let jobHistory = [];
+const JOB_HISTORY_MAX = 300;
+
+const fmtMoney = (n) => Math.round(n).toLocaleString();
+const medianOf = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+
+// best current sell price of what an ore refines into
+function outputPriceFor(ore) {
+  const out = refinedOutputName(ore).toLowerCase();
+  const c = commodities.find(x => x.name.toLowerCase() === out);
+  const p = c && profitCache[c.id];
+  return p && p.sell ? { price: p.sell, at: p.sellAt || '', name: c.name } : null;
+}
+
+// the user's own delivered jobs with a real (not estimated) fee → aUEC per output cSCU, by method
+function feePerOutputByMethod() {
+  const by = {};
+  for (const h of jobHistory) {
+    if (h.costKnown && h.outCSCU > 0 && h.cost != null) (by[h.method] = by[h.method] || []).push(h.cost / h.outCSCU);
+  }
+  return by;
+}
+
+function jobFee(job, outCSCU) {
+  if (job.cost != null && job.cost !== '' && Number.isFinite(Number(job.cost))) {
+    return { value: Number(job.cost), known: true, estimated: false };
+  }
+  const samples = feePerOutputByMethod()[job.method];
+  if (samples && samples.length >= 2 && outCSCU > 0) {
+    return { value: medianOf(samples) * outCSCU, known: true, estimated: true };
+  }
+  return { value: null, known: false, estimated: false };
+}
+
+function jobProfit(job) {
+  const ores = jobOres(job);
+  let gross = 0, outCSCU = 0, priced = 0;
+  const unpriced = [];
+  const parts = ores.map((ore, i) => {
+    const cscu = parseInt((job.yields || [])[i]) || 0;
+    outCSCU += cscu;
+    const p = outputPriceFor(ore);
+    const value = p && cscu > 0 ? (cscu / 100) * p.price : null;
+    if (value != null) { gross += value; priced++; }
+    else if (cscu > 0) unpriced.push(ore);
+    return { ore, out: refinedOutputName(ore), cscu, price: p ? p.price : null, at: p ? p.at : '', value };
+  });
+  const fee = jobFee(job, outCSCU);
+  const hours = job.durationSeconds > 0 ? job.durationSeconds / 3600 : 0;
+  const has = priced > 0;
+  const net = has ? gross - (fee.value || 0) : null;
+  return { parts, gross: has ? gross : null, outCSCU, fee, net, perHour: net != null && hours ? net / hours : null, unpriced, hours };
+}
+
+// the one-line estimate on a job card
+function profitLineHTML(job) {
+  const p = jobProfit(job);
+  if (p.gross == null) return '';
+  const tip = p.parts.filter(x => x.cscu > 0).map(x => x.value != null
+    ? `${x.out}: ${(x.cscu / 100).toFixed(2)} SCU × ${fmtMoney(x.price)} = ${fmtMoney(x.value)}${x.at ? ` (best sold at ${x.at})` : ''}`
+    : `${x.out}: no price yet`).join('\n');
+  const dim = (s) => `<span style="color:var(--text-dim)">${s}</span>`;
+  let main;
+  if (p.fee.known) {
+    const col = p.net >= 0 ? 'var(--success)' : 'var(--danger)';
+    main = `<span style="color:${col};font-weight:700">≈ ${fmtMoney(p.net)} aUEC net</span> ` +
+           dim(`(${fmtMoney(p.gross)} − ${fmtMoney(p.fee.value)} fee${p.fee.estimated ? ' est.' : ''})`);
+  } else {
+    main = `<span style="color:var(--success);font-weight:700">≈ ${fmtMoney(p.gross)} aUEC</span> ${dim('before the refinery fee')}`;
+  }
+  const rate = p.perHour != null ? ` ${dim('· ' + fmtMoney(p.perHour) + '/h')}` : '';
+  const miss = p.unpriced.length ? ` ${dim('· ' + p.unpriced.length + ' unpriced')}` : '';
+  return `<div class="job-profit" title="${esc(tip)}" style="font-size:11px;margin-top:6px">💰 ${main}${rate}${miss}</div>`;
+}
+
+// The full price load takes a while (one request per commodity). A job only needs the
+// refined material it produces, so fetch exactly those, once per source, as soon as the job
+// cards are drawn. Nothing here loops: each commodity is asked for once per generation.
+const _jobPriceAsked = new Set();
+async function ensureJobPrices() {
+  const gen = priceGen;
+  const need = [];
+  for (const job of jobs) {
+    for (const ore of jobOres(job)) {
+      const out = refinedOutputName(ore).toLowerCase();
+      const c = commodities.find(x => x.name.toLowerCase() === out);
+      const key = gen + ':' + (c && c.id);
+      if (c && !(profitCache[c.id] && profitCache[c.id].sell) && !_jobPriceAsked.has(key)) {
+        _jobPriceAsked.add(key);
+        need.push(c.id);
+      }
+    }
+  }
+  if (!need.length) return;
+  try {
+    const res = await api.getCommodityPricesBatch(need);
+    if (gen !== priceGen) return;
+    if (res.status === 'ok' && res.rows && res.rows.length && applyPriceRows(res.rows)) refreshPriceViews();
+  } catch {}
+}
+
+// snapshot a job into the history as it is delivered
+function recordJobHistory(job) {
+  const p = jobProfit(job);
+  jobHistory.unshift({
+    id: job.id, deliveredAt: Date.now(), ores: jobOres(job), yields: job.yields || [],
+    method: job.method || 'Custom', location: job.location || '', durationSeconds: job.durationSeconds || 0,
+    outCSCU: p.outCSCU, gross: p.gross, cost: p.fee.value, costKnown: p.fee.known && !p.fee.estimated,
+    costEstimated: p.fee.estimated, net: p.net,
+  });
+  if (jobHistory.length > JOB_HISTORY_MAX) jobHistory.length = JOB_HISTORY_MAX;
+  api.setStore('jobHistory', jobHistory);
+}
+
+let _clearProfitArmed = false;
+function clearProfitHistory() {
+  const btn = document.getElementById('profit-clear-btn');
+  if (!_clearProfitArmed) {
+    _clearProfitArmed = true;
+    if (btn) btn.textContent = 'Click again to clear the history';
+    setTimeout(() => { _clearProfitArmed = false; const b = document.getElementById('profit-clear-btn'); if (b) b.textContent = 'Clear history'; }, 4000);
+    return;
+  }
+  _clearProfitArmed = false;
+  jobHistory = [];
+  api.setStore('jobHistory', jobHistory);
+  renderProfit();
+}
+
+function renderProfit() {
+  const body = document.getElementById('profit-body');
+  if (!body) return;
+  const tile = (label, value, sub) => `
+    <div style="flex:1 1 45%;min-width:0;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)">${label}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-bright);margin-top:2px;font-variant-numeric:tabular-nums">${value}</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:1px">${sub || '&nbsp;'}</div>
+    </div>`;
+  const head = (s, key) => `<div data-profit="${key}" style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">${s}</div>`;
+
+  const hist = jobHistory;
+  const totalNet = hist.reduce((n, h) => n + (h.net || 0), 0);
+  const totalHours = hist.reduce((n, h) => n + (h.durationSeconds || 0) / 3600, 0);
+  const perHour = totalHours > 0 ? totalNet / totalHours : null;
+
+  const byMethod = {};
+  hist.forEach(h => {
+    if (h.net == null) return;
+    const m = byMethod[h.method] = byMethod[h.method] || { jobs: 0, net: 0, hours: 0 };
+    m.jobs++; m.net += h.net; m.hours += (h.durationSeconds || 0) / 3600;
+  });
+  const methods = Object.entries(byMethod).map(([name, m]) => ({ name, ...m, perHour: m.hours > 0 ? m.net / m.hours : null }))
+    .sort((a, b) => (b.perHour || 0) - (a.perHour || 0));
+  const best = methods[0];
+
+  const live = jobs.map(j => ({ job: j, p: jobProfit(j) })).filter(x => x.p.net != null);
+  const liveNet = live.reduce((n, x) => n + x.p.net, 0);
+
+  let html = `<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 10px 0">
+    ${tile('Delivered jobs', hist.length, hist.length ? `${fmtMoney(totalHours)} refinery hours` : '')}
+    ${tile('Net profit', hist.length ? fmtMoney(totalNet) + ' aUEC' : '—', hist.length ? 'estimated, after fees' : '')}
+    ${tile('Per refinery hour', perHour != null ? fmtMoney(perHour) : '—', 'aUEC, delivered jobs')}
+    ${tile('Best method', best ? esc(best.name) : '—', best && best.perHour != null ? fmtMoney(best.perHour) + ' aUEC/h' : '')}
+  </div><div style="padding:0 10px 12px">`;
+
+  html += head(`In progress or waiting${live.length ? ` · ≈ ${fmtMoney(liveNet)} aUEC` : ''}`, 'live');
+  if (!live.length) {
+    html += `<div style="font-size:11px;color:var(--text-dim)">No active job has a yield and a known price yet. Add each ore's yield (cSCU) to a job to see what it is worth.</div>`;
+  } else {
+    html += live.map(({ job, p }) => `
+      <div style="display:flex;justify-content:space-between;gap:8px;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(jobOres(job).join(' + '))}${job.location ? ` <span style="color:var(--text-dim)">· ${esc(job.location)}</span>` : ''}</span>
+        <span style="flex-shrink:0;color:${p.net >= 0 ? 'var(--success)' : 'var(--danger)'};font-weight:700">≈ ${fmtMoney(p.net)}</span>
+      </div>`).join('');
+  }
+
+  if (methods.length) {
+    html += head('By refining method', 'methods');
+    html += `<div style="display:grid;grid-template-columns:1fr 38px 78px 78px;gap:6px;font-size:9px;color:var(--text-dim);text-transform:uppercase;padding:0 8px 3px"><span>Method</span><span style="text-align:right">Jobs</span><span style="text-align:right">Avg net</span><span style="text-align:right">Per hour</span></div>`;
+    html += methods.map(m => `
+      <div style="display:grid;grid-template-columns:1fr 38px 78px 78px;gap:6px;font-size:11px;padding:5px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:3px;font-variant-numeric:tabular-nums">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name)}</span>
+        <span style="text-align:right">${m.jobs}</span>
+        <span style="text-align:right">${fmtMoney(m.net / m.jobs)}</span>
+        <span style="text-align:right;color:var(--success)">${m.perHour != null ? fmtMoney(m.perHour) : '—'}</span>
+      </div>`).join('');
+  }
+
+  html += head('History', 'history');
+  if (!hist.length) {
+    html += `<div style="font-size:11px;color:var(--text-dim)">Nothing yet. When you mark a job as delivered, its estimated profit is recorded here.</div>`;
+  } else {
+    html += hist.slice(0, 60).map(h => `
+      <div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-bright)">${esc((h.ores || []).join(' + '))}</span>
+          <span style="flex-shrink:0;font-weight:700;color:${h.net == null ? 'var(--text-dim)' : h.net >= 0 ? 'var(--success)' : 'var(--danger)'}">${h.net == null ? 'no price' : '≈ ' + fmtMoney(h.net)}</span>
+        </div>
+        <div style="color:var(--text-dim);font-size:10px;margin-top:2px">
+          ${esc(new Date(h.deliveredAt).toLocaleDateString())} · ${esc(h.method)}${h.location ? ' · ' + esc(h.location) : ''}${h.gross != null ? ` · ${fmtMoney(h.gross)} sold${h.cost != null ? ' − ' + fmtMoney(h.cost) + ' fee' + (h.costEstimated ? ' est.' : '') : ' (fee unknown)'}` : ''}
+        </div>
+      </div>`).join('');
+    html += `<button id="profit-clear-btn" class="btn btn-sm" style="margin-top:8px" onclick="clearProfitHistory()">Clear history</button>`;
+  }
+  html += `<div style="font-size:10px;color:var(--text-dim);margin-top:12px;line-height:1.5">Estimates use today's best sell price (${esc(priceSourceName())}) for each refined material, less the refinery fee. Prices move, so a delivered job's figure is the estimate at the moment you delivered it — not what you actually sold for.</div>`;
+  html += '</div>';
+  body.innerHTML = html;
 }
 
 function jobCardHTML(job, rem, pct, done, expiring) {
@@ -2460,6 +2719,7 @@ function jobCardHTML(job, rem, pct, done, expiring) {
       </div>
       <div class="time-started">${t('job.started', { args: [fmtStart(job.startTime)] })}</div>
     </div>
+    ${profitLineHTML(job)}
     ${done ? `<div class="ready-badge show pulse" style="justify-content:space-between">
       <span>${t('job.readyCollect')}</span>
       <button class="deliver-btn" onclick="deliverJob('${job.id}')">${t('job.delivered')}</button>
@@ -2531,8 +2791,9 @@ async function loadCommodities() {
     if (res.status !== 'ok') throw new Error(res.error || 'API error');
 
     commodities = res.data.filter(c => c.is_available && c.is_visible && !c.is_buggy);
+    ensureJobPrices();
     dot.className = 'dot';
-    status.textContent = `UEX Corp · ${commodities.length} items`;
+    status.textContent = `${priceSourceName()} · ${commodities.length} items`;
     renderComs();
     prefetchInventoryPrices();
     fetchBulkProfits();
@@ -2548,9 +2809,12 @@ async function prefetchInventoryPrices() {
   if (!craftInventory.length || !commodities.length) return;
   const invNames = new Set(craftInventory.map(i => i.name.toLowerCase()));
   const toFetch  = commodities.filter(c => invNames.has(c.name.toLowerCase()) && priceCache[c.id] == null);
+  const gen = priceGen;
   for (const c of toFetch) {
+    if (gen !== priceGen) return;
     try {
       const res = await api.getCommodityPrices(c.id, 'sell');
+      if (gen !== priceGen) return;
       if (res.status === 'ok') {
         const top = (res.data || []).filter(p => p.price_sell > 0).sort((a, b) => b.price_sell - a.price_sell)[0];
         if (top) {
@@ -2631,17 +2895,22 @@ function applyPriceRows(rows) {
 
 function refreshPriceViews() {
   if (pricesView === 'station') renderStations(); else renderComs();
+  renderJobs();                                  // job cards carry value estimates
+  if (refineryView === 'profit') renderProfit();
   if (craftingView === 'inventory' && document.getElementById('crafting-view-inventory')?.style.display !== 'none') {
     renderInventory();
   }
   api.setStore('profitCache', profitCache);
   api.setStore('priceCache',  priceCache);
+  api.setStore('priceCacheSource', currentPriceSource);
 }
 
 async function fetchBulkProfits() {
+  const gen = priceGen;
   try {
     // Try bulk endpoint (returns all rows regardless of commodity)
     const res = await api.getBulkPrices();
+    if (gen !== priceGen) return;
     if (res.status === 'ok' && res.rows?.length > 0) {
       if (applyPriceRows(res.rows)) refreshPriceViews();
       return;
@@ -2655,11 +2924,13 @@ async function fetchBulkProfits() {
     const ids = commodities.slice(i, i + BATCH).map(c => c.id);
     try {
       const res = await api.getCommodityPricesBatch(ids);
+      if (gen !== priceGen) return;
       if (res.status === 'ok' && res.rows?.length > 0) {
         applyPriceRows(res.rows);
       }
     } catch {}
   }
+  if (gen !== priceGen) return;
   refreshPriceViews();
 }
 
@@ -2740,7 +3011,9 @@ async function selectStation(t) {
   list.appendChild(loadDiv);
 
   try {
+    const gen = priceGen;
     const res = await api.getTerminalPrices(t.id_terminal);
+    if (gen !== priceGen) return;
     if (res.status !== 'ok') throw new Error(res.error || 'API error');
 
     const rows = res.data || [];
@@ -2758,7 +3031,9 @@ async function selectStation(t) {
     if (!items.length) {
       const em = document.createElement('div');
       em.className = 'empty-state';
-      em.innerHTML = '<div class="lbl">No commodity data for this station.</div>';
+      em.innerHTML = currentPriceSource === 'sctrader'
+        ? '<div class="lbl">No recent SC Trade Tools reports for this station.<br><span style="font-size:10px">Prices there are sent in by players, so quieter stations can be empty. UEX Corp (Settings → Price Data Source) has fuller coverage.</span></div>'
+        : '<div class="lbl">No commodity data for this station.</div>';
       list.appendChild(em);
       return;
     }
@@ -2991,11 +3266,13 @@ async function selectCom(com, el) {
   title.innerHTML = `<span style="color:var(--accent)">${esc(com.name)}</span> <span style="font-size:10px;color:var(--text-dim);font-weight:400">tap row for details</span>`;
   plist.innerHTML = '<div class="loading"><div class="spinner"></div>Fetching…</div>';
 
+  const gen = priceGen;
   try {
     const [sellRes, buyRes] = await Promise.all([
       api.getCommodityPrices(com.id, 'sell'),
       api.getCommodityPrices(com.id, 'buy'),
     ]);
+    if (gen !== priceGen) return;
     if (sellRes.status !== 'ok') throw new Error(sellRes.error || 'API error');
 
     // Best buy line
@@ -3226,14 +3503,92 @@ async function initCloseBehavior() {
   document.getElementById('close-behavior-select').value = val;
 }
 
+// ── Price source (UEX Corp or SC Trade Tools) ────────────────────────────────
+// The commodity and station lists always come from UEX; the *prices* come from the chosen
+// source (the main process answers the same calls either way). Cached prices are tagged
+// with the source they came from, so one source's numbers never show under the other.
+let currentPriceSource = 'uex';
+// Bumped on every source switch. A price request started under the old source can finish
+// after the switch; each one remembers the generation it started in and drops its answer
+// if that has moved on, so one source's numbers never land in the other's cache.
+let priceGen = 0;
+const PRICE_SOURCE_NAMES = { uex: 'UEX Corp', sctrader: 'SC Trade Tools' };
+const priceSourceName = () => PRICE_SOURCE_NAMES[currentPriceSource] || 'UEX Corp';
+
+function updatePriceSourceUi() {
+  const sct = currentPriceSource === 'sctrader';
+  const sel = document.getElementById('price-source-select');
+  if (sel) sel.value = currentPriceSource;
+  renderPriceSourceLogo();
+  const via = document.getElementById('prices-via');
+  if (via) {
+    via.innerHTML = sct
+      ? `<a href="#" onclick="api.openExternal('https://sc-trade.tools');return false" style="color:var(--accent)">SC Trade Tools</a> — community-reported prices, refreshed about hourly. Reports are unfiltered, so some stations may be missing or out of date.`
+      : `<span style="color:var(--accent)">UEX Corp</span> — community-maintained Star Citizen trade data.`;
+  }
+  const desc = document.getElementById('price-source-desc');
+  if (desc) desc.textContent = sct ? 'SC Trade Tools — community-reported prices, refreshed about hourly' : 'UEX Corp — live prices for every commodity terminal';
+  const status = document.getElementById('api-status');
+  if (status && commodities.length) status.textContent = `${priceSourceName()} · ${commodities.length} items`;
+}
+
+const PRICE_SOURCE_SITES = { uex: 'https://uexcorp.space', sctrader: 'https://sc-trade.tools' };
+function openPriceSourceSite() {
+  api.openExternal(PRICE_SOURCE_SITES[currentPriceSource] || PRICE_SOURCE_SITES.uex);
+}
+
+// The data source's mark, top right of the Prices header — it is the credit for the numbers
+// below it, and a link to the source. Both marks are files in renderer/assets/; if one fails
+// to load the source's name is shown as a text badge instead, so the credit never vanishes.
+const PRICE_SOURCE_LOGOS = {
+  uex:      { src: 'assets/uex-logo.png', alt: 'UEX Corp', name: 'UEX', height: 24,
+              title: 'Prices from UEX Corp — community-maintained Star Citizen trade data. Click to open their site.' },
+  sctrader: { src: 'assets/sc-trade-tools-logo.svg', alt: 'SC Trade Tools', name: 'SC Trade Tools', height: 26,
+              title: 'Prices from SC Trade Tools — community-reported, updated about hourly. Click to open their site.' },
+};
+
+function renderPriceSourceLogo() {
+  const a = document.getElementById('price-source-logo');
+  if (!a) return;
+  const logo = PRICE_SOURCE_LOGOS[currentPriceSource] || PRICE_SOURCE_LOGOS.uex;
+  a.textContent = '';
+  a.title = logo.title;
+  a.setAttribute('aria-label', logo.alt);
+  const img = document.createElement('img');
+  img.src = logo.src;
+  img.alt = logo.alt;
+  img.style.cssText = `height:${logo.height}px;width:auto;display:block`;
+  img.onerror = () => {
+    const badge = document.createElement('span');
+    badge.textContent = logo.name;
+    badge.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:3px 7px;line-height:1';
+    a.textContent = '';
+    a.appendChild(badge);
+  };
+  a.appendChild(img);
+}
+
 async function initPriceSource() {
-  const val = await api.getStore('priceSource') || 'uex';
-  document.getElementById('price-source-select').value = val;
+  currentPriceSource = (await api.getStore('priceSource')) === 'sctrader' ? 'sctrader' : 'uex';
+  updatePriceSourceUi();
 }
 
 async function savePriceSource() {
-  const val = document.getElementById('price-source-select').value;
+  const val = document.getElementById('price-source-select').value === 'sctrader' ? 'sctrader' : 'uex';
+  if (val === currentPriceSource) return;
   await api.setStore('priceSource', val);
+  currentPriceSource = val;
+  priceGen++;
+  // the other source's prices mean nothing here — start clean and fetch again
+  Object.keys(profitCache).forEach(k => delete profitCache[k]);
+  Object.keys(priceCache).forEach(k => delete priceCache[k]);
+  await api.setStore('profitCache', {});
+  await api.setStore('priceCache', {});
+  await api.setStore('priceCacheSource', val);
+  closePriceDetail();
+  updatePriceSourceUi();
+  loadCommodities();
+  if (pricesView === 'station') renderStations();
 }
 
 let _transitIcon = 'truck';
@@ -3280,6 +3635,151 @@ function onRefineryCaptureProgressTick(info) {
     : `📷 ${info.current}/${info.total} — scroll now!`;
 }
 
+// ════════════════════════════════════════════════════════════════════
+// Import jobs that are already running
+// ════════════════════════════════════════════════════════════════════
+// The terminal's PROCESSING screen lists every running work order. Capture reads it (see
+// refinery-ocr.js) and this brings those jobs into the app: each work order is shown with its
+// materials, quality and time left — all editable, because a digit can be misread — and any
+// job the app already tracks is recognised and left unticked.
+let importCands = [];
+
+// "Iron (Ore)" / "Iron" / "IRON" → "iron"; Construction Rubble etc. → "constructionmaterials"
+const normOreKey = (n) => refinedOutputName(String(n || '')).toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z]/g, '');
+const closeNum = (a, b, abs, rel) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
+// quality is raw 0–1000 on the terminal, but a hand-entered job may hold a percentage
+const qualityClose = (a, b) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= 1 || Math.abs(a * 10 - b) <= 5 || Math.abs(a - b * 10) <= 5;
+
+// The tracked job this work order is, or null.
+//   - same materials (name, quality, yield) all round; when the tracked job has no yields to
+//     compare, it must also finish about when this one does
+//   - or, looser, because one row may be misread: same station, finishing within 20 minutes,
+//     and at least one identical material
+function matchingJob(rows, remainingSecs, location) {
+  const cRows = rows.map(r => ({ k: normOreKey(r.name), q: parseFloat(r.quality), y: parseFloat(r.yield) }));
+  const endCand = Date.now() + remainingSecs * 1000;
+  for (const job of jobs) {
+    const jRows = jobOres(job).map((o, i) => ({ k: normOreKey(o), q: parseFloat((job.qualities || [])[i]), y: parseFloat((job.yields || [])[i]) }));
+    const used = new Set();
+    let matched = 0;
+    for (const c of cRows) {
+      const j = jRows.findIndex((r, i) => !used.has(i) && r.k === c.k && closeNum(r.y, c.y, 2, 0.03) && qualityClose(r.q, c.q));
+      if (j >= 0) { used.add(j); matched++; }
+    }
+    const diff = Math.abs(job.startTime + job.durationSeconds * 1000 - endCand);
+    const sameStation = !job.location || !location || job.location === location;
+    const jobHasYields = jRows.some(r => Number.isFinite(r.y));
+    if (cRows.length && cRows.length === jRows.length && matched === cRows.length && (jobHasYields || diff <= 60 * 60 * 1000)) return job;
+    if (sameStation && diff <= 20 * 60 * 1000 && matched >= 1) return job;
+  }
+  return null;
+}
+
+function openImportJobs(res) {
+  const sel = document.getElementById('import-jobs-location');
+  sel.innerHTML = document.getElementById('job-location').innerHTML;
+  sel.value = matchJobLocation(res.location) || lastLocations.job || '';
+  importCands = (res.workOrders || []).filter(w => w.rows && w.rows.length).map(w => {
+    const rem = w.remainingSeconds;
+    const mins = rem != null ? Math.round(rem / 60) : null;
+    const cand = {
+      index: w.index, progress: w.progress,
+      remH: mins != null ? Math.floor(mins / 60) : '', remM: mins != null ? mins % 60 : '',
+      rows: w.rows.map(r => ({ name: r.name, quality: r.quality == null ? '' : String(r.quality), yield: String(r.yield), check: !r.clean })),
+    };
+    cand.tracked = !!matchingJob(cand.rows, rem || 0, sel.value);
+    cand.checked = !cand.tracked;
+    return cand;
+  });
+  document.getElementById('import-jobs-msg').textContent = '';
+  renderImportJobs();
+  document.getElementById('import-jobs-overlay').style.display = 'flex';
+}
+
+function updateImportBtn() {
+  const n = importCands.filter(c => c.checked).length;
+  const btn = document.getElementById('import-jobs-btn');
+  btn.textContent = n ? `Import ${n} job${n === 1 ? '' : 's'}` : 'Nothing to import';
+  btn.disabled = n === 0;
+}
+
+function renderImportJobs() {
+  const list = document.getElementById('import-jobs-list');
+  const tracked = importCands.filter(c => c.tracked).length;
+  document.getElementById('import-jobs-intro').textContent = !importCands.length
+    ? 'No running work orders were found on that screen.'
+    : `Found ${importCands.length} running work order${importCands.length === 1 ? '' : 's'}` +
+      (tracked ? `; ${tracked} already in your jobs (left unticked).` : '.') + ' Check the numbers, then import.';
+  const chip = (txt, col) => `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;border:1px solid ${col};color:${col};margin-left:6px">${txt}</span>`;
+  const inp = 'padding:4px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none;text-align:center';
+  list.innerHTML = importCands.map((c, i) => `
+    <div style="border:1px solid var(--border);border-radius:var(--r);padding:8px;margin-bottom:8px;background:var(--bg-card)">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text-bright);cursor:pointer">
+        <input type="checkbox" class="import-check" ${c.checked ? 'checked' : ''} onchange="importCands[${i}].checked=this.checked;updateImportBtn()">
+        <span>Work order ${c.index}</span>
+        ${c.tracked ? chip('Already in your jobs', 'var(--text-dim)') : chip('New', 'var(--success)')}
+      </label>
+      <div style="display:flex;align-items:center;gap:6px;margin:8px 0 6px;font-size:11px;color:var(--text-dim)">
+        Time left
+        <input type="number" min="0" class="import-rem-h" value="${esc(String(c.remH))}" style="width:56px;${inp}" oninput="importCands[${i}].remH=this.value"> h
+        <input type="number" min="0" max="59" class="import-rem-m" value="${esc(String(c.remM))}" style="width:56px;${inp}" oninput="importCands[${i}].remM=this.value"> m
+        ${c.progress != null ? `<span style="margin-left:auto">${Math.round(c.progress * 100)}% done</span>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 72px 84px;gap:6px;font-size:9px;color:var(--text-dim);text-transform:uppercase;padding:0 2px 3px">
+        <span>Material</span><span style="text-align:center">Quality</span><span style="text-align:center">Yield (cSCU)</span>
+      </div>
+      ${c.rows.map((r, j) => `
+        <div style="display:grid;grid-template-columns:1fr 72px 84px;gap:6px;align-items:center;margin-bottom:4px">
+          <span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}${r.check ? chip('check', 'var(--warn)') : ''}</span>
+          <input type="number" class="import-q" min="0" max="1000" value="${esc(r.quality)}" placeholder="—" style="${inp};${r.check ? 'border-color:var(--warn)' : ''}" oninput="importCands[${i}].rows[${j}].quality=this.value">
+          <input type="number" class="import-y" min="0" value="${esc(r.yield)}" style="${inp}" oninput="importCands[${i}].rows[${j}].yield=this.value">
+        </div>`).join('')}
+    </div>`).join('');
+  updateImportBtn();
+}
+
+async function importSelectedJobs() {
+  const msg = document.getElementById('import-jobs-msg');
+  const location = document.getElementById('import-jobs-location').value;
+  const chosen = importCands.filter(c => c.checked);
+  const now = Date.now();
+  const built = [];
+  for (const c of chosen) {
+    const remaining = (parseInt(c.remH, 10) || 0) * 3600 + (parseInt(c.remM, 10) || 0) * 60;
+    if (remaining <= 0) { msg.textContent = `Enter the time left for work order ${c.index}.`; return; }
+    // how long it has already been running comes from how much of it is done
+    let startTime = now, durationSeconds = remaining;
+    if (c.progress != null && c.progress > 0 && c.progress < 0.995) {
+      durationSeconds = Math.round(remaining / (1 - c.progress));
+      startTime = now - (durationSeconds - remaining) * 1000;
+    }
+    const rows = c.rows.filter(r => String(r.name).trim());
+    built.push({
+      id: now.toString() + '-' + c.index,
+      ores: rows.map(r => r.name),
+      qualities: rows.map(r => String(r.quality || '').trim()),
+      yields: rows.map(r => String(r.yield || '').trim()),
+      method: 'Custom', location, startTime, durationSeconds,
+      notes: 'Imported from the refinery screen', cost: null,
+    });
+  }
+  built.forEach(j => jobs.push(j));
+  if (location) rememberLocation('job', location);
+  await api.setJobs(jobs);
+  closeImportJobs();
+  renderJobs();
+}
+
+function closeImportJobs() {
+  document.getElementById('import-jobs-overlay').style.display = 'none';
+  importCands = [];
+}
+
+function reportImportProblem() {
+  closeImportJobs();
+  reportCaptureProblem();
+}
+
 async function captureRefineryJob() {
   const btn = document.getElementById('capture-job-btn');
   const originalText = btn.textContent;
@@ -3313,6 +3813,12 @@ async function captureRefineryJob() {
   }
 
   btn.textContent = originalText;
+
+  if (res.kind === 'processing') {
+    if (res.rawTexts) console.log('[refinery capture] running jobs:', JSON.stringify(res.workOrders));
+    openImportJobs(res);
+    return;
+  }
 
   // Extraction is anchored on exact label text ("MATERIALS SELECTED", "REFINEMENT
   // CENTER", etc.) that was verified against hand-typed text, not real OCR output —
@@ -3356,8 +3862,9 @@ async function captureRefineryJob() {
   }
   const matchedLoc = matchJobLocation(res.location);
   document.getElementById('job-location').value = matchedLoc || '';
+  if (res.cost != null) document.getElementById('job-cost').value = res.cost;
 
-  const foundAnything = materials.length || res.method || res.duration || matchedLoc;
+  const foundAnything = materials.length || res.method || res.duration || matchedLoc || res.cost != null;
   document.getElementById('modal-title').textContent = foundAnything
     ? 'Review Captured Job — check before starting'
     : 'Nothing recognized — enter job details manually';
@@ -3892,7 +4399,7 @@ const HINTS_BY_ID = {
   'help-btn': 'Open the illustrated user guide',
   'station-select': 'Choose a station to see its refinery yield bonus or penalty for each material',
   'shortcut-select': 'The key that shows or hides the overlay, even while the game has focus',
-  'price-source-select': 'Where prices come from — only UEX Corp is available for now',
+  'price-source-select': 'Where prices come from — UEX Corp, or the SC Trade Tools community feed',
   'asset-size-input': 'Component size (S0–S6), used to check parts fit a ship slot',
   'inv-name-input': 'Which ore or material this is',
   'job-method': 'The refining method used for this job',
@@ -6717,6 +7224,7 @@ async function confirmDelivery() {
   });
   await api.setStore('craftInventory', craftInventory);
   const jobId = deliveryJobId;
+  if (job) recordJobHistory(job);          // while the job still exists and prices are current
   closeDeliverModal();
   if (jobId) removeJob(jobId);
   switchTab('crafting');

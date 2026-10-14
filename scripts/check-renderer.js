@@ -26,6 +26,7 @@ const sources = {
   'main.js': read('main.js'),
   'preload.js': read('preload.js'),
   'refinery-ocr.js': read('refinery-ocr.js'),
+  'sctrade-prices.js': read('sctrade-prices.js'),
   'renderer/i18n.js': read('renderer/i18n.js'),
   'renderer/help-content.js': read('renderer/help-content.js'),
   'renderer/index.html (inline script)': inline.join('\n;\n'),
