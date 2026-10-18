@@ -39,6 +39,9 @@ const KNOWN_MATERIALS = [
   'Copper', 'Corundum', 'Diamond', 'Fluorine', 'Gold', 'Hadanite', 'Hephaestanite',
   'Hydrogen', 'Ice', 'Inertite', 'Iron', 'Laranite', 'Quantainium', 'Quartz',
   'Silicon', 'Stileron', 'Taranite', 'Tin', 'Titanium', 'Tungsten',
+  // the rest of the mineable ores (Riccite is what many players refine; none of these were being read)
+  'Aphorite', 'Aslarite', 'Beradom', 'Carinite', 'Dolivine', 'Feynmaline', 'Glacosite', 'Jaclium',
+  'Janalite', 'Lindinium', 'Ouratite', 'Riccite', 'Sadaryx', 'Saldynium', 'Savrilium', 'Torite',
   'Construction Pieces', 'Construction Rubble', 'Construction Salvage',
   'Construction Materials', 'Scrap', 'Waste',
   'Recycled Material Composite', 'Inert Materials',
@@ -218,6 +221,9 @@ function flattenWords(data) {
 
 const median = (arr) => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 const lettersOf = (s) => s.replace(/[^a-zA-Z]/g, '').toLowerCase();
+
+// Words that only the SETUP panel (a new work order being set up) has.
+const SETUP_HINTS = /selected|selection|setup|total\s*cost|get\s*quote|raw\s*mat/i;
 
 // Cheap "is this even the refinery screen" test on the first whole-frame read.
 function looksLikeRefinery(text) {
@@ -612,7 +618,7 @@ const KNOWN_STATIONS = [
   'CRU-L1 Ambitious Dream', 'CRU-L4 Shallow Fields', 'CRU-L5 Beautiful Glen',
   'HUR-L1 Green Glade', 'HUR-L2 Faithful Dream', 'HUR-L3 Thundering Express', 'HUR-L4 Melodic Fields', 'HUR-L5 High Course',
   'MIC-L1 Shallow Frontier', 'MIC-L2 Long Forest', 'MIC-L3 Endless Odyssey', 'MIC-L4 Red Crossroads', 'MIC-L5 Modern Icarus',
-  'Checkmate', 'Orbituary', 'Pyro Gateway', 'Ruin Station', 'Stanton Gateway', 'Levski',
+  'Checkmate', 'Orbituary', 'Pyro Gateway', 'Ruin Station', 'Stanton Gateway', 'Nyx Gateway', 'Levski',
 ];
 
 function snapStation(raw) {
@@ -672,6 +678,8 @@ function parseTableText(text) {
       ? line.slice(close + 1) : line.slice(nameStart);
     const cells = [];
     for (const tok of afterName.split(/\s+/)) {
+      // Before the quote is requested the yield column holds "--": quality and qty are all there is
+      if (cells.length === 2 && /^[-—–_~]{1,3}$/.test(tok)) { cells.push(null); break; }
       const c = numberCandidates(tok);
       if (c) cells.push(c);
       if (cells.length === 3) break;
@@ -695,7 +703,7 @@ function finalizeTableRows(rows) {
     const ratios = [];
     for (const r of rows.filter(x => x.name === name)) {
       const q = r.cells[1].cands[0];
-      if (q > 0) for (const y of r.cells[2].cands) if (y > 0) ratios.push(y / q);
+      if (q > 0 && r.cells[2]) for (const y of r.cells[2].cands) if (y > 0) ratios.push(y / q);
     }
     let best = null, bestCount = 1;                     // need at least 2 rows agreeing
     for (const cand of ratios) {
@@ -718,18 +726,19 @@ function finalizeTableRows(rows) {
     let qty = r.cells[1].cands[0];
     const quality = r.cells[0].cands.find(v => v <= 1000) ?? r.cells[0].cands[0];
     const ref = refFor[r.name];
-    let yld = r.cells[2].cands[0];
+    const noYield = !r.cells[2];                       // not quoted yet: "--" in the yield column
+    let yld = noYield ? 0 : r.cells[2].cands[0];
     let repaired = false, fits = false;
     // a yield that was read cleanly vouches for a qty that lost a digit ("33" beside a yield of
     // 151): mend the qty, not the yield
-    if (ref && qty > 0 && !r.cells[1].clean && r.cells[2].clean && yld > 0) {
+    if (!noYield && ref && qty > 0 && !r.cells[1].clean && r.cells[2].clean && yld > 0) {
       const exp0 = Math.round(qty * ref);
       if (Math.abs(yld - exp0) > Math.max(1, exp0 * TOL)) {
         const eq = Math.round(yld / ref);
         if (editDistanceOne(String(qty), String(eq))) { qty = eq; repaired = true; }
       }
     }
-    if (ref && qty > 0) {
+    if (!noYield && ref && qty > 0) {
       const expected = Math.round(qty * ref);
       const near = (v) => Math.abs(v - expected) <= Math.max(1, expected * TOL);
       const ok = r.cells[2].cands.find(near);
@@ -737,10 +746,10 @@ function finalizeTableRows(rows) {
       else if (r.cells[2].cands.some(v => editDistanceOne(String(v), String(expected)))) { yld = expected; repaired = true; }
       else repaired = true;          // doesn't fit its ore's ratio and can't be mended: flag it for review
     }
-    if (r.name === 'Inert Materials' || yld === 0) continue;   // not refined — no yield to record
-    out.push({ name: r.name, quality: String(quality), qty: String(qty), yield: String(yld),
+    if (r.name === 'Inert Materials' || (yld === 0 && !noYield)) continue;   // not refined — no yield to record
+    out.push({ name: r.name, quality: String(quality), qty: String(qty), yield: noYield ? '' : String(yld),
       // a reading that disagreed with itself is still trusted when it fits its ore's yield ratio
-      clean: !repaired && (r.cells.every(c => c.clean) || (fits && r.cells[0].clean)) });
+      clean: !repaired && (r.cells.filter(Boolean).every(c => c.clean) || (fits && r.cells[0].clean)) });
   }
   return out;
 }
@@ -1393,7 +1402,11 @@ async function readFrame(image, worker, opts) {
     const anchor = findTableAnchor(w);
     const panels = anchor ? [] : allProcessingPanels(w);
     if (anchor || panels.length || !words.length) { fullText = text; words = w; t = anchor; procPanels = panels; }
-    if (anchor || panels.length) break;
+    if (anchor) break;
+    // A running job's PROCESSING panel next to a SETUP panel: the user is setting up a new job,
+    // and the setup table is the one wanted. Its header is often only readable enlarged, so when
+    // the text shows a setup panel the enlarged read gets a go before settling for the running job.
+    if (panels.length && !(f !== factors[factors.length - 1] && SETUP_HINTS.test(text))) break;
     // not a refinery screen at all (map, inventory, desktop…) — don't burn time
     // re-reading it enlarged
     if (!looksLikeRefinery(text)) break;
@@ -1455,6 +1468,7 @@ async function readFrame(image, worker, opts) {
     // rows as the text reading did — a dropped row is the worse mistake, and every number in it
     // was read alone with only digits allowed.
     try {
+      if (!tableRows.some(r => r.yield)) throw new Error('no yields quoted yet — text reading only');
       const refineX = (name) => { const w = words.find(x => lettersOf(x.text) === name && Math.abs(x.y0 - t.top) <= t.hh * 1.2 && x.x0 > t.left); return w ? (w.x0 + w.x1) / 2 : null; };
       const hq = refineX('quality'), hn = refineX('qty'), hy = refineX('yield');
       const colCenters = (hq && hn && hy && hq < hn && hn < hy) ? [hq, hn, hy]
@@ -1497,11 +1511,20 @@ async function readFrame(image, worker, opts) {
     if (!known.location) {
       const titleRects = [];
       const refW = words.find(w => lettersOf(w.text).startsWith('refinem'));
-      if (ta && refW) {
-        const ch = Math.max(refW.y1 - refW.y0, 6);
-        titleRects.push(clampRect({ x0: titleX0, y0: refW.y0 - 2.4 * ch, x1: ta.refLeft - 0.5 * ch, y1: refW.y1 + 1.2 * ch }, W, H));
+      // The panel's left edge moves with the viewing angle, so when the usual left edge doesn't give
+      // a known station the box is tried again starting further left (a title cut off at its first
+      // letters reads as nonsense).
+      for (const extra of [0, 7 * hh]) {
+        const x0 = Math.max(0, titleX0 - extra);
+        if (ta && refW) {
+          const ch = Math.max(refW.y1 - refW.y0, 6);
+          // just the big title line first: the small label and the coloured bar above it can wreck the
+          // contrast stretch (a clear "NYX GATEWAY" came back as nonsense with them in the box)
+          titleRects.push(clampRect({ x0, y0: refW.y0 - 0.8 * ch, x1: ta.refLeft - 0.5 * ch, y1: refW.y1 + 1.2 * ch }, W, H));
+          titleRects.push(clampRect({ x0, y0: refW.y0 - 2.4 * ch, x1: ta.refLeft - 0.5 * ch, y1: refW.y1 + 1.2 * ch }, W, H));
+        }
+        titleRects.push(extra ? clampRect({ x0, y0: t.top - 33.8 * hh, x1: titleX1, y1: t.top - 30.2 * hh }, W, H) : rects.title);
       }
-      titleRects.push(rects.title);
       let firstPlausible = '', last = '', snappedText = '';
       scan: for (const rect of titleRects.filter(Boolean)) {
         for (const sc of [scale, scale * 0.75, scale * 1.3]) {
