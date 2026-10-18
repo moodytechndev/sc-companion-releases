@@ -618,7 +618,7 @@ const KNOWN_STATIONS = [
   'CRU-L1 Ambitious Dream', 'CRU-L4 Shallow Fields', 'CRU-L5 Beautiful Glen',
   'HUR-L1 Green Glade', 'HUR-L2 Faithful Dream', 'HUR-L3 Thundering Express', 'HUR-L4 Melodic Fields', 'HUR-L5 High Course',
   'MIC-L1 Shallow Frontier', 'MIC-L2 Long Forest', 'MIC-L3 Endless Odyssey', 'MIC-L4 Red Crossroads', 'MIC-L5 Modern Icarus',
-  'Checkmate', 'Orbituary', 'Pyro Gateway', 'Ruin Station', 'Stanton Gateway', 'Nyx Gateway', 'Levski',
+  'Checkmate', 'Orbituary', 'Pyro Gateway', 'Ruin Station', 'Stanton Gateway', 'Nyx Gateway', 'Magnus Gateway', 'Terra Gateway', 'Levski',
 ];
 
 function snapStation(raw) {

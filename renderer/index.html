@@ -1293,6 +1293,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
     <div class="form-group">
       <label data-i18n="modal.addJob.location">Location</label>
+      <div id="job-location-hint" style="display:none;font-size:11px;color:var(--warn, #e6c84a);margin-bottom:4px"></div>
       <select id="job-location">
         <option value="">— Select station —</option>
         <optgroup label="── Stanton ──">
@@ -1317,12 +1318,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           <option value="MIC-L4 Shallow Fields">MIC-L4 Shallow Fields</option>
           <option value="MIC-L5 Modern Icarus">MIC-L5 Modern Icarus</option>
           <option value="Port Tressler">Port Tressler</option>
+          <option value="Nyx Gateway (Stanton)">Nyx Gateway (Stanton)</option>
+          <option value="Pyro Gateway (Stanton)">Pyro Gateway (Stanton)</option>
+          <option value="Terra Gateway (Stanton)">Terra Gateway (Stanton)</option>
+          <option value="Magnus Gateway (Stanton)">Magnus Gateway (Stanton)</option>
         </optgroup>
         <optgroup label="── Nyx ──">
           <option value="Levski">Levski</option>
+          <option value="Pyro Gateway (Nyx)">Pyro Gateway (Nyx)</option>
+          <option value="Stanton Gateway (Nyx)">Stanton Gateway (Nyx)</option>
         </optgroup>
         <optgroup label="── Pyro ──">
-          <option value="Pyro Gateway">Pyro Gateway</option>
+          <option value="Nyx Gateway (Pyro)">Nyx Gateway (Pyro)</option>
+          <option value="Stanton Gateway (Pyro)">Stanton Gateway (Pyro)</option>
           <option value="Ruin Station">Ruin Station</option>
           <option value="Patch City">Patch City</option>
           <option value="Orbituary">Orbituary</option>
@@ -2674,6 +2682,7 @@ function openAddJob() {
   debugEl.textContent = '';
   resetOreRows();
   document.getElementById('job-location').value = lastLocations.job || '';
+  showJobLocationHint('');
   document.getElementById('modal-overlay').classList.add('show');
   setTimeout(() => document.querySelector('#ore-rows .ore-input')?.focus(), 50);
 }
@@ -2687,7 +2696,13 @@ function openEditJob(id) {
 
   resetOreRows(jobOres(job), job.qualities || [], job.yields || []);
   document.getElementById('job-method').value   = job.method === 'Custom' ? '' : (job.method || '');
-  document.getElementById('job-location').value = job.location || '';
+  showJobLocationHint('');
+  {
+    // a station saved under an older name is kept selectable instead of silently showing blank
+    const sel = document.getElementById('job-location');
+    if (job.location && ![...sel.options].some(o => o.value === job.location)) sel.add(new Option(job.location + ' (saved)', job.location));
+    sel.value = job.location || '';
+  }
   document.getElementById('job-notes').value    = job.notes || '';
   document.getElementById('job-cost').value     = job.cost != null ? job.cost : '';
 
@@ -4233,9 +4248,10 @@ async function runRefineryCapture(opts) {
   }
   const matchedLoc = matchJobLocation(res.location);
   document.getElementById('job-location').value = matchedLoc || '';
+  showJobLocationHint(res.location);
   if (res.cost != null) document.getElementById('job-cost').value = res.cost;
 
-  const foundAnything = materials.length || res.method || res.duration || matchedLoc || res.cost != null;
+  const foundAnything = materials.length || res.method || res.duration || matchedLoc || jobLocationChoices.length || res.cost != null;
   document.getElementById('modal-title').textContent = foundAnything
     ? 'Review Captured Job — check before starting'
     : 'Nothing recognized — enter job details manually';
@@ -4244,18 +4260,41 @@ async function runRefineryCapture(opts) {
 // main.js only extracts the raw station-name text — it has no notion of this
 // modal's curated location list. Matching against that list (the definitive
 // source) happens here instead, so there's only one place that list is defined.
+// A station name that fits more than one entry (a gateway: "Nyx Gateway" is in Stanton and in Pyro,
+// and the terminal never says which) is not guessed: it returns null and the choices are left in
+// `jobLocationChoices` so the form can ask.
+let jobLocationChoices = [];
 function matchJobLocation(rawLocation) {
+  jobLocationChoices = [];
   if (!rawLocation) return null;
   const sel = document.getElementById('job-location');
   const normalize = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const target = normalize(rawLocation);
   if (!target) return null;
+  const hits = [];
   for (const opt of sel.options) {
     if (!opt.value) continue;
     const optNorm = normalize(opt.value);
-    if (optNorm && (target.includes(optNorm) || optNorm.includes(target))) return opt.value;
+    if (optNorm && (optNorm === target || target.includes(optNorm) || optNorm.includes(target))) hits.push(opt.value);
+  }
+  const exact = hits.find(v => normalize(v) === target);
+  if (exact) return exact;
+  if (hits.length === 1) return hits[0];
+  if (hits.length > 1) {
+    // the system-named gateways are the real choices; a plain older entry would only muddy them
+    const named = hits.filter(v => /\([^)]+\)$/.test(v));
+    jobLocationChoices = named.length > 1 ? named : hits;
   }
   return null;
+}
+function showJobLocationHint(raw) {
+  const el = document.getElementById('job-location-hint');
+  if (!el) return;
+  if (jobLocationChoices.length) {
+    el.textContent = `The terminal showed "${raw}", which exists in more than one system \u2014 pick the right one: ` +
+      jobLocationChoices.map(v => (v.match(/\(([^)]+)\)$/) || [, v])[1]).join(' or ') + '.';
+    el.style.display = '';
+  } else { el.style.display = 'none'; el.textContent = ''; }
 }
 
 async function saveCloseBehavior() {
@@ -7917,11 +7956,16 @@ const SC_LOCATIONS = {
     'HUR-L1 Green Glade', 'HUR-L2 Faithful Dream',
     'MIC-L1 Shallow Frontier', 'MIC-L5 Modern Icarus',
   ],
+  // A gateway station is named for the system it leads to, and every system has one to each of the
+  // others, so the same name exists in several places: the system is part of the name.
+  'Stanton — Gateways': [
+    'Nyx Gateway (Stanton)', 'Pyro Gateway (Stanton)', 'Terra Gateway (Stanton)', 'Magnus Gateway (Stanton)',
+  ],
   'Pyro — Stations': [
-    'Checkmate', 'Orbituary', 'Pyro Gateway', 'Ruin Station', 'Stanton Gateway',
+    'Checkmate', 'Orbituary', 'Ruin Station', 'Nyx Gateway (Pyro)', 'Stanton Gateway (Pyro)',
   ],
   'Nyx — Stations': [
-    'Levski',
+    'Levski', 'Pyro Gateway (Nyx)', 'Stanton Gateway (Nyx)',
   ],
 };
 const ALL_SC_LOCATIONS = Object.values(SC_LOCATIONS).flat();
