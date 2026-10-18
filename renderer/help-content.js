@@ -42,10 +42,16 @@ const HELP_SECTIONS = [
       '**Identify a rock from your scanner:** Scanner → Scan → type the RS number your ship shows.',
       '**Read the whole signature table:** Scanner → Reference, then filter by rarity or location.',
       '**Plan a quantum drop into the Aaron Halo:** Aaron Halo → pick a preset route, or choose From / To / Band yourself.',
+      '**See how your mining gear changes each ore:** Loadout → pick your laser and modules. Every ore then shows its resistance and instability with that gear, and Ore Locations does too.',
+      '**Work out what a rock probably is:** Loadout → Check a rock → type the instability and resistance your scanner shows. The ores are ranked by how close they are.',
+      '**Find easy or safe ores:** Ore Locations → use the Sort box, or tick Stable only / Easy to crack.',
     ],
     tips: [
       'Clicking an ore in Ore Locations selects it. The Scanner Reference then shows only the signatures for the ores you selected — handy for planning a trip around one mineral.',
       'Reference and Scan use the same data; Reference shows every cluster size at once, Scan tells you which ore and how many rocks a single number means.',
+      'Under each ore\'s name you\'ll see its rarity tier and three numbers taken from the game\'s own data: **Instability** (how quickly a rock of it becomes dangerous), **Resistance** (how hard it fights your mining laser) and the **Window** (where the optimal sweet spot sits on the charge meter, ± how much it varies). Hover any of them for a short explanation.',
+      'The Loadout numbers are estimates: the percentages for the laser and each module come straight from the game files and are multiplied together, but the game does not publish exactly how it combines them. Use them to compare gear, not as exact results. Active modules only apply while they are switched on.',
+      'Hover an ore on a refinery job, or in a blueprint part list, to see its rarity, instability and resistance.',
     ],
   },
   {
@@ -61,6 +67,7 @@ const HELP_SECTIONS = [
       '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory.',
       '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material.',
       '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison.',
+      '**Capture a long list:** if the materials list is longer than the terminal window, click 📷 Capture and answer Yes when asked. Scroll slowly through the list in the game, then click Finish (or wait 45 seconds); it reads every picture and joins the rows together.',
     ],
     tips: [
       'Refining Construction Rubble, Pieces or Salvage produces **Construction Materials** — the delivery window shows this and saves it under the refined name.',
@@ -125,6 +132,7 @@ const HELP_SECTIONS = [
       '**Add something:** + Add → choose a type, location and notes.',
       '**Edit it later:** the ✎ button on any asset.',
       '**See what is fitted where:** the Attached to ships group lists each part with its ship and slot; click that line to open the ship.',
+      '**Pick from the game\'s item list:** start typing a name in Add Asset and suggestions from the game\'s own data appear (weapons, armor, ship components, consumables and more). Picking one fills in the name, the type and, for ship components, the size. You can still type anything that isn\'t listed.',
     ],
     tips: [
       'Fitting and swapping parts is done from the ship\'s window (Ships), not here.',
@@ -451,7 +459,7 @@ const HELP_SHOTS = {
     file: 'settings-top.webp', title: 'Settings (1 of 2)', viewport: { w: 440, h: 700 },
     setup: "await new Promise(r => switchTab('settings', r)); const s = document.querySelector('#panel-settings .scroll-area') || document.getElementById('panel-settings'); s.scrollTop = 0;",
     points: [
-      { sel: '#language-select', text: '**Language** — English, Deutsch, Français, Español.' },
+      { sel: '#language-select', text: '**Language** — English, Deutsch, Français, Español, Polski, Português, Русский, 日本語.' },
       { sel: '#opacity-range', text: '**Window Opacity** — how see-through the overlay is.' },
       { sel: '#shortcut-select', text: '**Show / Hide key** — works even while the game has focus.' },
       { sel: '#close-behavior-select', text: '**Close Button** — hide to tray, or quit.' },

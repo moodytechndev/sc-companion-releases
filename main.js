@@ -694,12 +694,17 @@ async function grabFrame() {
 // True when two frames are visually the same screen (the user didn't scroll between
 // them) — compared on a tiny downscale so glow/cursor animation doesn't count.
 function framesAlike(a, b) {
-  const small = (img) => img.resize({ width: 64, height: 36, quality: 'good' }).toBitmap();
+  // A scrolled list changes only a small part of the frame (the table is ~5% of it), so the
+  // test counts pixels that changed clearly rather than averaging the whole picture — an
+  // average would call a scrolled frame "the same" and drop the rows it brings in.
+  const small = (img) => img.resize({ width: 192, height: 108, quality: 'good' }).toBitmap();
   const pa = small(a), pb = small(b);
   if (pa.length !== pb.length) return false;
-  let diff = 0;
-  for (let i = 0; i < pa.length; i++) diff += Math.abs(pa[i] - pb[i]);
-  return diff / pa.length < 3;
+  let changed = 0;
+  for (let i = 0; i < pa.length; i += 4) {
+    if (Math.abs(pa[i] - pb[i]) > 48 || Math.abs(pa[i + 1] - pb[i + 1]) > 48 || Math.abs(pa[i + 2] - pb[i + 2]) > 48) changed++;
+  }
+  return changed < 25;
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -711,8 +716,18 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // wins; materials are unioned across frames (see mergeRows in refinery-ocr.js).
 const BURST_SHOTS = 4;
 const BURST_INTERVAL_MS = 600;
+// "Scroll capture" for a really long list: keeps grabbing frames — only those that differ from
+// the last one kept — until the user presses Done (or the time runs out), so the whole list can
+// be scrolled through at the user's own pace. Frames are held as PNG buffers: 30 raw 4K frames
+// would be a gigabyte.
+const SCROLL_MAX_MS = 45000;
+const SCROLL_INTERVAL_MS = 500;
+const SCROLL_MAX_FRAMES = 30;
+let captureStopRequested = false;
+ipcMain.handle('refinery:stopCapture', () => { captureStopRequested = true; });
 
-ipcMain.handle('refinery:captureAndParse', async () => {
+ipcMain.handle('refinery:captureAndParse', async (_, opts) => {
+  const scroll = !!(opts && opts.scroll);
   try {
     const running = await isGameRunning();
     if (!running) {
@@ -732,31 +747,50 @@ ipcMain.handle('refinery:captureAndParse', async () => {
     };
 
     // 1. grab every frame, quickly — this is the window the user scrolls in
-    const frames = [];
-    for (let i = 0; i < BURST_SHOTS; i++) {
-      const grabbed = await grabFrame();
-      capturedWindow = grabbed.capturedWindow;
-      frames.push(grabbed.image);
-      progress({ phase: 'capture', current: i + 1, total: BURST_SHOTS });
-      if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
+    const frames = [];       // nativeImages, or PNG buffers in scroll mode
+    const asImage = (f) => Buffer.isBuffer(f) ? nativeImage.createFromBuffer(f) : f;
+    if (scroll) {
+      captureStopRequested = false;
+      const t0 = Date.now();
+      let last = null;
+      while (!captureStopRequested && Date.now() - t0 < SCROLL_MAX_MS && frames.length < SCROLL_MAX_FRAMES) {
+        const grabbed = await grabFrame();
+        capturedWindow = grabbed.capturedWindow;
+        if (!last || !framesAlike(last, grabbed.image)) {
+          frames.push(grabbed.image.toPNG());
+          last = grabbed.image;
+        }
+        progress({ phase: 'capture', scroll: true, current: frames.length, elapsed: Math.round((Date.now() - t0) / 1000), max: SCROLL_MAX_MS / 1000 });
+        await delay(SCROLL_INTERVAL_MS);
+      }
+    } else {
+      for (let i = 0; i < BURST_SHOTS; i++) {
+        const grabbed = await grabFrame();
+        capturedWindow = grabbed.capturedWindow;
+        frames.push(grabbed.image);
+        progress({ phase: 'capture', current: i + 1, total: BURST_SHOTS });
+        if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
+      }
     }
 
     // Kept in memory so "Report a Bug" can offer to attach what was on screen and what
     // was read from it — set now (before the slow part) so even a crash while reading
     // leaves something to attach.
     try {
-      const first = encodeShot(frames[0], 3840);
+      const first = encodeShot(asImage(frames[0]), 3840);
       bugLastCapture = { at: Date.now(), jpeg: first, thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
         text: 'Capture started; reading did not finish.', summary: null };
     } catch { bugLastCapture = null; }
     let captureShotState = { bestIdx: 0, bestScore: -1 };
 
     // 2. read the frames that actually differ
-    const distinct = frames.filter((img, i) => !frames.slice(0, i).some(prev => framesAlike(prev, img)));
+    const distinct = scroll ? frames : frames.filter((img, i) => !frames.slice(0, i).some(prev => framesAlike(prev, img)));
     const worker = await getOcrWorker();
     for (let i = 0; i < distinct.length; i++) {
-      progress({ phase: 'reading', current: i + 1, total: distinct.length });
-      const frame = await refineryOcr.readFrame(distinct[i], worker);
+      progress({ phase: 'reading', current: i + 1, total: distinct.length, found: materials.length });
+      // what the first frames already established isn't read again (the title and method
+      // don't change while a list scrolls, and re-reading them is half of a frame's time)
+      const frame = await refineryOcr.readFrame(asImage(distinct[i]), worker, { known: { method, location, duration } });
       if (frame.kind === 'processing') {
         processing = refineryOcr.mergeWorkOrders(processing, frame);
         rawTexts.push(frame.rawText);
@@ -775,7 +809,7 @@ ipcMain.handle('refinery:captureAndParse', async () => {
       if (score > captureShotState.bestScore) captureShotState = { bestIdx: i, bestScore: score };
     }
     try {
-      const best = encodeShot(distinct[captureShotState.bestIdx], 3840);
+      const best = encodeShot(asImage(distinct[captureShotState.bestIdx]), 3840);
       const summary = processing
         ? { kind: 'processing', location: processing.location, workOrders: processing.workOrders.map(w => ({ index: w.index, remainingSeconds: w.remainingSeconds, rows: w.rows.map(r => `${r.name} q${r.quality}/y${r.yield}`) })) }
         : { method, duration, location, cost, materials: materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
@@ -1004,9 +1038,9 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
-const VALID_LANGS = new Set(['en', 'de', 'fr', 'es']);
+const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
 const VK_RE = /^[0-9a-fA-F]{2}$/;
 
@@ -1017,10 +1051,11 @@ function validateImport(data) {
   if (data.craftAssets !== undefined && !Array.isArray(data.craftAssets)) return 'craftAssets must be an array';
   if (data.craftShips !== undefined && !Array.isArray(data.craftShips)) return 'craftShips must be an array';
   if (data.craftingOwned !== undefined && (typeof data.craftingOwned !== 'object' || Array.isArray(data.craftingOwned))) return 'craftingOwned must be an object';
+  if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
   if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
   if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';
   if (data.logPath !== undefined && (typeof data.logPath !== 'string' || data.logPath.length > 500 || /[\x00-\x1f]/.test(data.logPath))) return 'logPath must be a plain file path string';
-  if (data.language !== undefined && !VALID_LANGS.has(data.language)) return 'language must be en, de, fr, or es';
+  if (data.language !== undefined && !VALID_LANGS.has(data.language)) return 'language must be one of en, de, fr, es, pl, pt, ru, ja';
   return null;
 }
 

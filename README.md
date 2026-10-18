@@ -31,13 +31,18 @@ Star Citizen companion overlay — refinery timers, commodity prices with statio
 - **Station buy/sell tracking** — buy a commodity at a station (marks it in-transit automatically) and sell your in-transit stock back, with a summary of what you made
 - **Mining reference tools** — ore location lookup by rock/moon, a signature scanner (both a reference chart and a live RS-signature solver), and an Aaron Halo quantum-drop calculator
 - **Refinery profit** — every job with a yield shows what it is worth (output × today's best sell price, less the refinery fee), and delivered jobs are kept in a **Profit** tab with totals, a per-method comparison and history
-- **Experimental refinery capture** — screenshot + OCR the in-game refinery job screen to pre-fill a new job for you to review, or — from the terminal's PROCESSING screen — **import jobs that are already running**, skipping any the app already tracks
+- **Experimental refinery capture** — screenshot + OCR the in-game refinery job screen to pre-fill a new job for you to review (for a materials list longer than the terminal window, answer Yes when Capture asks — scroll through the list at your own pace and press Finish; the rows are joined), or — from the terminal's PROCESSING screen — **import jobs that are already running**, skipping any the app already tracks
 - **Full inventory system** — track ore and materials by box, grouped by ore type or by location, with quality, box size, split/merge of stacked boxes, and bulk move/sell/in-transit actions
 - **Blueprints & crafting** — browse craftable items, see what you can craft **right now** from your stock, plan material quality against the resulting stats, build a shopping list for what you're missing, and craft straight from chosen inventory boxes
 - **Assets & ships** — track everything you own; add your ships and see, swap and exchange their stock components, liveries and component sizes
 - **Built-in Erkul calculator** — the Erkul DPS/loadout calculator runs inside the app
 - **Illustrated user guide** — open it from the **?** button in the status bar; every section has annotated screenshots
-- **Hover hints** — short "what does this do" descriptions on controls, in English, Deutsch, Français and Español (can be turned off)
+- **User guide in your language** — the illustrated in-app guide follows the language setting (English, Deutsch, Français, Español, Polski, Português, Русский, 日本語); screenshots show the English interface
+- **Mining loadout** — pick a mining laser and modules (from the game's own data, `node scripts/gamedata/extract-mining-gear.js`) to see their combined effect and each ore's resistance and instability with that gear; a *Check a rock* box ranks ores from the scanner's instability and resistance; Ore Locations can be sorted by rarity, stability or ease and filtered to stable or easy ores; ore details show on refinery job chips and blueprint parts. Effects are estimates
+- **Special blueprints** — blueprints that are in the game's own data but missing from sc-craft.tools are added to the Blueprints list marked *Special* (generated with `node scripts/gamedata/extract-blueprints.js`; one that sc-craft.tools later lists stops being special)
+- **Ore properties** — each ore in Ore Locations shows its rarity tier and the game's own instability, resistance and optimal-window numbers, generated from your Star Citizen install with `node scripts/gamedata/extract-mining.js --write`
+- **Item catalog** — the Add Asset name field suggests the game's own items (about 5,700 weapons, armor, ship components, consumables…) and fills in the type and size; the list is generated from your Star Citizen install with `node scripts/gamedata/extract-items.js` and refreshed after patches
+- **Hover hints** — short "what does this do" descriptions on controls, in English, Deutsch, Français, Español, Polski, Português, Русский and 日本語 (can be turned off)
 - **Bring everything home** — one click in Settings sets all your inventory, assets and ships to your home base after a game update (with undo)
 - **Backup & restore** — export everything (jobs, inventory, assets, ships, settings) to a file and restore it later or on another PC
 - **Auto-updater** — checks for new versions on launch and every 3 hours while running, with an in-app download/install banner
@@ -164,12 +169,12 @@ Four views: **My Blueprints**, **Inventory**, **Assets**, and **Ships**.
 
 | Setting | What it does |
 |---|---|
-| **Language** | Switches the UI to English, Deutsch, Français, or Español |
+| **Language** | Switches the UI to English, Deutsch, Français, Español, Polski, Português, Русский or 日本語 |
 | **Window Opacity** | Slider from 30–100% transparency for the whole overlay |
 | **Show / Hide Key** | The global hotkey that toggles the overlay, even while Star Citizen has focus. Choose from Insert (default), F8–F11, Scroll Lock, Pause, Home, or End, then click **Set** |
 | **Close Button** | Controls what the titlebar ✕ does: **Minimize to Tray** (default, keeps the app running) or **Quit App** |
 | **Price Data Source** | **UEX Corp** (default), or **SC Trade Tools** — a community-reported feed from [sc-trade.tools](https://sc-trade.tools). The SC Trade Tools data is sparser than UEX's (it only covers stations players have recently reported) and is refreshed about hourly, so a quiet station can show no prices; obvious outlier reports are filtered out. The list of commodities and stations always comes from UEX. Switching clears the cached prices and reloads from the new source. The active source's logo sits at the top right of the Prices tab — click it to open that site |
-| **Hover Hints** | **On** (default) shows a short description when you hover over a button, tab, chip, dropdown or card for about a third of a second; **Off** turns all of them off, including the browser-style tooltips. The descriptions follow the language setting (English, Deutsch, Français, Español) |
+| **Hover Hints** | **On** (default) shows a short description when you hover over a button, tab, chip, dropdown or card for about a third of a second; **Off** turns all of them off, including the browser-style tooltips. The descriptions follow the language setting (English, Deutsch, Français, Español, Polski, Português, Русский, 日本語) |
 | **In-Transit Icon** | Choose whether in-transit inventory items show a 🚚 truck or 🚀 rocket icon |
 | **Refinery Job Capture** *(experimental)* | **Manual entry** (default) hides the 📷 Capture button; **Auto-detect on capture** shows it on the Refinery → Active Jobs screen. Capture only ever pre-fills the Add Job form — you always review it before the job starts |
 | **Clear Completed Jobs** | Removes every refinery job whose timer has already finished, keeping active ones |

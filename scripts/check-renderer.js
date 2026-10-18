@@ -29,6 +29,11 @@ const sources = {
   'sctrade-prices.js': read('sctrade-prices.js'),
   'renderer/i18n.js': read('renderer/i18n.js'),
   'renderer/help-content.js': read('renderer/help-content.js'),
+  'renderer/help-translations.js': read('renderer/help-translations.js'),
+  'renderer/item-catalog.js': read('renderer/item-catalog.js'),
+  'renderer/mining-data.js': read('renderer/mining-data.js'),
+  'renderer/mining-gear.js': read('renderer/mining-gear.js'),
+  'renderer/special-blueprints.js': read('renderer/special-blueprints.js'),
   'renderer/index.html (inline script)': inline.join('\n;\n'),
 };
 for (const [name, src] of Object.entries(sources)) {
@@ -92,7 +97,7 @@ function codeOnly(src) {
 }
 
 const scriptSrc = inline.join('\n');
-const code = codeOnly(scriptSrc) + '\n' + codeOnly(sources['renderer/i18n.js']) + '\n' + codeOnly(sources['renderer/help-content.js']);
+const code = codeOnly(scriptSrc) + '\n' + codeOnly(sources['renderer/i18n.js']) + '\n' + codeOnly(sources['renderer/help-content.js']) + '\n' + codeOnly(sources['renderer/help-translations.js']);
 
 const declared = new Set();
 const grab = (re, fn) => { for (const m of code.matchAll(re)) fn(m); };

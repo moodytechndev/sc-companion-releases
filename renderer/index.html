@@ -235,6 +235,35 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .mining-row { padding:8px 10px; border-bottom:1px solid var(--border); }
 .mining-row:last-child { border-bottom:none; }
 .mining-ore { font-size:13px; font-weight:600; color:var(--accent); margin-bottom:4px; }
+.bp-special { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:1px 6px; border-radius:8px; margin-left:7px; border:1px solid #ffb020; color:#ffb020; vertical-align:middle; white-space:nowrap; }
+.bp-special-note { font-size:11px; color:var(--text-dim); border:1px solid rgba(255,176,32,0.35); border-radius:var(--r); padding:6px 9px; margin-bottom:10px; }
+.mining-tools { padding:0 10px 6px; display:flex; gap:6px 12px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--text-dim); }
+.mining-tools select, .lo-select { padding:3px 6px; background:var(--bg-input); border:1px solid var(--border); border-radius:3px; color:var(--text); font-size:11px; outline:none; }
+.mining-tools label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+.risk { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:1px 6px; border-radius:8px; margin-left:5px; border:1px solid; vertical-align:middle; white-space:nowrap; }
+.risk.calm, .risk.easy { color:#5bd68a; } .risk.moderate, .risk.medium { color:#e6c84a; } .risk.volatile { color:#ff9a3d; } .risk.extreme, .risk.hard { color:#ff5d5d; }
+.ore-loadout { font-size:10px; color:var(--accent); margin:-3px 0 5px; font-variant-numeric:tabular-nums; }
+.lo-sec { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); margin:14px 0 5px; }
+.lo-sec:first-child { margin-top:2px; }
+.lo-slot { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:11px; color:var(--text-dim); }
+.lo-slot .lo-select { flex:1; min-width:0; }
+.lo-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.lo-tile { border:1px solid var(--border); border-radius:var(--r); padding:6px 8px; }
+.lo-tile .k { font-size:9px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); }
+.lo-tile .v { font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+.lo-tile.good .v { color:#5bd68a; } .lo-tile.bad .v { color:#ff9a3d; }
+.lo-note { font-size:10px; color:var(--text-dim); margin-top:6px; line-height:1.4; }
+.lo-read { display:flex; gap:8px; }
+.lo-read label { flex:1; font-size:10px; color:var(--text-dim); display:flex; flex-direction:column; gap:3px; }
+.lo-read input { padding:6px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--r); color:var(--text-bright); font-size:14px; outline:none; font-variant-numeric:tabular-nums; width:100%; box-sizing:border-box; }
+.lo-rock { margin-top:8px; padding:7px 9px; border:1px solid var(--border); border-radius:var(--r); font-size:11px; line-height:1.5; }
+.lo-row { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--border); font-size:11px; }
+.lo-row .n { font-weight:700; font-size:12px; }
+.lo-row .m { color:var(--text-dim); font-variant-numeric:tabular-nums; text-align:right; }
+.lo-row.best { background:var(--accent-dim); margin:0 -6px; padding-left:6px; padding-right:6px; }
+.ore-tier { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:1px 6px; border-radius:8px; margin-left:7px; border:1px solid; vertical-align:middle; }
+.ore-tier.common { color:#9aa4b2; } .ore-tier.uncommon { color:#5bd68a; } .ore-tier.rare { color:#5aa9ff; } .ore-tier.epic { color:#b57bff; } .ore-tier.legendary { color:#ffb020; }
+.ore-props { display:flex; flex-wrap:wrap; gap:1px 12px; font-size:10px; color:var(--text-dim); font-variant-numeric:tabular-nums; margin:-1px 0 5px; }
 .mining-locs { display:flex; flex-wrap:wrap; gap:4px; }
 .mining-loc { display:flex; flex-direction:column; gap:1px; font-size:11px; background:var(--bg-hover); padding:4px 9px; border-radius:8px; white-space:nowrap; border:1px solid transparent; }
 .mining-loc .ml-name { font-weight:600; color:var(--text); line-height:1.3; }
@@ -370,6 +399,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div class="filter-chips" id="mining-chips">
           <div class="chip active" onclick="switchMiningView('locations',this)" data-i18n="mining.oreLocations">Ore Locations</div>
           <div class="chip" onclick="switchMiningView('scanner',this)">📡 Scanner</div>
+          <div class="chip" onclick="switchMiningView('loadout',this)">🛠 Loadout</div>
           <div class="chip" onclick="switchMiningView('halo',this)">🪨 Aaron Halo</div>
         </div>
       </div>
@@ -382,7 +412,22 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <input type="text" id="mining-search" data-i18n="mining.search" data-i18n-prop="placeholder" placeholder="Search ores or locations…" oninput="filterMining()">
           </div>
         </div>
+        <div class="mining-tools">
+          <select id="mining-sort" onchange="renderMining()" data-tip="Order the ores below">
+            <option value="name">Sort: name</option>
+            <option value="tier">Sort: rarest first</option>
+            <option value="instability">Sort: most stable first</option>
+            <option value="resistance">Sort: easiest to crack first</option>
+          </select>
+          <label data-tip="Only ores with instability of 200 or less. Uses your Loadout if you picked a laser."><input type="checkbox" id="mining-flt-stable" onchange="renderMining()"> Stable only</label>
+          <label data-tip="Only ores with resistance of 35% or less. Uses your Loadout if you picked a laser."><input type="checkbox" id="mining-flt-easy" onchange="renderMining()"> Easy to crack</label>
+        </div>
         <div class="scroll-area" id="mining-list"></div>
+      </div>
+
+      <!-- Loadout view -->
+      <div id="mining-view-loadout" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div class="scroll-area" id="loadout-body" style="padding:10px"></div>
       </div>
 
       <!-- Aaron Halo view -->
@@ -585,8 +630,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           <span class="ico">🔍</span>
           <input type="text" id="help-search" placeholder="Search the user guide…" oninput="renderHelp()">
         </div>
-        <button class="btn btn-sm" onclick="setAllHelp(true)" style="flex-shrink:0">Expand all</button>
-        <button class="btn btn-sm" onclick="setAllHelp(false)" style="flex-shrink:0">Collapse</button>
+        <button class="btn btn-sm" id="help-expand-btn" onclick="setAllHelp(true)" style="flex-shrink:0">Expand all</button>
+        <button class="btn btn-sm" id="help-collapse-btn" onclick="setAllHelp(false)" style="flex-shrink:0">Collapse</button>
       </div>
       <div class="scroll-area" id="help-body"></div>
     </div>
@@ -749,6 +794,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <option value="de">Deutsch</option>
             <option value="fr">Français</option>
             <option value="es">Español</option>
+            <option value="pl">Polski</option>
+            <option value="pt">Português</option>
+            <option value="ru">Русский</option>
+            <option value="ja">日本語</option>
           </select>
         </div>
         <div class="setting-row">
@@ -960,8 +1009,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
   <div class="modal">
     <h3 id="asset-modal-title">Add Asset</h3>
     <div class="form-group">
-      <label>Name</label>
-      <input id="asset-name-input" type="text" placeholder="e.g. Prospector, Aurora MR…">
+      <label>Name <span style="color:var(--text-dim);font-weight:400">— start typing to search the game's items</span></label>
+      <div class="ore-picker">
+        <input id="asset-name-input" type="text" autocomplete="off" placeholder="e.g. Arclight, Helix, Polar…"
+          oninput="suggestAssetItems()" onfocus="suggestAssetItems()" onblur="closeAssetSuggest()" onkeydown="assetSuggestKey(event)">
+        <div class="ore-dropdown" id="asset-suggest"></div>
+      </div>
     </div>
     <div class="form-group">
       <label>Type</label>
@@ -1074,6 +1127,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 </div>
 
 <!-- ── Deliver Job Modal ── -->
+<div id="capture-ask-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
+  <div class="modal">
+    <h3>📷 <span data-i18n="capture.ask.title">Is the list longer than the terminal?</span></h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px" data-i18n="capture.ask.body">If the materials list scrolls, choose Yes — you'll scroll through it in the game, then press Finish.</p>
+    <div class="modal-actions">
+      <button class="btn" id="capture-ask-no" style="flex:1" onclick="answerCaptureLong(false)" data-i18n="capture.ask.no">No, capture now</button>
+      <button class="btn" id="capture-ask-yes" style="flex:1" onclick="answerCaptureLong(true)" data-i18n="capture.ask.yes">Yes, it scrolls</button>
+    </div>
+    <div style="text-align:center;margin-top:8px"><a href="#" style="font-size:11px;color:var(--text-dim)" onclick="closeCaptureAsk();return false" data-i18n="modal.cancel">Cancel</a></div>
+  </div>
+</div>
+
 <div id="bring-home-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal">
     <h3>🏠 Bring everything home</h3>
@@ -1278,6 +1343,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 
 <script src="i18n.js"></script>
 <script src="help-content.js"></script>
+<script src="help-translations.js"></script>
+<script src="mining-data.js"></script>
+<script src="mining-gear.js"></script>
+<script src="special-blueprints.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
 // State
@@ -1474,7 +1543,7 @@ const ORE_DATA = {
     { location: 'Vuur (Pyro 5F)', share: '≤0.9%', sigs: 3600 },
     { location: 'Fairo (Pyro 5D)', share: '≤0.45%', sigs: 3600 },
   ],
-  'Caranite': [
+  'Carinite': [
     { location: 'Aberdeen', share: null, sigs: null },
     { location: 'Daymar', share: null, sigs: null },
   ],
@@ -1917,6 +1986,7 @@ async function init() {
   // Pre-load inventory so startup price prefetch knows what to fetch
   craftInventory = (await api.getStore('craftInventory', [])) || [];
   jobHistory = (await api.getStore('jobHistory', [])) || [];
+  miningLoadout = sanitizeLoadout(await api.getStore('miningLoadout', null));
 
   // Restore persisted price data so Prices/Inventory tabs show values instantly
   const [savedProfits, savedPrices, savedSource, activeSource] = await Promise.all([
@@ -1980,7 +2050,7 @@ function switchTabNow(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
   const sb = document.getElementById('settings-btn');
   if (sb) sb.classList.toggle('active', name === 'settings');
-  if (name === 'mining')   { if (miningView === 'halo') initHalo(); else renderMining(); }
+  if (name === 'mining')   { if (miningView === 'halo') initHalo(); else if (miningView === 'loadout') renderLoadout(); else renderMining(); }
   if (name === 'refinery') { if (refineryView === 'bonuses') renderBonuses(); }
   if (name === 'crafting') initCrafting();
   if (name === 'help') renderHelp();
@@ -2157,7 +2227,10 @@ function switchMiningView(view, chipEl) {
   document.getElementById('mining-view-locations').style.display = view === 'locations' ? 'flex' : 'none';
   document.getElementById('mining-view-halo').style.display      = view === 'halo'      ? 'flex' : 'none';
   document.getElementById('mining-view-scanner').style.display   = view === 'scanner'   ? 'flex' : 'none';
+  document.getElementById('mining-view-loadout').style.display   = view === 'loadout'   ? 'flex' : 'none';
   if (view === 'halo') initHalo();
+  if (view === 'loadout') renderLoadout();
+  if (view === 'locations') renderMining();
   // Reference is the Scanner's default mode, so it has to be drawn the first time the view opens.
   if (view === 'scanner' && scannerMode === 'ref') { populateScannerLocSelect(); renderScannerRef(); }
 }
@@ -2237,25 +2310,117 @@ function matchesAll(q, ...fields) {
   return q.split(/\s+/).every(w => hay.includes(w));
 }
 
+// What the game's own data says about an ore (renderer/mining-data.js, generated by
+// scripts/gamedata/extract-mining.js): its rarity tier, instability, resistance and where the
+// optimal window sits on the laser's charge meter. Shown under the ore's name.
+const _oreNum = (n) => (Math.abs(n) >= 10 ? String(Math.round(n)) : String(Math.round(n * 10) / 10));
+const oreProps = (name) => (typeof MINING_ORES !== 'undefined' ? MINING_ORES[String(name || '').toLowerCase()] || null : null);
+
+// A short plain-text summary of an ore ("legendary · Instability 1000 · Resistance 95%"), used as a
+// hover title on refinery job chips and blueprint parts; '' when the game data has nothing on it.
+function oreTip(name) {
+  const p = oreProps(name);
+  if (!p) return '';
+  return [p.tier, `Instability ${_oreNum(p.instability)}`, `Resistance ${Math.round(p.resistance * 100)}%`].filter(Boolean).join(' \u00b7 ');
+}
+function oreBadge(name) {
+  const p = oreProps(name);
+  return p && p.tier ? `<span class="ore-tier ${p.tier}" data-tip="${esc(oreTip(name))}">${esc(p.tier)}</span>` : '';
+}
+
+// How risky / hard an ore is. Instability is the game's own scale (0–1000); resistance is 0–1.
+const instRisk = (i) => (i <= 100 ? ['calm', 'Calm'] : i <= 400 ? ['moderate', 'Moderate'] : i <= 700 ? ['volatile', 'Volatile'] : ['extreme', 'Extreme']);
+const resRisk  = (r) => (r <= 0.35 ? ['easy', 'Easy'] : r <= 0.6 ? ['medium', 'Medium'] : ['hard', 'Hard']);
+
+// ── Mining loadout: laser + modules (renderer/mining-gear.js, from the game files) ─────────
+// Laser and module modifiers are multiplied together — an estimate, since the game does not
+// publish how it combines them — and applied to an ore's own resistance and instability.
+let miningLoadout = { laser: '', modules: [] };
+const gearReady = () => typeof MINING_LASERS !== 'undefined' && typeof MINING_MODULES !== 'undefined';
+function sanitizeLoadout(raw) {
+  const out = { laser: '', modules: [] };
+  if (!raw || typeof raw !== 'object' || !gearReady()) return out;
+  const laser = MINING_LASERS.find(l => l.id === raw.laser);
+  if (!laser) return out;
+  out.laser = laser.id;
+  out.modules = Array.from({ length: laser.slots || 0 }, (_, i) => (MINING_MODULES.some(m => m.id === (raw.modules || [])[i]) ? raw.modules[i] : ''));
+  return out;
+}
+const gearLaser = () => (gearReady() ? MINING_LASERS.find(l => l.id === miningLoadout.laser) || null : null);
+const gearModules = () => (gearReady() ? miningLoadout.modules.map(id => MINING_MODULES.find(m => m.id === id)).filter(Boolean) : []);
+function loadoutTotals() {
+  const laser = gearLaser();
+  if (!laser) return null;
+  const mods = gearModules();
+  const parts = [laser, ...mods];
+  const mul = (k) => (parts.reduce((a, p) => a * (1 + (p[k] || 0) / 100), 1) - 1) * 100;
+  return {
+    power: mods.reduce((a, m) => a * (m.power || 1), 1),
+    resistance: mul('resistance'), instability: mul('instability'), window: mul('window'), windowRate: mul('windowRate'),
+    inert: Math.min(100, parts.reduce((a, p) => a + (p.inert || 0), 0)),
+    active: mods.filter(m => m.kind === 'active').length,
+  };
+}
+// An ore's resistance and instability once the loadout's modifiers are applied (or unchanged without one).
+function effOre(p) {
+  const t = loadoutTotals();
+  if (!t) return { res: p.resistance, inst: p.instability, loadout: false };
+  return { res: Math.max(-1, p.resistance * (1 + t.resistance / 100)), inst: Math.max(0, p.instability * (1 + t.instability / 100)), loadout: true };
+}
+const _sgn = (n) => (n > 0 ? '+' : n < 0 ? '\u2212' : '') + _oreNum(Math.abs(n)) + '%';
+
+function orePropsHTML(ore) {
+  const p = oreProps(ore);
+  if (!p) return { pill: '', line: '' };
+  const e = effOre(p);
+  const [ik, il] = instRisk(e.inst), [rk, rl] = resRisk(e.res);
+  const pill = (p.tier ? `<span class="ore-tier ${p.tier}" data-tip="${esc("Rarity tier of the rocks this ore is the main element of")}">${esc(p.tier)}</span>` : '')
+    + `<span class="risk ${ik}" data-tip="${esc("How volatile this ore is to mine" + (e.loadout ? " with your Loadout" : "") + " \u2014 from its instability")}">${il}</span>`
+    + `<span class="risk ${rk}" data-tip="${esc("How hard this ore is to crack" + (e.loadout ? " with your Loadout" : "") + " \u2014 from its resistance")}">${rl}</span>`;
+  const line = `<div class="ore-props">
+    <span data-tip="${esc("Instability \u2014 how quickly this ore pushes a rock toward breaking apart; higher is riskier")}">Instability ${_oreNum(p.instability)}</span>
+    <span data-tip="${esc("Resistance \u2014 how much this ore resists your mining laser; higher needs more power, negative is easier")}">Resistance ${Math.round(p.resistance * 100)}%</span>
+    <span data-tip="${esc("Optimal charge window \u2014 where the sweet spot sits on the laser's charge meter, and how much it varies from rock to rock")}">Window ${Math.round(p.window[0] * 100)}% \u00b1${Math.round(p.window[1] * 100)}</span>
+  </div>` + (e.loadout ? `<div class="ore-loadout" data-tip="${esc("Estimate with the laser and modules from your Loadout tab")}">With your loadout: Resistance ${Math.round(e.res * 100)}% \u00b7 Instability ${_oreNum(e.inst)}</div>` : '');
+  return { pill, line };
+}
+
 function renderMining(query) {
   const q = (query || document.getElementById('mining-search')?.value || '').toLowerCase().trim();
+  const sort = document.getElementById('mining-sort')?.value || 'name';
+  const stableOnly = !!document.getElementById('mining-flt-stable')?.checked;
+  const easyOnly = !!document.getElementById('mining-flt-easy')?.checked;
   const list = document.getElementById('mining-list');
-  const entries = Object.entries(ORE_DATA).filter(([ore, locs]) =>
+  const eff = (ore) => { const p = oreProps(ore); return p ? effOre(p) : null; };
+  let entries = Object.entries(ORE_DATA).filter(([ore, locs]) =>
     !q || matchesAll(q, ore) || locs.some(l => matchesAll(q, ore, l.location))
   );
+  if (stableOnly) entries = entries.filter(([ore]) => { const e = eff(ore); return e && e.inst <= 200; });
+  if (easyOnly) entries = entries.filter(([ore]) => { const e = eff(ore); return e && e.res <= 0.35; });
+  if (sort !== 'name') {
+    const rank = { legendary: 0, epic: 1, rare: 2, uncommon: 3, common: 4 };
+    const key = (ore) => {
+      const p = oreProps(ore), e = eff(ore);
+      if (!p) return Infinity;
+      return sort === 'tier' ? (p.tier in rank ? rank[p.tier] : 5) : sort === 'instability' ? e.inst : e.res;
+    };
+    entries = entries.map(en => [en, key(en[0])]).sort((a, b) => a[1] - b[1] || a[0][0].localeCompare(b[0][0])).map(x => x[0]);
+  }
   if (!entries.length) {
-    list.innerHTML = `<div class="empty-state"><div class="lbl">No ores match "${esc(q)}"</div></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="lbl">No ores match${q ? ` "${esc(q)}"` : ' these filters'}</div></div>`;
     return;
   }
   list.innerHTML = entries.map(([ore, locs]) => {
     const filtered = q ? locs.filter(l => matchesAll(q, ore, l.location)) : locs;
     const isSel = selectedMiningOres.has(ore);
+    const props = orePropsHTML(ore);
     return `
     <div class="mining-row" data-ore="${esc(ore)}" onclick="toggleMiningOreSelect(this.dataset.ore)" style="cursor:pointer;${isSel ? 'background:var(--accent-dim);outline:1px solid rgba(100,180,255,0.25);' : ''}">
-      <div class="mining-ore" style="${isSel ? 'color:var(--accent)' : ''}">${esc(ore)}</div>
+      <div class="mining-ore" style="${isSel ? 'color:var(--accent)' : ''}">${esc(ore)}${props.pill}</div>
+      ${props.line}
       <div class="mining-locs">${filtered.map(l => {
         const tier = shareTier(l.share);
-        const meta = [l.share, fmtSigs(l.sigs)].filter(Boolean).join(' · ');
+        const meta = [l.share, fmtSigs(l.sigs)].filter(Boolean).join(' \u00b7 ');
         return `<span class="mining-loc ${tier}">
           <span class="ml-name">${esc(l.location)}</span>
           ${meta ? `<span class="ml-meta">${esc(meta)}</span>` : ''}
@@ -2269,6 +2434,120 @@ function filterMining() {
   renderMining(document.getElementById('mining-search').value);
 }
 
+// ── Loadout view ─────────────────────────────────────────────────────────────
+function saveLoadout() { api.setStore('miningLoadout', miningLoadout); }
+
+function moduleLabel(m) {
+  return m.kind === 'active' ? `${m.name} \u00b7 ${m.charges}\u00d7 ${m.seconds}s` : m.name;
+}
+function loadoutTile(label, value, good, tip) {
+  return `<div class="lo-tile ${good > 0 ? 'good' : good < 0 ? 'bad' : ''}" data-tip="${esc(tip)}"><div class="k">${label}</div><div class="v">${value}</div></div>`;
+}
+
+function renderLoadout() {
+  const body = document.getElementById('loadout-body');
+  if (!body) return;
+  if (!gearReady()) {
+    body.innerHTML = '<div class="empty-state"><div class="lbl">Mining gear data is missing from this build.</div></div>';
+    return;
+  }
+  const laser = gearLaser();
+  const sizes = [[2, 'Size 2'], [1, 'Size 1'], [0, 'Ground vehicle (ROC)']];
+  const laserOpts = '<option value="">\u2014 choose a mining laser \u2014</option>' + sizes.map(([sz, label]) => {
+    const ls = MINING_LASERS.filter(l => (l.size || 0) === sz);
+    return ls.length ? `<optgroup label="${label}">${ls.map(l => `<option value="${esc(l.id)}"${l.id === miningLoadout.laser ? ' selected' : ''}>${esc(l.name)}${l.slots ? ` \u00b7 ${l.slots} module slot${l.slots > 1 ? 's' : ''}` : ''}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+  const modOpts = (cur) => '<option value="">\u2014 empty \u2014</option>' + [['active', 'Active (limited charges)'], ['passive', 'Passive (always on)']].map(([kind, label]) =>
+    `<optgroup label="${label}">${MINING_MODULES.filter(m => m.kind === kind).map(m => `<option value="${esc(m.id)}"${m.id === cur ? ' selected' : ''}>${esc(moduleLabel(m))}</option>`).join('')}</optgroup>`).join('');
+  const slots = laser ? (laser.slots || 0) : 0;
+  const slotsHtml = laser
+    ? (slots ? Array.from({ length: slots }, (_, i) => `<div class="lo-slot"><span>Module ${i + 1}</span><select class="lo-select" onchange="loSetModule(${i}, this.value)">${modOpts(miningLoadout.modules[i] || '')}</select></div>`).join('')
+             : '<div class="lo-note">This laser has no module slots.</div>')
+    : '<div class="lo-note">Pick a laser to see how it changes each ore. Your choice is saved.</div>';
+
+  body.innerHTML = `
+    <div class="lo-sec">Your mining laser</div>
+    <select class="lo-select" style="width:100%;margin-bottom:6px" onchange="loSetLaser(this.value)">${laserOpts}</select>
+    ${slotsHtml}
+    <div id="lo-summary"></div>
+    <div class="lo-sec">Check a rock</div>
+    <div class="lo-read">
+      <label>Instability<input type="number" id="lo-rock-inst" placeholder="e.g. 350" step="1" oninput="loRefresh()"></label>
+      <label>Resistance %<input type="number" id="lo-rock-res" placeholder="e.g. 62" step="1" oninput="loRefresh()"></label>
+    </div>
+    <div class="lo-note">Type what your scanner shows for the rock. The ores below are ranked by how close they are to it. Rocks often mix several ores, so treat the top one as the likely main ore.</div>
+    <div id="lo-rock"></div>
+    <div class="lo-sec">Ores</div>
+    <div id="lo-results"></div>
+    <div class="lo-note">Effects are percentages from the game's data files, multiplied together and applied to each ore \u2014 an estimate, not the game's exact formula. Active modules only last a few seconds per charge.</div>`;
+  loRefresh();
+}
+
+function loSetLaser(id) {
+  miningLoadout = sanitizeLoadout({ laser: id, modules: miningLoadout.modules });
+  saveLoadout();
+  renderLoadout();
+  renderMining();
+}
+function loSetModule(i, id) {
+  miningLoadout.modules[i] = id;
+  saveLoadout();
+  loRefresh();
+  renderMining();
+}
+
+// Repaints the summary, the rock verdict and the ore list without touching the inputs being typed in.
+function loRefresh() {
+  const t = loadoutTotals();
+  const sum = document.getElementById('lo-summary');
+  if (sum) {
+    sum.innerHTML = t ? `
+      <div class="lo-sec">With this loadout</div>
+      <div class="lo-grid">
+        ${loadoutTile('Beam power', '\u00d7' + t.power.toFixed(2), t.power > 1.001 ? 1 : t.power < 0.999 ? -1 : 0, 'Modules multiply the laser\u2019s beam power')}
+        ${loadoutTile('Resistance', _sgn(t.resistance), t.resistance < -0.5 ? 1 : t.resistance > 0.5 ? -1 : 0, 'Change to how hard rock fights the laser \u2014 lower is better')}
+        ${loadoutTile('Instability', _sgn(t.instability), t.instability < -0.5 ? 1 : t.instability > 0.5 ? -1 : 0, 'Change to how fast a rock becomes unstable \u2014 lower is better')}
+        ${loadoutTile('Charge window', _sgn(t.window), t.window > 0.5 ? 1 : t.window < -0.5 ? -1 : 0, 'Size of the optimal charge window \u2014 bigger is easier')}
+        ${loadoutTile('Window fill', _sgn(t.windowRate), t.windowRate > 0.5 ? 1 : t.windowRate < -0.5 ? -1 : 0, 'How fast the optimal window fills')}
+        ${loadoutTile('Inert removed', _oreNum(t.inert) + '%', t.inert > 0 ? 1 : 0, 'Share of worthless inert material filtered out')}
+      </div>
+      ${t.active ? `<div class="lo-note">${t.active} active module${t.active > 1 ? 's' : ''} included \u2014 they only apply while switched on.</div>` : ''}` : '';
+  }
+
+  const instIn = document.getElementById('lo-rock-inst'), resIn = document.getElementById('lo-rock-res');
+  const rockI = instIn && instIn.value !== '' ? parseFloat(instIn.value) : null;
+  const rockR = resIn && resIn.value !== '' ? parseFloat(resIn.value) / 100 : null;
+  const haveRock = Number.isFinite(rockI) && Number.isFinite(rockR);
+
+  const rockEl = document.getElementById('lo-rock');
+  if (rockEl) {
+    if (!haveRock) rockEl.innerHTML = '';
+    else {
+      const e = effOre({ resistance: rockR, instability: rockI });
+      const [ik, il] = instRisk(e.inst), [rk, rl] = resRisk(e.res);
+      rockEl.innerHTML = `<div class="lo-rock">Your rock${e.loadout ? ' with this loadout' : ''}:
+        resistance <b>${Math.round(e.res * 100)}%</b>${e.loadout ? ` (scanner ${Math.round(rockR * 100)}%)` : ''} <span class="risk ${rk}">${rl}</span><br>
+        instability <b>${_oreNum(e.inst)}</b>${e.loadout ? ` (scanner ${_oreNum(rockI)})` : ''} <span class="risk ${ik}">${il}</span></div>`;
+    }
+  }
+
+  const res = document.getElementById('lo-results');
+  if (!res) return;
+  let rows = Object.keys(MINING_ORES).map(k => ({ name: k.replace(/^\w/, c => c.toUpperCase()), p: MINING_ORES[k] }));
+  rows.forEach(r => {
+    r.e = effOre(r.p);
+    r.dist = haveRock ? Math.hypot((rockR - r.p.resistance) / 0.5, (rockI - r.p.instability) / 300) : 0;
+  });
+  rows = haveRock ? rows.sort((a, b) => a.dist - b.dist).slice(0, 8) : rows.sort((a, b) => a.e.res - b.e.res || a.name.localeCompare(b.name));
+  res.innerHTML = rows.map((r, i) => {
+    const [ik, il] = instRisk(r.e.inst), [rk, rl] = resRisk(r.e.res);
+    return `<div class="lo-row${haveRock && i === 0 ? ' best' : ''}">
+      <div><div class="n">${esc(r.name)}${oreBadge(r.name)}</div>${haveRock && i === 0 ? '<div class="lo-note" style="margin:0">Closest match</div>' : ''}</div>
+      <div class="m">Resistance ${Math.round(r.e.res * 100)}% <span class="risk ${rk}">${rl}</span><br>Instability ${_oreNum(r.e.inst)} <span class="risk ${ik}">${il}</span></div>
+    </div>`;
+  }).join('');
+}
+
 // ════════════════════════════════════════════════════════════════════
 // Refinery — job management
 // ════════════════════════════════════════════════════════════════════
@@ -2277,7 +2556,7 @@ function filterMining() {
 // Pieces is a valid job input too, but it has no rock locations/signatures, so it
 // doesn't belong in ORE_DATA (which backs the Ore Locations tab, Scanner Reference
 // cross-filtering, and Aaron Halo). Kept as a small separate list instead.
-const EXTRA_REFINABLE_MATERIALS = ['Construction Pieces', 'Construction Rubble', 'Construction Salvage'];
+const EXTRA_REFINABLE_MATERIALS = ['Construction Pieces', 'Construction Rubble', 'Construction Salvage', 'Diamond'];
 
 // Construction Rubble/Pieces/Salvage are unrefined salvage grades picked up with
 // a salvage ship — UEX only lists "Construction Materials" as an actual tradeable
@@ -2739,9 +3018,19 @@ function jobCardHTML(job, rem, pct, done, expiring) {
   const remClass = done ? ' ready pulse' : expiring ? ' expiring' : '';
   const fillClass = done ? ' ready' : expiring ? ' expiring' : '';
   const ores = jobOres(job);
-  const oreDisplay = ores.length > 1
-    ? ores.map(o => `<span style="display:inline-block;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 5px;margin:1px 2px 1px 0;font-size:11px">${esc(o)}</span>`).join('')
-    : `<span>${esc(ores[0] || '')}</span>`;
+  // a long materials list is shown as counted chips ("Iron ×6") so the card stays a card
+  const chip = (txt, title) => `<span ${title ? `title="${esc(title)}" ` : ''}style="display:inline-block;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 5px;margin:1px 2px 1px 0;font-size:11px">${esc(txt)}</span>`;
+  let oreDisplay;
+  if (ores.length > 6) {
+    const counts = new Map();
+    ores.forEach(o => counts.set(o, (counts.get(o) || 0) + 1));
+    const shown = [...counts.entries()].map(([o, n]) => n > 1 ? `${o} ×${n}` : o);
+    oreDisplay = shown.slice(0, 6).map(txt => chip(txt, oreTip(txt.replace(/ \u00d7\d+$/, '')))).join('') +
+      (shown.length > 6 ? chip(`+${shown.length - 6} more`, shown.slice(6).join(', ')) : '') +
+      `<span style="font-size:10px;color:var(--text-dim);margin-left:2px">(${ores.length})</span>`;
+  } else {
+    oreDisplay = ores.length > 1 ? ores.map(o => chip(o, oreTip(o))).join('') : `<span ${oreTip(ores[0] || '') ? `title="${esc(oreTip(ores[0]))}" ` : ''}>${esc(ores[0] || '')}</span>`;
+  }
   return `
     <div class="job-header">
       <div style="flex:1;min-width:0">
@@ -2758,7 +3047,10 @@ function jobCardHTML(job, rem, pct, done, expiring) {
         <div class="time-remaining${remClass}" id="tmr-${job.id}">${done ? t('job.ready') : fmtTime(rem)}</div>
         ${job.notes ? `<div class="time-started">${esc(job.notes)}</div>` : ''}
       </div>
-      <div class="time-started">${t('job.started', { args: [fmtStart(job.startTime)] })}</div>
+      <div style="text-align:right">
+        <div class="time-started">${t('job.started', { args: [fmtStart(job.startTime)] })}</div>
+        ${done ? '' : `<div class="time-started">${t('job.readyAt', { args: [fmtStart(job.startTime + job.durationSeconds * 1000)] })}</div>`}
+      </div>
     </div>
     ${profitLineHTML(job)}
     ${done ? `<div class="ready-badge show pulse" style="justify-content:space-between">
@@ -3441,16 +3733,27 @@ function closeTerminalModal() {
 // Utilities
 // ════════════════════════════════════════════════════════════════════
 function fmtTime(sec) {
+  const d = Math.floor(sec / 86400);
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
+  // a multi-day job: days, hours and minutes — the seconds are noise at that scale
+  if (d > 0) return `${d}d ${String(h % 24).padStart(2,'0')}h ${String(m).padStart(2,'0')}m`;
   if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
   if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s`;
   return `${s}s`;
 }
 
+// A clock time, with the weekday (or the date, a week or more away) when it is not today —
+// a job that finishes "09:15" is ambiguous when it runs for days.
 function fmtStart(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const d = new Date(ts);
+  const time = d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return time;
+  const near = Math.abs(d - now) < 6 * 86400000;
+  const day = near ? d.toLocaleDateString([], { weekday: 'short' }) : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  return `${day} ${time}`;
 }
 
 function esc(str) {
@@ -3666,14 +3969,19 @@ async function saveRefineryCaptureMode() {
 // the in-game list between shots and the button's countdown tells you how long
 // you have. onRefineryCaptureProgress (registered once, at startup) drives the
 // live "Capturing 2/4…" text during that window.
-let _captureBtnBusy = false;
+let _captureBtnBusy = false, _captureScroll = false, _captureBtnEl = null;
 function onRefineryCaptureProgressTick(info) {
   if (!_captureBtnBusy) return;
-  const btn = document.getElementById('capture-job-btn');
+  const btn = _captureBtnEl || document.getElementById('capture-job-btn');
   if (!btn) return;
-  btn.textContent = info.phase === 'reading'
-    ? `📷 Reading ${info.current}/${info.total}…`
-    : `📷 ${info.current}/${info.total} — scroll now!`;
+  if (info.phase === 'reading') {
+    btn.textContent = `📷 Reading ${info.current}/${info.total}` + (info.found ? ` · ${info.found} found` : '') + '…';
+  } else if (info.scroll) {
+    // scroll capture: the button is the Done button; how long is left shows as a count-up
+    btn.textContent = `✔ ${t('capture.finish')} · ${info.current} · ${info.elapsed}s`;
+  } else {
+    btn.textContent = `📷 ${info.current}/${info.total} — scroll now!`;
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -3821,21 +4129,43 @@ function reportImportProblem() {
   reportCaptureProblem();
 }
 
-async function captureRefineryJob() {
+// 📷 Capture first asks whether the materials list is longer than the terminal window. If it
+// is, the capture runs as a scroll capture — frames keep coming while the user scrolls the list in
+// the game, and the same button becomes Finish — otherwise it is the quick four-shot capture.
+let _captureLongLast = false;
+function captureRefineryJob() {
+  // while a scroll capture runs, the button is the Finish button
+  if (_captureBtnBusy) { if (_captureScroll) api.stopRefineryCapture(); return; }
+  document.getElementById('capture-ask-overlay').style.display = 'flex';
+  document.getElementById(_captureLongLast ? 'capture-ask-yes' : 'capture-ask-no').focus();
+}
+function closeCaptureAsk() {
+  document.getElementById('capture-ask-overlay').style.display = 'none';
+}
+function answerCaptureLong(isLong) {
+  _captureLongLast = !!isLong;
+  closeCaptureAsk();
+  runRefineryCapture({ scroll: !!isLong });
+}
+
+async function runRefineryCapture(opts) {
+  const scroll = !!(opts && opts.scroll);
   const btn = document.getElementById('capture-job-btn');
+  const other = null;
   const originalText = btn.textContent;
-  _captureBtnBusy = true;
-  btn.disabled = true;
-  btn.textContent = '📷 1/4…';
+  _captureBtnBusy = true; _captureScroll = scroll; _captureBtnEl = btn;
+  btn.disabled = !scroll;
+  btn.textContent = scroll ? `✔ ${t('capture.finish')}` : '📷 1/4…';
 
   let res;
   try {
-    res = await api.captureRefineryJob();
+    res = await api.captureRefineryJob({ scroll });
   } catch (e) {
     res = { status: 'error', error: e.message };
   }
-  _captureBtnBusy = false;
+  _captureBtnBusy = false; _captureScroll = false;
   btn.disabled = false;
+  if (other) other.disabled = false;
 
   if (res.status !== 'ok') {
     const notRunning = /doesn.t appear to be running/i.test(res.error || '');
@@ -4197,43 +4527,80 @@ function helpFmt(text) {
   return esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 
+// Guide text in the current language: help-translations.js holds a flat key → text table per
+// language (keys like sec.refinery.howto.2 / shot.overview.point.0); anything missing shows
+// the English from help-content.js.
+function helpTr(key, english) {
+  if (typeof HELP_TRANSLATIONS === 'undefined') return english;
+  const m = HELP_TRANSLATIONS[currentLang];
+  return (m && m[key]) || english;
+}
+function helpSec(sec) {
+  const k = (f, i) => `sec.${sec.id}.${f}${i == null ? '' : '.' + i}`;
+  return {
+    title: helpTr(k('title'), sec.title),
+    intro: (sec.intro || []).map((t, i) => helpTr(k('intro', i), t)),
+    howto: (sec.howto || []).map((t, i) => helpTr(k('howto', i), t)),
+    tips: (sec.tips || []).map((t, i) => helpTr(k('tips', i), t)),
+    faq: (sec.faq || []).map(([q, a], i) => [helpTr(k('faq', i) + '.q', q), helpTr(k('faq', i) + '.a', a)]),
+  };
+}
+function helpShot(id, sh) {
+  return {
+    file: sh.file,
+    title: helpTr(`shot.${id}.title`, sh.title),
+    caption: sh.caption ? helpTr(`shot.${id}.caption`, sh.caption) : '',
+    points: sh.points.map((p, i) => helpTr(`shot.${id}.point.${i}`, p.text)),
+  };
+}
+
 function helpSectionText(sec) {
-  const shots = (sec.shots || []).map(id => HELP_SHOTS[id]).filter(Boolean);
+  const s = helpSec(sec);
+  const shots = (sec.shots || []).filter(id => HELP_SHOTS[id]).map(id => helpShot(id, HELP_SHOTS[id]));
   return [
-    sec.title, ...(sec.intro || []), ...(sec.howto || []), ...(sec.tips || []),
-    ...(sec.faq || []).flat(),
-    ...shots.flatMap(sh => [sh.title, sh.caption || '', ...sh.points.map(p => p.text)]),
+    s.title, ...s.intro, ...s.howto, ...s.tips, ...s.faq.flat(),
+    ...shots.flatMap(sh => [sh.title, sh.caption, ...sh.points]),
   ].join(' ').toLowerCase();
 }
 
 function renderHelp() {
   const body = document.getElementById('help-body');
   if (!body || typeof HELP_SECTIONS === 'undefined') return;
+  // the header controls follow the language too
+  const ph = document.getElementById('help-search');
+  if (ph) ph.placeholder = helpTr('ui.search', 'Search the user guide…');
+  const eb = document.getElementById('help-expand-btn');
+  if (eb) eb.textContent = helpTr('ui.expand', 'Expand all');
+  const cb = document.getElementById('help-collapse-btn');
+  if (cb) cb.textContent = helpTr('ui.collapse', 'Collapse');
+
   const q = (document.getElementById('help-search')?.value || '').toLowerCase().trim();
   const secs = HELP_SECTIONS.filter(sec => !q || matchesAll(q, helpSectionText(sec)));
   if (!secs.length) {
-    body.innerHTML = '<div class="empty-state"><div class="ico">🔍</div><div class="lbl">Nothing in the guide matches that.</div></div>';
+    body.innerHTML = `<div class="empty-state"><div class="ico">🔍</div><div class="lbl">${esc(helpTr('ui.empty', 'Nothing in the guide matches that.'))}</div></div>`;
     return;
   }
-  body.innerHTML = secs.map(sec => {
+  const note = currentLang !== 'en' ? helpTr('ui.note', '') : '';
+  body.innerHTML = (note ? `<p class="help-note" style="margin:8px 12px 0;font-size:11px;color:var(--text-dim)">${esc(note)}</p>` : '') + secs.map(sec => {
     const open = q ? true : helpOpen.has(sec.id);
-    const shots = (sec.shots || []).map(id => HELP_SHOTS[id]).filter(Boolean).map(sh => `
+    const s = helpSec(sec);
+    const shots = (sec.shots || []).filter(id => HELP_SHOTS[id]).map(id => helpShot(id, HELP_SHOTS[id])).map(sh => `
       <figure class="help-fig">
         <div class="help-fig-title">${esc(sh.title)}</div>
         <img src="help/${esc(sh.file)}" alt="${esc(sh.title)}" loading="lazy">
         ${sh.caption ? `<div class="help-caption">${helpFmt(sh.caption)}</div>` : ''}
         <ol class="help-legend">${sh.points.map((p, i) =>
-          `<li><span class="help-badge">${i + 1}</span><span>${helpFmt(p.text)}</span></li>`).join('')}</ol>
+          `<li><span class="help-badge">${i + 1}</span><span>${helpFmt(p)}</span></li>`).join('')}</ol>
       </figure>`).join('');
     return `
     <details class="help-sec" data-id="${esc(sec.id)}" ${open ? 'open' : ''} ontoggle="onHelpToggle(this)">
-      <summary>${esc(sec.icon || '')} ${esc(sec.title)}</summary>
+      <summary>${esc(sec.icon || '')} ${esc(s.title)}</summary>
       <div class="help-inner">
-        ${(sec.intro || []).map(t => `<p>${helpFmt(t)}</p>`).join('')}
-        ${(sec.howto || []).length ? `<h4>How to</h4><ol class="help-howto">${sec.howto.map(t => `<li>${helpFmt(t)}</li>`).join('')}</ol>` : ''}
+        ${s.intro.map(t => `<p>${helpFmt(t)}</p>`).join('')}
+        ${s.howto.length ? `<h4>${esc(helpTr('ui.howto', 'How to'))}</h4><ol class="help-howto">${s.howto.map(t => `<li>${helpFmt(t)}</li>`).join('')}</ol>` : ''}
         ${shots}
-        ${(sec.tips || []).length ? `<h4>Good to know</h4><ul class="help-tips">${sec.tips.map(t => `<li>${helpFmt(t)}</li>`).join('')}</ul>` : ''}
-        ${(sec.faq || []).length ? `<dl class="help-faq">${sec.faq.map(([qn, an]) => `<dt>${esc(qn)}</dt><dd>${helpFmt(an)}</dd>`).join('')}</dl>` : ''}
+        ${s.tips.length ? `<h4>${esc(helpTr('ui.tips', 'Good to know'))}</h4><ul class="help-tips">${s.tips.map(t => `<li>${helpFmt(t)}</li>`).join('')}</ul>` : ''}
+        ${s.faq.length ? `<dl class="help-faq">${s.faq.map(([qn, an]) => `<dt>${esc(qn)}</dt><dd>${helpFmt(an)}</dd>`).join('')}</dl>` : ''}
       </div>
     </details>`;
   }).join('');
@@ -4277,6 +4644,7 @@ const HINTS_BY_CALL = {
   // mining
   'switchMiningView:locations': 'Browse where each ore can be mined',
   'switchMiningView:scanner': 'Identify ore from a scanner signature, or read the signature table',
+  'switchMiningView:loadout': 'Pick your mining laser and modules, and see how they change each ore',
   'switchMiningView:halo': 'Plan a quantum drop into the Aaron Halo asteroid belt',
   'setScannerMode:ref': 'Table of every signature, with the values for 2–6 rocks in one cluster',
   'setScannerMode:scan': 'Type the RS signature your scanner shows to find the ore and rock count',
@@ -5605,6 +5973,83 @@ function openEditAsset(i) { if (craftAssets[i]) return openAssetDialog(craftAsse
 
 function closeAddAsset() {
   document.getElementById('add-asset-modal').style.display = 'none';
+  closeAssetSuggest();
+}
+
+// ── Item catalog suggestions ────────────────────────────────────────────────────
+// item-catalog.js is generated from the player's Star Citizen install (scripts/gamedata) — the
+// game's own item names with the type and size they belong under. It is loaded the first time
+// the Add Asset name field is used, and picking a suggestion fills the name, type and size.
+let _catalogLoad = null;
+function loadItemCatalog() {
+  if (typeof ITEM_CATALOG !== 'undefined') return Promise.resolve(true);
+  if (!_catalogLoad) {
+    _catalogLoad = new Promise(resolve => {
+      const s = document.createElement('script');
+      s.src = 'item-catalog.js';
+      s.onload = () => resolve(true);
+      s.onerror = () => { _catalogLoad = null; resolve(false); };
+      document.head.appendChild(s);
+    });
+  }
+  return _catalogLoad;
+}
+let _suggestRows = [], _suggestFocus = -1;
+function catalogMeta(r) {
+  return [r[2], r[3] != null ? 'S' + r[3] : '', r[4] != null ? 'G' + r[4] : '', r[5], r[6]].filter(Boolean).join(' · ');
+}
+async function suggestAssetItems() {
+  const input = document.getElementById('asset-name-input');
+  const dd = document.getElementById('asset-suggest');
+  const q = input.value.toLowerCase().trim();
+  if (q.length < 2 || !(await loadItemCatalog()) || input.value.toLowerCase().trim() !== q) { dd.classList.remove('open'); return; }
+  const hits = [];
+  for (const r of ITEM_CATALOG) {
+    if (!matchesAll(q, r[0], r[2], r[6])) continue;
+    const n = r[0].toLowerCase();
+    hits.push([n.startsWith(q) ? 0 : n.includes(q) ? 1 : 2, r]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || a[1][0].localeCompare(b[1][0]));
+  _suggestRows = hits.slice(0, 14).map(h => h[1]);
+  _suggestFocus = -1;
+  if (!_suggestRows.length) { dd.classList.remove('open'); return; }
+  dd.innerHTML = _suggestRows.map((r, i) =>
+    `<div class="ore-option" data-i="${i}"><div>${esc(r[0])}</div><div style="font-size:10px;color:var(--text-dim)">${esc(catalogMeta(r))}</div></div>`).join('') +
+    (hits.length > 14 ? `<div class="ore-option" style="color:var(--text-dim);cursor:default;font-size:11px">${hits.length - 14} more — keep typing to narrow</div>` : '');
+  dd.querySelectorAll('.ore-option[data-i]').forEach(el => {
+    el.addEventListener('mousedown', e => { e.preventDefault(); pickAssetItem(Number(el.dataset.i)); });
+  });
+  dd.classList.add('open');
+}
+function closeAssetSuggest() {
+  const dd = document.getElementById('asset-suggest');
+  if (dd) dd.classList.remove('open');
+}
+function assetSuggestKey(e) {
+  const dd = document.getElementById('asset-suggest');
+  if (!dd.classList.contains('open')) return;
+  const opts = [...dd.querySelectorAll('.ore-option[data-i]')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    _suggestFocus = (_suggestFocus + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length;
+    opts.forEach((o, i) => o.classList.toggle('focused', i === _suggestFocus));
+    opts[_suggestFocus].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && _suggestFocus >= 0) {
+    e.preventDefault();
+    pickAssetItem(_suggestFocus);
+  } else if (e.key === 'Escape') {
+    closeAssetSuggest();
+  }
+}
+function pickAssetItem(i) {
+  const r = _suggestRows[i];
+  if (!r) return;
+  document.getElementById('asset-name-input').value = r[0];
+  const typeSel = document.getElementById('asset-type-input');
+  if ([...typeSel.options].some(o => o.value === r[1])) typeSel.value = r[1];
+  onAssetTypeChange();
+  if (r[3] != null && r[3] >= 0 && r[3] <= 6 && r[1].startsWith('Ship component')) document.getElementById('asset-size-input').value = String(r[3]);
+  closeAssetSuggest();
 }
 
 async function saveAsset() {
@@ -5685,6 +6130,7 @@ async function initCrafting() {
       const cached = (await api.getStore('craftingCache', [])) || [];
       if (cached.length > 0) {
         allBlueprints = cached;
+        mergeSpecialBlueprints();
         craftingInitialized = true;
         renderOwned();
         return;
@@ -5705,6 +6151,7 @@ async function initCrafting() {
     }
 
     allBlueprints = fetched;
+    mergeSpecialBlueprints();
     await api.setStore('craftingCache', fetched);
     await api.setStore('craftingCacheVersion', liveVersion);
     craftingInitialized = true;
@@ -5713,6 +6160,19 @@ async function initCrafting() {
     list.innerHTML = `<div class="empty-state"><div class="lbl">${t('craft.error.load')}</div><button class="btn btn-sm" style="margin-top:10px" onclick="craftingInitialized=false;initCrafting()">${t('craft.retry')}</button></div>`;
   }
 }
+
+// Blueprints that are in the game's own data but not on sc-craft.tools (renderer/special-blueprints.js,
+// generated by scripts/gamedata/extract-blueprints.js). They are added to the list marked
+// "Special"; one that sc-craft.tools later lists is simply skipped here. The cache of sc-craft's
+// list is not touched, so removing a special never leaves a stale copy behind.
+function mergeSpecialBlueprints() {
+  if (typeof SPECIAL_BLUEPRINTS === 'undefined') return;
+  const have = new Set(allBlueprints.map(b => String(b.blueprint_id).toLowerCase()));
+  const extra = SPECIAL_BLUEPRINTS.filter(b => !have.has(String(b.blueprint_id).toLowerCase()));
+  if (extra.length) allBlueprints = allBlueprints.concat(extra.map(b => ({ ...b, special: true })));
+}
+const specialPill = (bp) => bp.special
+  ? `<span class="bp-special" data-tip="${esc("Special blueprint \u2014 it is in the game's own data but not on sc-craft.tools, so some details (like the stat table) may be missing")}">${esc(t('craft.special'))}</span>` : '';
 
 // Ship components carry their size in the blueprint id: "_s03_" mid-id for
 // shields/coolers/power plants/quantum drives/radar, a trailing "_s2" for
@@ -5766,7 +6226,7 @@ function bpIngHtml(bp, idx) {
   return status.rows.map(r => {
     const cls = r.have + 0.004 >= r.need ? ' stocked' : (r.have > 0 ? ' partial' : '');
     const extra = cls === ' partial' ? ` · have ${esc(fmtSCU(r.have))}` : '';
-    return `<span class="craft-ing${cls}">${esc(r.name)} ${esc(fmtSCU(r.need))}${extra}</span>`;
+    return `<span class="craft-ing${cls}"${oreTip(r.name) ? ` title="${esc(oreTip(r.name))}"` : ''}>${esc(r.name)} ${esc(fmtSCU(r.need))}${extra}</span>`;
   }).join('');
 }
 
@@ -5804,7 +6264,7 @@ function renderOwned() {
   }
 
   let bps = allBlueprints;
-  if (q)   bps = bps.filter(bp => matchesAll(q, bp.name, bp.category));
+  if (q)   bps = bps.filter(bp => matchesAll(q, bp.name, bp.category, bp.special ? 'special ' + t('craft.special') : ''));
   if (f === 'owned')   bps = bps.filter(bp => ownedBlueprints[bp.blueprint_id]);
   if (f === 'missing') bps = bps.filter(bp => !ownedBlueprints[bp.blueprint_id]);
   if (f === 'craftable') bps = bps.filter(bp => bpStockStatus(bp, stockIdx).ok);
@@ -5835,7 +6295,7 @@ function renderOwned() {
     <div class="craft-card${craftable ? ' craftable' : ''}" style="cursor:pointer" onclick="openBpDetails('${esc(bp.blueprint_id)}')" title="Click for quality effects and mission drops">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
-          <div class="craft-name">${esc(bp.name)}</div>
+          <div class="craft-name">${esc(bp.name)}${specialPill(bp)}</div>
           <div class="craft-cat">${esc(bp.category || '')}${sizeChipHtml(bpSize(bp))}</div>
         </div>
         <button class="craft-owned-btn ${owned ? 'owned' : ''}" onclick="event.stopPropagation(); toggleOwned('${esc(bp.blueprint_id)}')">
@@ -5998,12 +6458,20 @@ function bpShoppingHtml(bp) {
   return summary + items;
 }
 
+// Some parts only accept material of a minimum quality (e.g. Iron 800+ for ore pods). The
+// data uses 1 for "any" on item-type parts, so only values above that count as a real minimum.
+function bpMinQ(ing) {
+  const q = Number(ing && ing.options && ing.options[0] && ing.options[0].min_quality) || 0;
+  return q > 1 ? q : 0;
+}
+
 function renderBpDetailsBody(bp) {
   const state = bpQualityState[bp.blueprint_id];
   const ings = bp.ingredients || [];
 
   const ingHtml = ings.map((ing, i) => {
     const quality = state[i];
+    const minQ = bpMinQ(ing);
     const qeHtml = (ing.quality_effects || []).map((qe, qi) => `
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim)">
         <span>${esc(qe.stat)}</span>
@@ -6012,13 +6480,13 @@ function renderBpDetailsBody(bp) {
     return `
     <div class="bp-ing-row" style="padding:8px 0;border-top:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700">
-        <span>${esc(ing.name)}</span>
+        <span>${esc(ing.name)}${oreBadge(ing.name)}${minQ ? ` <span class="bp-special" style="margin-left:4px" data-tip="This part only accepts material of this quality or better">Min quality ${minQ}</span>` : ''}</span>
         <span style="color:var(--text-dim);font-weight:400">${esc(fmtSCU(ing.quantity_scu))}</span>
       </div>
       ${qeHtml || '<div style="font-size:11px;color:var(--text-dim)">No quality effect on this material.</div>'}
       <div id="bp-src-${i}" style="margin-top:6px"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-        <input type="range" id="bp-qual-slider-${i}" min="0" max="999" step="1" value="${quality}"
+        <input type="range" id="bp-qual-slider-${i}" min="${minQ}" max="999" step="1" value="${quality}"
           oninput="updateBpIngQuality('${esc(bp.blueprint_id)}', ${i}, this.value)" style="flex:1">
         <span id="bp-qual-label-${i}" style="font-size:11px;width:38px;text-align:right">${quality}</span>
       </div>
@@ -6064,11 +6532,12 @@ function openBpDetails(blueprintId) {
   if (!bp) return;
   if (!bpQualityState[blueprintId]) {
     bpQualityState[blueprintId] = {};
-    (bp.ingredients || []).forEach((_, i) => { bpQualityState[blueprintId][i] = 500; });
+    (bp.ingredients || []).forEach((ing, i) => { bpQualityState[blueprintId][i] = Math.max(500, bpMinQ(ing)); });
   }
   currentBpId = blueprintId;
-  document.getElementById('bp-details-title').textContent = bp.name;
-  document.getElementById('bp-details-body').innerHTML = renderBpDetailsBody(bp);
+  document.getElementById('bp-details-title').innerHTML = esc(bp.name) + specialPill(bp);
+  document.getElementById('bp-details-body').innerHTML =
+    (bp.special ? `<div class="bp-special-note">${esc(bp.special_reason || '')}</div>` : '') + renderBpDetailsBody(bp);
   document.getElementById('bp-add-asset-btn').textContent = '＋ Add as crafted asset';
   // Inventory may have changed since this blueprint was last opened — drop picks
   // that no longer point at a non-empty box of the right material.
@@ -6325,10 +6794,10 @@ function removeBpSourceRow(bpId, ingIdx, rowIdx) {
 // re-rendering the whole modal body — replacing the <input type="range"> itself
 // mid-drag would interrupt the browser's own drag/mouse-capture on that element.
 function updateBpIngQuality(blueprintId, ingIdx, val) {
-  const quality = parseInt(val, 10);
-  bpQualityState[blueprintId][ingIdx] = quality;
   const bp = allBlueprints.find(b => b.blueprint_id === blueprintId);
   if (!bp) return;
+  const quality = Math.max(parseInt(val, 10) || 0, bpMinQ(bp.ingredients[ingIdx]));
+  bpQualityState[blueprintId][ingIdx] = quality;
 
   bpPaintIngQuality(bp, ingIdx);
 
@@ -6353,7 +6822,7 @@ function updateBpGlobalQuality(blueprintId, val) {
   const allocs = bpComputeAllocations(bp);
   (bp.ingredients || []).forEach((ing, i) => {
     if (allocs[i].qualityRaw != null) return; // quality comes from the chosen box
-    bpQualityState[blueprintId][i] = quality;
+    bpQualityState[blueprintId][i] = Math.max(quality, bpMinQ(ing));
     bpPaintIngQuality(bp, i);
   });
 

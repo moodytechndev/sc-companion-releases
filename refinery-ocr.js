@@ -74,7 +74,11 @@ function findLabel(lowerText, pattern, fromIndex = 0) {
 // Requiring two adjacent units (not just a lone "12m") is what keeps this from
 // matching an unrelated stray number elsewhere on screen.
 function extractDuration(text) {
-  let m = text.match(/(\d{1,3})\s*h[^a-zA-Z0-9]{0,6}(\d{1,2})\s*m(?:[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s)?\b/i);
+  // Long jobs show days ("2d 5h 30m", "1d 4h"). Without this the h+m pattern below would read
+  // just "5h 30m" and the job would be a day or more short. Days are folded into hours.
+  let m = text.match(/(\d{1,2})\s*d[^a-zA-Z0-9]{0,6}(\d{1,2})\s*h(?:[^a-zA-Z0-9]{0,6}(\d{1,2})\s*m)?(?:[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s)?\b/i);
+  if (m) return { h: parseInt(m[1], 10) * 24 + parseInt(m[2], 10), m: m[3] ? parseInt(m[3], 10) : 0, s: m[4] ? parseInt(m[4], 10) : 0 };
+  m = text.match(/(\d{1,3})\s*h[^a-zA-Z0-9]{0,6}(\d{1,2})\s*m(?:[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s)?\b/i);
   if (m) return { h: parseInt(m[1], 10), m: parseInt(m[2], 10), s: m[3] ? parseInt(m[3], 10) : 0 };
   m = text.match(/(\d{1,3})\s*m[^a-zA-Z0-9]{0,6}(\d{1,2})\s*s\b/i);
   if (m) return { h: 0, m: parseInt(m[1], 10), s: parseInt(m[2], 10) };
@@ -1370,7 +1374,8 @@ async function firstNonEmpty(fns, ok) {
   return last;
 }
 
-async function readFrame(image, worker) {
+async function readFrame(image, worker, opts) {
+  const known = (opts && opts.known) || {};
   const { width: W, height: H } = image.getSize();
 
   // The in-game header text is ~10px tall on a 2000px-wide frame. That is about the
@@ -1411,7 +1416,7 @@ async function readFrame(image, worker) {
     const titleX0 = Math.max(0, t.left - 29.5 * hh);
     const titleX1 = ta ? Math.min(ta.refLeft - 0.5 * hh, t.left + 38 * hh) : t.left + 38 * hh;
     rects.title = clampRect({ x0: titleX0, y0: t.top - 33.8 * hh, x1: titleX1, y1: t.top - 30.2 * hh }, W, H);
-    if (!duration) {
+    if (!duration && !known.duration) {
       rects.duration = clampRect({ x0: t.left - hh, y0: t.top + 31 * hh, x1: t.right + 5 * hh, y1: t.top + 39 * hh }, W, H);
     }
 
@@ -1481,7 +1486,7 @@ async function readFrame(image, worker) {
     // are what confuse a single-line read, so also try just the text area, and a
     // hard black-and-white version of both.
     const inner = clampRect({ x0: t.left + 0.5 * hh, y0: t.top - 9.1 * hh, x1: t.left + 26 * hh, y1: t.top - 5.9 * hh }, W, H);
-    regionTexts.method = await firstUsable(rects.method, [
+    regionTexts.method = known.method ? '' : await firstUsable(rects.method, [
       ['7', scale, false, inner], ['7', scale, true, inner], ['7', scale], ['6', scale], ['7', scale, true],
       ['7', scale * 0.75, false, inner], ['7', scale * 1.3, true, inner], ['11', scale], ['7', scale * 0.75],
     ], txt => !!methodFromRegion(txt));
@@ -1489,7 +1494,7 @@ async function readFrame(image, worker) {
     // so the row is also located from the "REFINEMENT CENTER" landmark that shares it, and read
     // as the biggest text in that band (the small label above it is left out). The first
     // reading that matches a known station wins; failing that, the first plausible reading.
-    {
+    if (!known.location) {
       const titleRects = [];
       const refW = words.find(w => lettersOf(w.text).startsWith('refinem'));
       if (ta && refW) {

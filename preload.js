@@ -46,7 +46,8 @@ contextBridge.exposeInMainWorld('api', {
   // Refinery job screen capture (OCR) — takes several shots a few seconds apart
   // so a materials list longer than the screen can be captured by scrolling
   // between shots; onRefineryCaptureProgress fires once per shot taken.
-  captureRefineryJob: () => ipcRenderer.invoke('refinery:captureAndParse'),
+  captureRefineryJob: (opts) => ipcRenderer.invoke('refinery:captureAndParse', opts),
+  stopRefineryCapture: () => ipcRenderer.invoke('refinery:stopCapture'),
   isGameRunning: () => ipcRenderer.invoke('game:isRunning'),
   onRefineryCaptureProgress: (cb) => ipcRenderer.on('refinery:captureProgress', (_, info) => cb(info)),
 
