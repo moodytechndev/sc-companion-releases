@@ -7746,8 +7746,26 @@ function openAddInventoryFromJob(ore, location) {
   populateLocSelect(location);
 }
 
+// Boxes a refinery hands out, largest first. The game data lists container sizes from 1/8 to 32 SCU
+// but not which ones a refinery uses; in play it is 1, 2 and 4 SCU only (never 8 or more).
+const REFINERY_BOX_SIZES = [4, 2, 1];
+
+// Splits a yield in cSCU into boxes: as many of the biggest size as fit, then the next, and a
+// leftover of less than 1 SCU as one partial box. 15037 -> 37 x 4, 1 x 2, 0 x 1, 37 cSCU.
+function splitRefineryYield(yieldCSCU) {
+  let whole = Math.floor(yieldCSCU / 100);
+  const boxes = [];
+  for (const size of REFINERY_BOX_SIZES) {
+    const n = Math.floor(whole / size);
+    if (n > 0) boxes.push({ size, count: n });
+    whole -= n * size;
+  }
+  return { boxes, partialCSCU: yieldCSCU % 100 };
+}
+
 function deliverBoxRowHTML(qty, unit) {
-  const allUnits = unit && !SCU_SIZES.includes(String(unit)) ? [...SCU_SIZES, String(unit)] : SCU_SIZES;
+  const sizes = REFINERY_BOX_SIZES.slice().sort((a, b) => a - b).map(String);
+  const allUnits = unit && !sizes.includes(String(unit)) ? [...sizes, String(unit)] : sizes;
   const unitOpts = allUnits.map(v => {
     const label = v === '0.01' ? '1 cSCU' : `${v} SCU`;
     return `<option value="${v}"${String(unit) === v ? ' selected' : ''}>${label}</option>`;
@@ -7799,12 +7817,11 @@ function deliverJob(id) {
     const yieldCSCU = parseInt((job.yields || [])[i]) || 0;
     let boxRowsHTML, infoHTML = '';
     if (yieldCSCU > 0) {
-      const full = Math.floor(yieldCSCU / 100);
-      const rem  = yieldCSCU % 100;
-      boxRowsHTML = (full > 0 ? Array(full).fill(null).map(() => deliverBoxRowHTML(1, '1')).join('') : '') +
-                    (rem  > 0 ? deliverBoxRowHTML(rem / 100, '1') : '');
+      const split = splitRefineryYield(yieldCSCU);
+      boxRowsHTML = split.boxes.map(b => deliverBoxRowHTML(b.count, String(b.size))).join('') +
+                    (split.partialCSCU > 0 ? deliverBoxRowHTML(split.partialCSCU / 100, '1') : '');
       if (!boxRowsHTML) boxRowsHTML = deliverBoxRowHTML();
-      const parts = [full > 0 ? `${full} SCU` : '', rem > 0 ? `${rem} cSCU` : ''].filter(Boolean).join(' + ');
+      const parts = [...split.boxes.map(b => `${b.count} \u00d7 ${b.size} SCU`), split.partialCSCU > 0 ? `${split.partialCSCU} cSCU` : ''].filter(Boolean).join(' + ');
       infoHTML = `<div style="font-size:10px;color:var(--accent);margin-bottom:4px">Expected yield: ${yieldCSCU} cSCU = ${parts}</div>`;
     } else {
       boxRowsHTML = deliverBoxRowHTML();
