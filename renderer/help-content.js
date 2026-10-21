@@ -45,6 +45,7 @@ const HELP_SECTIONS = [
       '**See how your mining gear changes each ore:** Loadout → pick your laser and modules. Every ore then shows its resistance and instability with that gear, and Ore Locations does too.',
       '**Work out what a rock probably is:** Loadout → Check a rock → type the instability and resistance your scanner shows. The ores are ranked by how close they are.',
       '**Find easy or safe ores:** Ore Locations → use the Sort box, or tick Stable only / Easy to crack.',
+      '**Pick ores for how you mine:** each ore shows Ship, Hand or Ground vehicle; use the Mined box in Ore Locations to keep only one kind. The scanner reference marks hand-mined (3,000) and ground-vehicle (4,000) signatures.',
     ],
     tips: [
       'Clicking an ore in Ore Locations selects it. The Scanner Reference then shows only the signatures for the ores you selected — handy for planning a trip around one mineral.',
@@ -62,12 +63,14 @@ const HELP_SECTIONS = [
     shots: ['refinery-jobs', 'refinery-add', 'refinery-import', 'refinery-deliver', 'refinery-bonuses', 'refinery-profit'],
     howto: [
       '**Start a job:** + Add Refinery Job → add the ore(s), pick the method, enter the duration shown on the in-game terminal, set the location, then Start Timer.',
-      '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. It takes four shots in quick succession (scroll the list while the button counts if it is long), then reads them and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
+      '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. When asked, answer No unless the list scrolls. It takes four shots in quick succession, reads them, and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
       '**Bring in jobs that are already running:** open the terminal\'s PROCESSING screen (the one with a panel per work order) and click 📷 Capture. A dialog lists each work order with its materials, quality, yield and time left. Jobs the app already tracks are recognised and left unticked; tick or untick the rest, fix any highlighted number, then Import.',
       '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory.',
       '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material.',
       '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison.',
-      '**Capture a long list:** if the materials list is longer than the terminal window, click 📷 Capture and answer Yes when asked. Scroll slowly through the list in the game, then click Finish (or wait 45 seconds); it reads every picture and joins the rows together.',
+      '**Capture a long list:** if the materials list is longer than the terminal window, click 📷 Capture and answer Yes when asked. Press Capture this view, scroll the list down in the game, and press Capture this view again; repeat until you have seen the whole list, then click Finish. A row that appears in two views is counted once.',
+      '**See your contracts:** Profit → My contracts lists every contract the game log shows you accepted, completed, failed or abandoned, with totals, listed pay and pay per hour by contract and organisation (pay and requirements come from SCMDB). Press Import from old logs once to bring in your earlier logs. Browse searches every contract SCMDB lists.',
+      '**Get contract blueprints marked for you:** when a contract awards a blueprint, the game log says so; the app marks it as owned in Hangar → Blueprints and shows a message. Contracts can also show which blueprints they can award.',
     ],
     tips: [
       'Refining Construction Rubble, Pieces or Salvage produces **Construction Materials** — the delivery window shows this and saves it under the refined name.',
@@ -146,6 +149,7 @@ const HELP_SECTIONS = [
     shots: ['hangar-ships', 'hangar-ship-modal', 'hangar-livery', 'hangar-erkul'],
     howto: [
       '**Add a ship:** + Add → search UEX\'s list → pick it → choose a location → Save Ship. Its stock components appear in Assets.',
+      '**Bring in your RSI hangar:** Settings → RSI Hangar → Connect, log in to RSI in the window that opens (the app never sees your password), then Import hangar. Your ships are added to My Ships with their insurance (LTI or months); ships you had already added are linked, not duplicated. Run it again whenever your hangar changes.',
       '**Swap a part:** click the ship, then use the dropdown under a slot. Matching assets are listed first; choose Stock to put the original back.',
       '**Change livery:** in the ship window click Change ▼ under Livery, preview, and click Use.',
       '**Run a loadout through Erkul:** Ships → Erkul DPS Calculator (the window widens while it is open).',
@@ -249,7 +253,7 @@ const HELP_SHOTS = {
     file: 'refinery-jobs.webp', title: 'Active jobs', viewport: { w: 440, h: 700 },
     setup: "switchTab('refinery'); switchRefineryView('jobs');",
     points: [
-      { sel: '#refinery-chips', text: '**Active Jobs**, **Station Bonuses** or **Profit**.' },
+      { sel: '#refinery-chips', text: '**Active Jobs** or **Station Bonuses**.' },
       { sel: '#panel-refinery .panel-header button', contains: 'Add Refinery Job', text: '**+ Add Refinery Job** — start tracking a new job.' },
       { sel: '#capture-job-btn', text: '**📷 Capture** (experimental) — reads the in-game job screen and pre-fills the form.' },
       { sel: '#jobs-list .card:not(.ready)', text: '**A running job.** Ore, location, method, a progress bar and the time left.' },
@@ -309,11 +313,11 @@ const HELP_SHOTS = {
 
   'refinery-profit': {
     file: 'refinery-profit.webp', title: 'Profit', viewport: { w: 440, h: 800 },
-    setup: "switchTab('refinery'); switchRefineryView('profit'); await new Promise(r => setTimeout(r, 2500)); renderProfit();",
-    after: "switchRefineryView('jobs');",
+    setup: "switchTab('profit'); await new Promise(r => setTimeout(r, 2500)); renderProfit();",
+    after: "switchTab('refinery'); switchRefineryView('jobs');",
     wait: 1500,
     points: [
-      { sel: '#refinery-chips .chip:nth-child(3)', text: '**Profit** — estimates for your jobs.' },
+      { sel: '.tab[data-tab="profit"]', text: '**Profit** — estimates for your jobs.' },
       { sel: '#profit-body > div:first-child', text: '**Totals** for delivered jobs: how many, net profit after fees, aUEC per refinery hour, and the best method so far.' },
       { sel: '[data-profit="live"]', at: 'tr', text: '**In progress or waiting** — what your running jobs are worth right now.' },
       { sel: '[data-profit="methods"]', at: 'tr', text: '**By refining method** — average net per job and per hour, to see which method pays best for you.' },

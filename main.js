@@ -58,6 +58,15 @@ function detectLogPath() {
   return '';
 }
 
+// Contracts accepted / ended and blueprints awarded, read from the same log (see contract-log.js).
+const { ContractTracker } = require('./contract-log');
+const contractTracker = new ContractTracker(store);
+// What each contract pays, needs and can award (SCMDB, scmdb.net — see scmdb.js)
+const { Scmdb } = require('./scmdb');
+let scmdb = null;
+const getScmdb = () => scmdb || (scmdb = new Scmdb(app.getPath('userData')));
+const sendToWindow = (channel, payload) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload); };
+
 let logWatcher = null;
 let logPos = 0;
 let logWatchPath = '';
@@ -112,6 +121,7 @@ function startLogWatcher(filePath) {
   try {
     logPos = fs.statSync(logWatchPath).size;
   } catch { logPos = 0; }
+  contractTracker.carry = '';
 
   try {
     logWatcher = fs.watch(logWatchPath, (event) => {
@@ -129,6 +139,13 @@ function startLogWatcher(filePath) {
         logPos = stat.size;
 
         const text = buf.toString('utf8');
+
+        // Contract activity (a failure here must never stop the location tracking below)
+        try {
+          const res = contractTracker.ingestLive(text);
+          if (res.changed) sendToWindow('contracts:updated', null);
+          if (res.blueprints.length) sendToWindow('contracts:blueprints', res.blueprints);
+        } catch (e) { console.error('[Contracts] parse error:', e.message); }
 
         // Track current station location
         const locMatch = text.match(/requested inventory for Location\[(\w+)\]/);
@@ -312,6 +329,27 @@ app.whenReady().then(() => {
 
   const logPath = store.get('logPath') || detectLogPath();
   startLogWatcher(logPath);
+
+  // the contracts open right now were accepted before the app started: read the current log once so they are listed
+  try {
+    if (logPath && fs.existsSync(logPath)) {
+      const r = contractTracker.importLogs(logPath, { currentOnly: true });
+      setTimeout(() => {
+        sendToWindow('contracts:updated', null);
+        if (r.blueprints.length) sendToWindow('contracts:blueprints', r.blueprints);
+      }, 3000);
+    }
+  } catch (e) { console.error('[Contracts] startup read failed:', e.message); }
+
+  // keep the contract data current once it has been downloaded (the first download waits until the
+  // Contracts view is opened); one tiny request unless SCMDB has a newer version
+  setTimeout(async () => {
+    try {
+      if (!getScmdb().status().ok) return;
+      const r = await getScmdb().refresh(false);
+      if (r.changed) sendToWindow('scmdb:updated', null);
+    } catch { /* the stored data stays */ }
+  }, 20000);
 
   const UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
   setTimeout(() => autoUpdater.checkForUpdates(), 5000);
@@ -624,6 +662,30 @@ ipcMain.handle('log:setPath', (_, p) => {
   store.set('logPath', p);
   startLogWatcher(p);
 });
+ipcMain.handle('contracts:get', () => contractTracker.snapshot());
+ipcMain.handle('contracts:import', () => {
+  const p = store.get('logPath') || detectLogPath();
+  if (!p || !fs.existsSync(p)) return { ok: false, error: 'No Game.log found. Set its location in Settings first.' };
+  try { return { ok: true, ...contractTracker.importLogs(p) }; } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('contracts:clear', () => { contractTracker.clear(); return true; });
+// Your RSI hangar, read with a login you do yourself (see rsi-hangar.js)
+const rsiHangar = require('./rsi-hangar');
+ipcMain.handle('rsi:status', async () => ({ connected: await rsiHangar.isConnected() }));
+ipcMain.handle('rsi:connect', async () => { await rsiHangar.connect(mainWindow); return { connected: await rsiHangar.isConnected() }; });
+ipcMain.handle('rsi:disconnect', async () => { await rsiHangar.disconnect(); return { connected: false }; });
+ipcMain.handle('rsi:import', async () => {
+  try {
+    const raw = await rsiHangar.readPledges();
+    const { ships, otherKinds } = rsiHangar.extractShips(raw.pledges);
+    return { ok: true, pages: raw.pages, pledgeCount: raw.pledges.length, ships, otherKinds };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('scmdb:get', () => ({ status: getScmdb().status(), data: getScmdb().snapshot() }));
+ipcMain.handle('scmdb:refresh', async (_, force) => {
+  const r = await getScmdb().refresh(!!force);
+  return { result: r, status: getScmdb().status(), data: r.changed || force ? getScmdb().snapshot() : null };
+});
 ipcMain.handle('log:getStatus', () => ({
   watching: !!logWatcher,
   path: logWatchPath,
@@ -709,135 +771,139 @@ function framesAlike(a, b) {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Takes several shots in quick succession instead of one, so a materials list longer
-// than the screen can be captured by scrolling between shots. All the shots are
-// grabbed first (cheap, so the gap stays short), then each distinct one is read.
-// Method and duration don't change mid-scroll, so the first frame that finds them
-// wins; materials are unioned across frames (see mergeRows in refinery-ocr.js).
+// What has been read so far from one or more screenshots of the refinery terminal. The quick capture
+// builds one and finishes it at once; a scroll capture keeps one between the user's presses of
+// Capture, so a long materials list is taken a screenful at a time.
+function newCaptureSession() {
+  return { method: null, duration: null, location: null, cost: null, processing: null, capturedWindow: true,
+    materials: [], rawTexts: [], shots: 0, best: null };
+}
+
+// Kept in memory so "Report a Bug" can offer to attach what was on screen and what was read from
+// it — set before the slow part, so even a crash while reading leaves something to attach.
+function rememberCapture(image) {
+  try {
+    const first = encodeShot(image, 3840);
+    bugLastCapture = { at: Date.now(), jpeg: first, thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
+      text: 'Capture started; reading did not finish.', summary: null };
+  } catch { bugLastCapture = null; }
+}
+
+// Reads one screenshot into a session and returns how many materials it added. A row already
+// seen in an earlier shot (same ore, and at least two of its three numbers the same) is the same
+// row, so a screenful that overlaps the last one, or the same screen taken twice, counts once.
+// Method, station and duration don't change while a list scrolls, so what the first shot found
+// isn't read again.
+async function readIntoSession(session, image) {
+  const worker = await getOcrWorker();
+  const frame = await refineryOcr.readFrame(image, worker, { known: { method: session.method, location: session.location, duration: session.duration } });
+  const before = session.materials.length;
+  let score;
+  if (frame.kind === 'processing') {
+    session.processing = refineryOcr.mergeWorkOrders(session.processing, frame);
+    score = frame.workOrders.reduce((k, w) => k + w.rows.length, 0) * 4;
+  } else {
+    if (!session.method && frame.method) session.method = frame.method;
+    if (!session.duration && frame.duration) session.duration = frame.duration;
+    if (!session.location && frame.location) session.location = frame.location;
+    if (session.cost == null && frame.cost != null) session.cost = frame.cost;
+    refineryOcr.mergeRows(session.materials, frame.materials);
+    // the shot that yielded the most is the most useful one to show in a report
+    score = frame.materials.length * 4 + (frame.method ? 1 : 0) + (frame.location ? 1 : 0) + (frame.duration ? 1 : 0);
+  }
+  session.rawTexts.push(frame.rawText);
+  session.shots++;
+  if (!session.best || score > session.best.score) session.best = { score, image };
+  return session.materials.length - before;
+}
+
+// Wraps up a session: the report attachment, the debug file, and the result the renderer gets.
+function finishSession(session) {
+  const { processing, rawTexts } = session;
+  try {
+    const best = encodeShot(session.best ? session.best.image : null, 3840);
+    const summary = processing
+      ? { kind: 'processing', location: processing.location, workOrders: processing.workOrders.map(w => ({ index: w.index, remainingSeconds: w.remainingSeconds, rows: w.rows.map(r => `${r.name} q${r.quality}/y${r.yield}`) })) }
+      : { method: session.method, duration: session.duration, location: session.location, cost: session.cost, materials: session.materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
+    bugLastCapture = { at: Date.now(), jpeg: best, thumb: thumbDataUrl(nativeImage.createFromBuffer(best)), summary,
+      text: `Parsed: ${JSON.stringify(summary)}\n\n` + rawTexts.map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`).join('\n\n') };
+  } catch { /* attaching is a convenience */ }
+
+  // Written every capture so the user can just open the file and paste its
+  // contents back to us, instead of fishing text out of the DevTools console.
+  const debugPath = path.join(app.getPath('userData'), 'refinery-ocr-debug.txt');
+  try {
+    fs.writeFileSync(debugPath, rawTexts.map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`).join('\n\n'), 'utf8');
+  } catch { /* debug file is a convenience, never block the capture on it */ }
+
+  if (processing && processing.workOrders.length) {
+    return { status: 'ok', kind: 'processing', capturedWindow: session.capturedWindow, location: processing.location,
+      workOrders: processing.workOrders, rawTexts, debugPath };
+  }
+  return { status: 'ok', kind: 'setup', capturedWindow: session.capturedWindow, method: session.method, duration: session.duration,
+    location: session.location, cost: session.cost,
+    materials: session.materials.map(({ name, quality, yield: y }) => ({ name, quality, yield: y })), rawTexts, debugPath };
+}
+
+const NOT_RUNNING = { status: 'error', error: 'Star Citizen doesn\'t appear to be running.' };
+
+// Quick capture: four shots in quick succession (they back each other up on a misread digit),
+// all grabbed first so the gap stays short, then each distinct one is read.
 const BURST_SHOTS = 4;
 const BURST_INTERVAL_MS = 600;
-// "Scroll capture" for a really long list: keeps grabbing frames — only those that differ from
-// the last one kept — until the user presses Done (or the time runs out), so the whole list can
-// be scrolled through at the user's own pace. Frames are held as PNG buffers: 30 raw 4K frames
-// would be a gigabyte.
-const SCROLL_MAX_MS = 45000;
-const SCROLL_INTERVAL_MS = 500;
-const SCROLL_MAX_FRAMES = 30;
-let captureStopRequested = false;
-ipcMain.handle('refinery:stopCapture', () => { captureStopRequested = true; });
-
-ipcMain.handle('refinery:captureAndParse', async (_, opts) => {
-  const scroll = !!(opts && opts.scroll);
+ipcMain.handle('refinery:captureAndParse', async () => {
   try {
-    const running = await isGameRunning();
-    if (!running) {
-      return { status: 'error', error: 'Star Citizen doesn\'t appear to be running.' };
-    }
-
-    let method = null;
-    let duration = null;
-    let location = null;
-    let cost = null;
-    let processing = null;     // running work orders, when the screen shown is the PROCESSING one
-    let capturedWindow = true;
-    const materials = [];
-    const rawTexts = []; // kept so the renderer can log/inspect actual OCR output when extraction misses
+    if (!(await isGameRunning())) return NOT_RUNNING;
+    const session = newCaptureSession();
     const progress = (info) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('refinery:captureProgress', info);
     };
-
-    // 1. grab every frame, quickly — this is the window the user scrolls in
-    const frames = [];       // nativeImages, or PNG buffers in scroll mode
-    const asImage = (f) => Buffer.isBuffer(f) ? nativeImage.createFromBuffer(f) : f;
-    if (scroll) {
-      captureStopRequested = false;
-      const t0 = Date.now();
-      let last = null;
-      while (!captureStopRequested && Date.now() - t0 < SCROLL_MAX_MS && frames.length < SCROLL_MAX_FRAMES) {
-        const grabbed = await grabFrame();
-        capturedWindow = grabbed.capturedWindow;
-        if (!last || !framesAlike(last, grabbed.image)) {
-          frames.push(grabbed.image.toPNG());
-          last = grabbed.image;
-        }
-        progress({ phase: 'capture', scroll: true, current: frames.length, elapsed: Math.round((Date.now() - t0) / 1000), max: SCROLL_MAX_MS / 1000 });
-        await delay(SCROLL_INTERVAL_MS);
-      }
-    } else {
-      for (let i = 0; i < BURST_SHOTS; i++) {
-        const grabbed = await grabFrame();
-        capturedWindow = grabbed.capturedWindow;
-        frames.push(grabbed.image);
-        progress({ phase: 'capture', current: i + 1, total: BURST_SHOTS });
-        if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
-      }
+    const frames = [];
+    for (let i = 0; i < BURST_SHOTS; i++) {
+      const grabbed = await grabFrame();
+      session.capturedWindow = grabbed.capturedWindow;
+      frames.push(grabbed.image);
+      progress({ phase: 'capture', current: i + 1, total: BURST_SHOTS });
+      if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
     }
-
-    // Kept in memory so "Report a Bug" can offer to attach what was on screen and what
-    // was read from it — set now (before the slow part) so even a crash while reading
-    // leaves something to attach.
-    try {
-      const first = encodeShot(asImage(frames[0]), 3840);
-      bugLastCapture = { at: Date.now(), jpeg: first, thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
-        text: 'Capture started; reading did not finish.', summary: null };
-    } catch { bugLastCapture = null; }
-    let captureShotState = { bestIdx: 0, bestScore: -1 };
-
-    // 2. read the frames that actually differ
-    const distinct = scroll ? frames : frames.filter((img, i) => !frames.slice(0, i).some(prev => framesAlike(prev, img)));
-    const worker = await getOcrWorker();
+    rememberCapture(frames[0]);
+    const distinct = frames.filter((img, i) => !frames.slice(0, i).some(prev => framesAlike(prev, img)));
     for (let i = 0; i < distinct.length; i++) {
-      progress({ phase: 'reading', current: i + 1, total: distinct.length, found: materials.length });
-      // what the first frames already established isn't read again (the title and method
-      // don't change while a list scrolls, and re-reading them is half of a frame's time)
-      const frame = await refineryOcr.readFrame(asImage(distinct[i]), worker, { known: { method, location, duration } });
-      if (frame.kind === 'processing') {
-        processing = refineryOcr.mergeWorkOrders(processing, frame);
-        rawTexts.push(frame.rawText);
-        const n = frame.workOrders.reduce((k, w) => k + w.rows.length, 0);
-        if (n * 4 > captureShotState.bestScore) captureShotState = { bestIdx: i, bestScore: n * 4 };
-        continue;
-      }
-      if (!method && frame.method) method = frame.method;
-      if (!duration && frame.duration) duration = frame.duration;
-      if (!location && frame.location) location = frame.location;
-      if (cost == null && frame.cost != null) cost = frame.cost;
-      refineryOcr.mergeRows(materials, frame.materials);
-      rawTexts.push(frame.rawText);
-      // the frame that yielded the most is the most useful one to show in a report
-      const score = frame.materials.length * 4 + (frame.method ? 1 : 0) + (frame.location ? 1 : 0) + (frame.duration ? 1 : 0);
-      if (score > captureShotState.bestScore) captureShotState = { bestIdx: i, bestScore: score };
+      progress({ phase: 'reading', current: i + 1, total: distinct.length, found: session.materials.length });
+      await readIntoSession(session, distinct[i]);
     }
-    try {
-      const best = encodeShot(asImage(distinct[captureShotState.bestIdx]), 3840);
-      const summary = processing
-        ? { kind: 'processing', location: processing.location, workOrders: processing.workOrders.map(w => ({ index: w.index, remainingSeconds: w.remainingSeconds, rows: w.rows.map(r => `${r.name} q${r.quality}/y${r.yield}`) })) }
-        : { method, duration, location, cost, materials: materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
-      bugLastCapture = { at: Date.now(), jpeg: best, thumb: thumbDataUrl(nativeImage.createFromBuffer(best)), summary,
-        text: `Parsed: ${JSON.stringify(summary)}\n\n` + rawTexts.map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`).join('\n\n') };
-    } catch { /* attaching is a convenience */ }
-
-    // Written every capture so the user can just open the file and paste its
-    // contents back to us, instead of fishing text out of the DevTools console.
-    const debugPath = path.join(app.getPath('userData'), 'refinery-ocr-debug.txt');
-    try {
-      const debugContents = rawTexts
-        .map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`)
-        .join('\n\n');
-      fs.writeFileSync(debugPath, debugContents, 'utf8');
-    } catch { /* debug file is a convenience, never block the capture on it */ }
-
-    if (processing && processing.workOrders.length) {
-      return { status: 'ok', kind: 'processing', capturedWindow, location: processing.location,
-        workOrders: processing.workOrders, rawTexts, debugPath };
-    }
-    return { status: 'ok', kind: 'setup', capturedWindow, method, duration, location, cost,
-      materials: materials.map(({ name, quality, yield: y }) => ({ name, quality, yield: y })), rawTexts, debugPath };
+    return finishSession(session);
   } catch (e) {
     if (bugLastCapture) bugLastCapture.text = `Capture failed while reading: ${e.message}`;
     return { status: 'error', error: e.message };
   }
 });
+
+// Scroll capture, for a materials list longer than the terminal: the user presses Capture, scrolls
+// the list down in the game, presses Capture again, and so on, then Finish. One session lives
+// between the presses; rows seen in more than one shot are kept once.
+let scrollSession = null;
+ipcMain.handle('refinery:scrollShot', async (_, opts) => {
+  try {
+    if (!(await isGameRunning())) return NOT_RUNNING;
+    if (!scrollSession || (opts && opts.first)) scrollSession = newCaptureSession();
+    const session = scrollSession;
+    const grabbed = await grabFrame();
+    session.capturedWindow = grabbed.capturedWindow;
+    if (session.shots === 0) rememberCapture(grabbed.image);
+    const added = await readIntoSession(session, grabbed.image);
+    return { status: 'ok', shots: session.shots, rows: session.materials.length, added };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
+});
+ipcMain.handle('refinery:scrollFinish', async () => {
+  const session = scrollSession;
+  scrollSession = null;
+  if (!session || !session.shots) return { status: 'error', error: 'Nothing has been captured yet.' };
+  try { return finishSession(session); } catch (e) { return { status: 'error', error: e.message }; }
+});
+ipcMain.handle('refinery:scrollCancel', () => { scrollSession = null; });
 
 // ─── Auto-updater ────────────────────────────────────────────────────────────
 let _updateAvailable = false;
@@ -1038,7 +1104,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -1052,6 +1118,7 @@ function validateImport(data) {
   if (data.craftShips !== undefined && !Array.isArray(data.craftShips)) return 'craftShips must be an array';
   if (data.craftingOwned !== undefined && (typeof data.craftingOwned !== 'object' || Array.isArray(data.craftingOwned))) return 'craftingOwned must be an object';
   if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
+  if (data.contractLog !== undefined && (typeof data.contractLog !== 'object' || data.contractLog === null || Array.isArray(data.contractLog))) return 'contractLog must be an object';
   if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
   if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';
   if (data.logPath !== undefined && (typeof data.logPath !== 'string' || data.logPath.length > 500 || /[\x00-\x1f]/.test(data.logPath))) return 'logPath must be a plain file path string';

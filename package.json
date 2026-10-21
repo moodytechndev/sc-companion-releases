@@ -1,6 +1,6 @@
 {
   "name": "sc-companion",
-  "version": "1.5.11",
+  "version": "1.5.12",
   "description": "Star Citizen companion overlay — refinery timers & commodity prices",
   "author": "Moody Technical Development Solutions",
   "license": "MIT",
@@ -47,6 +47,9 @@
       "main.js",
       "preload.js",
       "refinery-ocr.js",
+      "contract-log.js",
+      "scmdb.js",
+      "rsi-hangar.js",
       "sctrade-prices.js",
       "renderer/**/*",
       "icon.png",

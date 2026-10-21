@@ -46,8 +46,22 @@ contextBridge.exposeInMainWorld('api', {
   // Refinery job screen capture (OCR) — takes several shots a few seconds apart
   // so a materials list longer than the screen can be captured by scrolling
   // between shots; onRefineryCaptureProgress fires once per shot taken.
-  captureRefineryJob: (opts) => ipcRenderer.invoke('refinery:captureAndParse', opts),
-  stopRefineryCapture: () => ipcRenderer.invoke('refinery:stopCapture'),
+  captureRefineryJob: () => ipcRenderer.invoke('refinery:captureAndParse'),
+  scrollCaptureShot: (opts) => ipcRenderer.invoke('refinery:scrollShot', opts),
+  scrollCaptureFinish: () => ipcRenderer.invoke('refinery:scrollFinish'),
+  scrollCaptureCancel: () => ipcRenderer.invoke('refinery:scrollCancel'),
+  getContracts: () => ipcRenderer.invoke('contracts:get'),
+  importContractLogs: () => ipcRenderer.invoke('contracts:import'),
+  clearContracts: () => ipcRenderer.invoke('contracts:clear'),
+  rsiStatus: () => ipcRenderer.invoke('rsi:status'),
+  rsiConnect: () => ipcRenderer.invoke('rsi:connect'),
+  rsiDisconnect: () => ipcRenderer.invoke('rsi:disconnect'),
+  rsiImport: () => ipcRenderer.invoke('rsi:import'),
+  getScmdb: () => ipcRenderer.invoke('scmdb:get'),
+  refreshScmdb: (force) => ipcRenderer.invoke('scmdb:refresh', force),
+  onScmdbUpdated: (cb) => ipcRenderer.on('scmdb:updated', () => cb()),
+  onContractsUpdated: (cb) => ipcRenderer.on('contracts:updated', () => cb()),
+  onContractBlueprints: (cb) => ipcRenderer.on('contracts:blueprints', (_, list) => cb(list)),
   isGameRunning: () => ipcRenderer.invoke('game:isRunning'),
   onRefineryCaptureProgress: (cb) => ipcRenderer.on('refinery:captureProgress', (_, info) => cb(info)),
 

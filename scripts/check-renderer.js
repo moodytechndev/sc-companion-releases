@@ -3,6 +3,7 @@
 //
 // 1. Every shipped JS file parses.
 // 2. Nothing in the renderer calls a function that isn't defined anywhere.
+// 3. The mining data lines up: every ore in Ore Locations has a scanner signature and ore properties.
 //
 // (2) exists because a bulk edit once deleted a block of helper functions and the
 // app still launched and "mostly worked" — the missing calls only threw when the
@@ -26,6 +27,9 @@ const sources = {
   'main.js': read('main.js'),
   'preload.js': read('preload.js'),
   'refinery-ocr.js': read('refinery-ocr.js'),
+  'contract-log.js': read('contract-log.js'),
+  'scmdb.js': read('scmdb.js'),
+  'rsi-hangar.js': read('rsi-hangar.js'),
   'sctrade-prices.js': read('sctrade-prices.js'),
   'renderer/i18n.js': read('renderer/i18n.js'),
   'renderer/help-content.js': read('renderer/help-content.js'),
@@ -133,6 +137,57 @@ if (undefinedCalls.size) {
   for (const [n, w] of undefinedCalls) console.error(`    ${n.padEnd(30)} ${w}`);
 } else {
   console.log(`✓ no undefined call targets (${declared.size} declarations checked)`);
+}
+
+// ── 3. mining data consistency ───────────────────────────────────────────────
+// Picking an ore in Ore Locations filters the Scanner Reference by name, so an ore without a
+// signature row silently shows nothing there (Copper did). The three tables are kept by hand or
+// generated separately, so compare them.
+{
+  const grabBlock = (startRe, endStr) => {
+    const m = startRe.exec(scriptSrc);
+    if (!m) return null;
+    const at = m.index + m[0].length;
+    return scriptSrc.slice(at, scriptSrc.indexOf(endStr, at));
+  };
+  try {
+    const oreBody = grabBlock(/const ORE_DATA = \{/, '\n};');
+    const sigBody = grabBlock(/const SIGNATURE_DATA = \[/, '\n];');
+    const oreNames = [...oreBody.matchAll(/^  '?"?([A-Z][A-Za-z ]+?)'?"?:\s*\[/gm)].map(m => m[1]);
+    const sigNames = new Set([...sigBody.matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]));
+    const props = new vm.Script(read('renderer/mining-data.js') + ';MINING_ORES').runInNewContext({});
+    if (!oreNames.length || !sigNames.size) throw new Error('could not read ORE_DATA / SIGNATURE_DATA');
+    const noSig = oreNames.filter(n => !sigNames.has(n));
+    const noProps = oreNames.filter(n => !props[n.toLowerCase()]);
+    if (noSig.length) fail(`ores in Ore Locations with no scanner signature (they vanish from the Scanner Reference): ${noSig.join(', ')}`);
+    if (noProps.length) fail(`ores in Ore Locations with no game properties in mining-data.js: ${noProps.join(', ')}`);
+    // a signature of 3,000 is hand-mined rock, 4,000 ground-vehicle rock, anything else ship rock: the ore must be minable that way
+    const wrong = [];
+    for (const m of sigBody.matchAll(/name:\s*'([^']+)',\s*sig:\s*(\d+)/g)) {
+      const method = Number(m[2]) === 3000 ? 'hand' : Number(m[2]) === 4000 ? 'vehicle' : 'ship';
+      const p = props[m[1].toLowerCase()];
+      if (p && p.methods && !p.methods.includes(method)) wrong.push(`${m[1]} (${m[2]} is ${method} rock, the game lists ${p.methods.join('/')})`);
+    }
+    if (wrong.length) fail('scanner signatures that disagree with how the ore is mined: ' + wrong.join(', '));
+    if (!noSig.length && !noProps.length && !wrong.length) console.log(`✓ mining data lines up (${oreNames.length} ores, ${sigNames.size} signatures, mining methods)`);
+  } catch (e) { fail('mining data check could not run: ' + e.message); }
+}
+
+// ── 4. packaged files ─────────────────────────────────────────────────────────
+// package.json lists the files electron-builder ships. A module main.js requires that is not on the
+// list is missing from the installed app, which then fails at start-up (the source tree still works).
+{
+  const listed = (JSON.parse(read('package.json')).build || {}).files || [];
+  const missing = [];
+  for (const f of ['main.js', 'preload.js']) {
+    for (const m of read(f).matchAll(/require\('\.\/([\w.-]+)'\)/g)) {
+      if (m[1].endsWith('.json')) continue;                 // package.json always ships
+      const file = m[1].endsWith('.js') ? m[1] : m[1] + '.js';
+      if (!listed.includes(file)) missing.push(`${file} (required by ${f})`);
+    }
+  }
+  if (missing.length) fail('required by the app but not in package.json build.files: ' + missing.join(', '));
+  else console.log('✓ every module the app requires is in the packaged file list');
 }
 
 console.log(failed ? '\nCHECK FAILED' : '\nAll checks passed.');

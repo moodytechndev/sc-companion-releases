@@ -261,6 +261,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .lo-row .n { font-weight:700; font-size:12px; }
 .lo-row .m { color:var(--text-dim); font-variant-numeric:tabular-nums; text-align:right; }
 .lo-row.best { background:var(--accent-dim); margin:0 -6px; padding-left:6px; padding-right:6px; }
+.ore-method { font-size:9px; font-weight:600; letter-spacing:.04em; padding:1px 6px; border-radius:8px; margin-left:5px; border:1px solid var(--border); color:var(--text-dim); vertical-align:middle; white-space:nowrap; }
 .ore-tier { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:1px 6px; border-radius:8px; margin-left:7px; border:1px solid; vertical-align:middle; }
 .ore-tier.common { color:#9aa4b2; } .ore-tier.uncommon { color:#5bd68a; } .ore-tier.rare { color:#5aa9ff; } .ore-tier.epic { color:#b57bff; } .ore-tier.legendary { color:#ffb020; }
 .ore-props { display:flex; flex-wrap:wrap; gap:1px 12px; font-size:10px; color:var(--text-dim); font-variant-numeric:tabular-nums; margin:-1px 0 5px; }
@@ -335,6 +336,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 .craft-ingredients { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
 .craft-ing         { font-size:10px; background:var(--bg-hover); color:var(--text-dim); padding:2px 7px; border-radius:10px; white-space:nowrap; }
 .craft-ing.stocked { background:var(--success-dim); color:var(--success); }
+.craft-ing.timed { background:rgba(255,216,74,0.16); color:#ffd84a; box-shadow:inset 0 0 0 1px rgba(255,216,74,0.5); }
 .craft-ing.partial { background:var(--warn-dim); color:var(--warn); }
 .craft-owned-btn { background:none; border:1px solid var(--border); border-radius:3px; color:var(--text-dim); cursor:pointer; font-size:10px; padding:2px 8px; transition:all .15s; white-space:nowrap; flex-shrink:0; line-height:1.4; }
 .craft-owned-btn.owned { background:var(--success-dim); border-color:var(--success); color:var(--success); }
@@ -388,6 +390,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <div class="tab" data-tab="refinery" data-i18n="tab.refinery">⛏ Refinery</div>
     <div class="tab" data-tab="prices" data-i18n="tab.prices">📈 Prices</div>
     <div class="tab" data-tab="crafting" data-i18n="tab.craft">🚀 Hangar</div>
+    <div class="tab" data-tab="profit" data-i18n="tab.profit">💰 Profit</div>
   </div>
 
   <!-- ── Content ── -->
@@ -413,6 +416,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </div>
         </div>
         <div class="mining-tools">
+          <select id="mining-method" onchange="renderMining()" data-tip="Only ores you can mine this way: with a ship, by hand (FPS multi-tool) or with a ground vehicle (ROC)">
+            <option value="">Mined: any way</option>
+            <option value="ship">Ship</option>
+            <option value="hand">By hand</option>
+            <option value="vehicle">Ground vehicle</option>
+          </select>
           <select id="mining-sort" onchange="renderMining()" data-tip="Order the ores below">
             <option value="name">Sort: name</option>
             <option value="tier">Sort: rarest first</option>
@@ -517,7 +526,6 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div class="filter-chips" id="refinery-chips">
           <div class="chip active" onclick="switchRefineryView('jobs',this)">Active Jobs</div>
           <div class="chip" onclick="switchRefineryView('bonuses',this)" data-i18n="mining.stationBonuses">Station Bonuses</div>
-          <div class="chip" onclick="switchRefineryView('profit',this)">Profit</div>
         </div>
       </div>
       <!-- Jobs view -->
@@ -532,10 +540,6 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <div class="lbl"><span data-i18n="refinery.empty.line1">No active refinery jobs.</span><br><span data-i18n="refinery.empty.line2">Add one to start tracking.</span></div>
           </div>
         </div>
-      </div>
-      <!-- Profit view -->
-      <div id="refinery-view-profit" style="display:none;flex-direction:column;flex:1;min-height:0">
-        <div class="scroll-area" id="profit-body"></div>
       </div>
       <!-- Station Bonuses view -->
       <div id="refinery-view-bonuses" style="display:none;flex-direction:column;flex:1;min-height:0">
@@ -624,6 +628,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     </div>
 
     <!-- HELP -->
+    <div class="panel" id="panel-profit">
+      <div class="scroll-area" id="profit-body"></div>
+    </div>
+
     <div class="panel" id="panel-help">
       <div class="panel-header" style="display:flex;gap:6px;align-items:center">
         <div class="search-bar" style="flex:1">
@@ -886,6 +894,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </select>
         </div>
 
+        <div class="setting-row" style="margin-top:12px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div class="setting-label">RSI Hangar</div>
+            <div class="setting-desc" id="rsi-status">Bring the ships in your RSI hangar into My Ships. Connect opens RSI's own login page in a window; this app never sees your password.</div>
+            <div class="setting-desc" id="rsi-result" style="display:none;margin-top:6px;line-height:1.5"></div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;max-width:170px">
+            <button class="btn btn-sm" id="rsi-connect-btn" onclick="rsiConnect()">Connect…</button>
+            <button class="btn btn-sm" id="rsi-import-btn" onclick="rsiImport()" style="display:none">Import hangar</button>
+            <button class="btn btn-sm btn-danger" id="rsi-disconnect-btn" onclick="rsiDisconnect()" style="display:none">Disconnect</button>
+          </div>
+        </div>
+
         <div class="setting-row" style="margin-top:12px">
           <div>
             <div class="setting-label" data-i18n="settings.clearCompleted">Clear Completed Jobs</div>
@@ -1130,12 +1151,30 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <div id="capture-ask-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
   <div class="modal">
     <h3>📷 <span data-i18n="capture.ask.title">Is the list longer than the terminal?</span></h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px" data-i18n="capture.ask.body">If the materials list scrolls, choose Yes — you'll scroll through it in the game, then press Finish.</p>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px" data-i18n="capture.ask.body">If the materials list scrolls, choose Yes — you'll capture it a screenful at a time: capture, scroll down in the game, capture again, then press Finish.</p>
     <div class="modal-actions">
       <button class="btn" id="capture-ask-no" style="flex:1" onclick="answerCaptureLong(false)" data-i18n="capture.ask.no">No, capture now</button>
       <button class="btn" id="capture-ask-yes" style="flex:1" onclick="answerCaptureLong(true)" data-i18n="capture.ask.yes">Yes, it scrolls</button>
     </div>
     <div style="text-align:center;margin-top:8px"><a href="#" style="font-size:11px;color:var(--text-dim)" onclick="closeCaptureAsk();return false" data-i18n="modal.cancel">Cancel</a></div>
+  </div>
+</div>
+
+<div id="capture-scroll-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center">
+  <div class="modal">
+    <h3>📷 Scroll capture</h3>
+    <ol style="font-size:12px;color:var(--text-dim);margin:0 0 10px 18px;padding:0;line-height:1.6">
+      <li>Press <b>Capture this view</b>.</li>
+      <li>Scroll the list down in the game.</li>
+      <li>Press <b>Capture this view</b> again. Repeat until you have seen the whole list.</li>
+      <li>Press <b>Finish</b>. A row that shows up in two views is counted once.</li>
+    </ol>
+    <div id="capture-scroll-status" style="font-size:12px;margin-bottom:12px;min-height:16px;font-variant-numeric:tabular-nums"></div>
+    <div class="modal-actions">
+      <button class="btn" id="capture-scroll-shot" style="flex:1" onclick="scrollCaptureShot()">📷 Capture this view</button>
+      <button class="btn" id="capture-scroll-finish" style="flex:1" onclick="scrollCaptureFinish()" disabled>✔ Finish</button>
+    </div>
+    <div style="text-align:center;margin-top:8px"><a href="#" style="font-size:11px;color:var(--text-dim)" onclick="scrollCaptureCancel();return false" data-i18n="modal.cancel">Cancel</a></div>
   </div>
 </div>
 
@@ -1995,6 +2034,7 @@ async function init() {
   craftInventory = (await api.getStore('craftInventory', [])) || [];
   jobHistory = (await api.getStore('jobHistory', [])) || [];
   miningLoadout = sanitizeLoadout(await api.getStore('miningLoadout', null));
+  loadContracts();
 
   // Restore persisted price data so Prices/Inventory tabs show values instantly
   const [savedProfits, savedPrices, savedSource, activeSource] = await Promise.all([
@@ -2043,13 +2083,14 @@ function switchTab(name, done) {
         _bugSnapBusy = false;
         switchTabNow(name);
         refreshBugAttachables();
+        rsiRefreshStatus();
         if (done) done();
       });
       return;
     }
   }
   switchTabNow(name);
-  if (name === 'settings') refreshBugAttachables();
+  if (name === 'settings') { refreshBugAttachables(); rsiRefreshStatus(); }
   if (done) done();
 }
 
@@ -2058,6 +2099,7 @@ function switchTabNow(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
   const sb = document.getElementById('settings-btn');
   if (sb) sb.classList.toggle('active', name === 'settings');
+  if (name === 'profit')   { if (profitMode !== 'refining') ensureScmdb(); renderProfit(); }
   if (name === 'mining')   { if (miningView === 'halo') initHalo(); else if (miningView === 'loadout') renderLoadout(); else renderMining(); }
   if (name === 'refinery') { if (refineryView === 'bonuses') renderBonuses(); }
   if (name === 'crafting') initCrafting();
@@ -2248,12 +2290,10 @@ function switchRefineryView(view, chipEl) {
   const chips = document.querySelectorAll('#refinery-chips .chip');
   chips.forEach(c => c.classList.remove('active'));
   if (chipEl) chipEl.classList.add('active');
-  else chips[{ jobs: 0, bonuses: 1, profit: 2 }[view] ?? 0]?.classList.add('active');
+  else chips[{ jobs: 0, bonuses: 1 }[view] ?? 0]?.classList.add('active');
   document.getElementById('refinery-view-jobs').style.display    = view === 'jobs'    ? 'flex' : 'none';
   document.getElementById('refinery-view-bonuses').style.display = view === 'bonuses' ? 'flex' : 'none';
-  document.getElementById('refinery-view-profit').style.display  = view === 'profit'  ? 'flex' : 'none';
   if (view === 'bonuses') renderBonuses();
-  if (view === 'profit') renderProfit();
 }
 
 function renderBonuses() {
@@ -2322,6 +2362,22 @@ function matchesAll(q, ...fields) {
 // scripts/gamedata/extract-mining.js): its rarity tier, instability, resistance and where the
 // optimal window sits on the laser's charge meter. Shown under the ore's name.
 const _oreNum = (n) => (Math.abs(n) >= 10 ? String(Math.round(n)) : String(Math.round(n * 10) / 10));
+// How an ore is mined — ship, by hand (FPS multi-tool), ground vehicle (ROC); some can be mined more than one way.
+// Read from the game's rock records (renderer/mining-data.js); an ore the game has no rock for (Diamond) has none.
+const MINING_METHOD_LABEL = { ship: 'Ship', hand: 'Hand', vehicle: 'Ground vehicle' };
+const MINING_METHOD_TIP = {
+  ship: 'Mined with a ship (Prospector, MOLE, Golem...) from asteroids and surface deposits',
+  hand: 'Mined by hand with a multi-tool (FPS mining)',
+  vehicle: 'Mined with a ground vehicle (ROC)',
+};
+function oreMethods(name) {
+  const p = typeof MINING_ORES !== 'undefined' ? MINING_ORES[String(name || '').toLowerCase()] : null;
+  return (p && p.methods) || [];
+}
+const methodPills = (name) => oreMethods(name).map(m => `<span class="ore-method" data-tip="${esc(MINING_METHOD_TIP[m])}">${MINING_METHOD_LABEL[m]}</span>`).join('');
+// the way of mining a scanner signature belongs to: 3,000 is hand-mined rock, 4,000 ground-vehicle rock, the rest ship rock
+const sigMethod = (sig) => (sig === 3000 ? 'hand' : sig === 4000 ? 'vehicle' : 'ship');
+
 const oreProps = (name) => (typeof MINING_ORES !== 'undefined' ? MINING_ORES[String(name || '').toLowerCase()] || null : null);
 
 // A short plain-text summary of an ore ("legendary · Instability 1000 · Resistance 95%"), used as a
@@ -2383,6 +2439,7 @@ function orePropsHTML(ore) {
   const e = effOre(p);
   const [ik, il] = instRisk(e.inst), [rk, rl] = resRisk(e.res);
   const pill = (p.tier ? `<span class="ore-tier ${p.tier}" data-tip="${esc("Rarity tier of the rocks this ore is the main element of")}">${esc(p.tier)}</span>` : '')
+    + methodPills(ore)
     + `<span class="risk ${ik}" data-tip="${esc("How volatile this ore is to mine" + (e.loadout ? " with your Loadout" : "") + " \u2014 from its instability")}">${il}</span>`
     + `<span class="risk ${rk}" data-tip="${esc("How hard this ore is to crack" + (e.loadout ? " with your Loadout" : "") + " \u2014 from its resistance")}">${rl}</span>`;
   const line = `<div class="ore-props">
@@ -2398,11 +2455,13 @@ function renderMining(query) {
   const sort = document.getElementById('mining-sort')?.value || 'name';
   const stableOnly = !!document.getElementById('mining-flt-stable')?.checked;
   const easyOnly = !!document.getElementById('mining-flt-easy')?.checked;
+  const method = document.getElementById('mining-method')?.value || '';
   const list = document.getElementById('mining-list');
   const eff = (ore) => { const p = oreProps(ore); return p ? effOre(p) : null; };
   let entries = Object.entries(ORE_DATA).filter(([ore, locs]) =>
     !q || matchesAll(q, ore) || locs.some(l => matchesAll(q, ore, l.location))
   );
+  if (method) entries = entries.filter(([ore]) => oreMethods(ore).includes(method));
   if (stableOnly) entries = entries.filter(([ore]) => { const e = eff(ore); return e && e.inst <= 200; });
   if (easyOnly) entries = entries.filter(([ore]) => { const e = eff(ore); return e && e.res <= 0.35; });
   if (sort !== 'name') {
@@ -2949,9 +3008,457 @@ function clearProfitHistory() {
   renderProfit();
 }
 
+// ════════════════════════════════════════════════════════════════════
+// Contracts (Profit tab → Contracts)
+// ════════════════════════════════════════════════════════════════════
+// Read from Game.log by the main process (contract-log.js): which contracts were accepted and how
+// each ended, plus the blueprints they awarded. The log does not say which contract paid which
+// aUEC, so no payout is attached to a contract; the running total of "Awarded" lines is shown on
+// its own. Blueprints are awarded by name a second after the contract completes, and are marked
+// owned in the Hangar's Blueprints automatically.
+let profitMode = 'refining';
+const profitTabOpen = () => !!document.getElementById('panel-profit')?.classList.contains('active');
+let contractData = { records: [], awards: [], blueprints: [], imported: null };
+let contractStatus = '';
+const CONTRACT_OPEN_MS = 36 * 3600 * 1000;      // a mission never seen ending, last announced longer ago than this, is not "open"
+
+async function loadContracts() {
+  try { contractData = await api.getContracts(); } catch { /* keep what we have */ }
+  if (profitTabOpen() && profitMode === 'contracts') renderProfit();
+}
+
+const fmtSpan = (ms) => {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return '<1m';
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  return (d ? d + 'd ' : '') + (h ? h + 'h ' : '') + (d ? '' : mm + 'm');
+};
+// "Covalex_Hauling" -> "Covalex Hauling", "Adagio_Generator" -> "Adagio", "VisitingIasi" -> "Visiting Iasi"
+const prettyOrg = (g) => String(g || '').replace(/_?(Generator|generator)$/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
+
+const CONTRACT_OUTCOME = {
+  completed: ['Completed', 'var(--success)'], failed: ['Failed', 'var(--danger)'], abandoned: ['Abandoned', 'var(--warn)'],
+  ended: ['Ended', 'var(--text-dim)'], active: ['Open', 'var(--accent)'], stale: ['No ending seen', 'var(--text-dim)'],
+};
+function contractOutcome(r) {
+  if (r.outcome === 'active' && Date.now() - (r.seenAt || r.acceptedAt) > CONTRACT_OPEN_MS) return 'stale';
+  return r.outcome;
+}
+
+// sc-craft.tools lists, per blueprint, the contracts that can award it. Those names can contain unfilled
+// placeholders ("~mission(Location)"), so each is turned into a pattern a logged title is tested against.
+let _bpMissionIdx = null, _bpMissionIdxFor = 0;
+function bpMissionIndex() {
+  if (_bpMissionIdx && _bpMissionIdxFor === allBlueprints.length) return _bpMissionIdx;
+  const byName = new Map();
+  allBlueprints.forEach(bp => (bp.missions || []).forEach(m => {
+    const key = String(m.name || '').trim();
+    // a name that is only placeholders ("~mission(Contractor)") would match every title
+    if (key.replace(/~mission\([^)]*\)/g, '').replace(/[^A-Za-z]/g, '').length < 6) return;
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key).push({ bp, chance: parseFloat(m.drop_chance) || 0 });
+  }));
+  _bpMissionIdx = [...byName.entries()].map(([name, bps]) => {
+    const pat = name.split(/~mission\([^)]*\)/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.+?');
+    return { name, bps, re: new RegExp('^' + pat + '$', 'i') };
+  });
+  _bpMissionIdxFor = allBlueprints.length;
+  return _bpMissionIdx;
+}
+// the blueprints a contract of this title can award: [{ bp, chance }]
+function blueprintsForTitle(title) {
+  if (!allBlueprints.length) return [];
+  const out = new Map();
+  for (const e of bpMissionIndex()) {
+    if (e.re.test(title)) for (const x of e.bps) if (!out.has(x.bp.blueprint_id) || out.get(x.bp.blueprint_id).chance < x.chance) out.set(x.bp.blueprint_id, x);
+  }
+  return [...out.values()].sort((a, b) => b.chance - a.chance || a.bp.name.localeCompare(b.bp.name));
+}
+
+// A received blueprint's name -> the blueprint(s) in the Hangar list. One match is unambiguous.
+function blueprintsNamed(name) {
+  const lc = String(name || '').trim().toLowerCase();
+  return allBlueprints.filter(b => String(b.name).trim().toLowerCase() === lc);
+}
+
+// Marks blueprints the log says were received as owned. Returns { marked, ambiguous, missing } (names).
+async function applyReceivedBlueprints(names) {
+  const out = { marked: [], already: [], ambiguous: [], missing: [] };
+  if (!names.length) return out;
+  await initCrafting();                                   // loads the blueprint list and the owned set
+  let changed = false;
+  for (const name of [...new Set(names)]) {
+    const hits = blueprintsNamed(name);
+    if (hits.length === 1) {
+      if (ownedBlueprints[hits[0].blueprint_id]) out.already.push(name);
+      else { ownedBlueprints[hits[0].blueprint_id] = true; out.marked.push(name); changed = true; }
+    } else if (hits.length > 1) out.ambiguous.push(name);
+    else out.missing.push(name);
+  }
+  if (changed) {
+    await api.setStore('craftingOwned', ownedBlueprints);
+    if (craftingInitialized && typeof renderOwned === 'function') renderOwned();
+  }
+  return out;
+}
+
+let _infoToastTimer = null;
+function showInfoToast(text) {
+  const el = document.getElementById('complete-toast');
+  if (!el) return;
+  el.textContent = text;
+  el.style.opacity = '1';
+  el.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(_infoToastTimer);
+  _infoToastTimer = setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(16px)'; }, 7000);
+}
+
+// live: a blueprint reward just appeared in the log
+async function onContractBlueprints(list) {
+  await loadContracts();
+  const res = await applyReceivedBlueprints(list.map(b => b.name));
+  const bits = [];
+  if (res.marked.length) bits.push(`Blueprint received: ${res.marked.join(', ')} — marked as owned`);
+  if (res.already.length) bits.push(`Blueprint received: ${res.already.join(', ')} (already owned)`);
+  if (res.ambiguous.length) bits.push(`${res.ambiguous.join(', ')}: more than one blueprint has this name — pick it in Profit → Contracts`);
+  if (res.missing.length) bits.push(`${res.missing.join(', ')}: not found in the blueprint list`);
+  if (bits.length) showInfoToast(bits.join(' · '));
+  if (profitTabOpen() && profitMode === 'contracts') renderProfit();
+}
+
+async function importContractLogs() {
+  contractStatus = 'Reading your logs…';
+  renderProfit();
+  let r;
+  try { r = await api.importContractLogs(); } catch (e) { r = { ok: false, error: e.message }; }
+  if (!r.ok) { contractStatus = r.error || 'The import failed.'; await loadContracts(); renderProfit(); return; }
+  await loadContracts();
+  const names = (r.blueprints || []).map(b => b.name);
+  const res = await applyReceivedBlueprints(names);
+  contractStatus = `Read ${r.files} log${r.files === 1 ? '' : 's'}: ${r.contracts} new contract${r.contracts === 1 ? '' : 's'} (${r.total} in all).` +
+    (res.marked.length ? ` Marked as owned: ${res.marked.join(', ')}.` : '');
+  renderProfit();
+}
+
+let _clearContractsArmed = false;
+async function clearContractHistory() {
+  if (!_clearContractsArmed) {
+    _clearContractsArmed = true;
+    const b = document.getElementById('contracts-clear-btn');
+    if (b) b.textContent = 'Click again to clear';
+    setTimeout(() => { _clearContractsArmed = false; const x = document.getElementById('contracts-clear-btn'); if (x) x.textContent = 'Clear'; }, 4000);
+    return;
+  }
+  _clearContractsArmed = false;
+  await api.clearContracts();
+  contractStatus = 'Cleared. Import again to bring your old logs back.';
+  await loadContracts();
+  renderProfit();
+}
+
+function toggleContractBps(id) {
+  const el = document.getElementById('cbps-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+async function ownReceivedBlueprint(id) {
+  await initCrafting();
+  ownedBlueprints[id] = true;
+  await api.setStore('craftingOwned', ownedBlueprints);
+  if (typeof renderOwned === 'function') renderOwned();
+  renderProfit();
+}
+
+// ── SCMDB contract data (scmdb.net; see scmdb.js) ─────────────────────────────
+// What each contract pays, its time limit, the standing it needs and the blueprints it can award.
+// Downloaded once by the main process and kept; the log's own contract name ties a logged contract
+// to its entry here.
+let scmdbData = null, scmdbIdx = null, scmdbStatus = '', _scmdbAsked = false;
+const _scmdbForCache = new Map();
+
+function setScmdb(data) {
+  scmdbData = data;
+  _scmdbForCache.clear();
+  const byName = new Map(), byTitle = new Map();
+  const all = data.contracts || [];
+  for (const c of all) {
+    for (const n of c.names) if (!byName.has(n)) byName.set(n, c);
+    const k = String(c.title || '').trim().toLowerCase();
+    if (k && !/\[[A-Z ]+\]/.test(c.title)) (byTitle.get(k) || byTitle.set(k, []).get(k)).push(c);
+  }
+  scmdbIdx = { byName, byTitle };
+}
+async function loadScmdb() {
+  try { const r = await api.getScmdb(); if (r && r.data) setScmdb(r.data); } catch { /* none yet */ }
+}
+async function refreshScmdb(force) {
+  scmdbStatus = scmdbData ? 'Checking SCMDB for newer contract data…' : 'Loading contract data from SCMDB…';
+  if (profitMode !== 'refining') renderProfit();
+  let r;
+  try { r = await api.refreshScmdb(!!force); } catch (e) { r = { result: { ok: false, error: e.message } }; }
+  if (r.data) setScmdb(r.data);
+  scmdbStatus = r.result && r.result.ok ? '' : `Couldn't reach SCMDB (${(r.result && r.result.error) || 'no answer'})${scmdbData ? '; showing the data already stored' : ''}.`;
+  if (profitMode !== 'refining') renderProfit();
+}
+// the first time the Contracts or Browse view opens in a session
+async function ensureScmdb() {
+  if (_scmdbAsked) return;
+  _scmdbAsked = true;
+  await loadScmdb();
+  refreshScmdb(false);
+}
+
+// A logged contract's entry in the SCMDB data: by the contract's own name (exact), else by its title when
+// only one contract has that title or every contract with it pays the same.
+function scmdbFor(rec) {
+  if (!scmdbIdx) return null;
+  if (_scmdbForCache.has(rec.id)) return _scmdbForCache.get(rec.id);
+  let c = rec.contract ? scmdbIdx.byName.get(rec.contract) : null;
+  if (!c) {
+    const list = scmdbIdx.byTitle.get(String(rec.title || '').trim().toLowerCase()) || [];
+    if (list.length === 1 || (list.length > 1 && list.every(x => x.reward === list[0].reward && x.type === list[0].type))) c = list[0];
+  }
+  _scmdbForCache.set(rec.id, c || null);
+  return c || null;
+}
+
+// "Contract names" as SCMDB prints them can carry a [PLACEHOLDER]; show the rest plainly
+const scTitle = (t) => String(t || '').replace(/\[([A-Z ]+)\]/g, (m, w) => w.charAt(0) + w.slice(1).toLowerCase());
+
+// The blueprints a contract can award, with their chance: from SCMDB's pools when the contract is known there,
+// otherwise from sc-craft.tools's list. [{ name, chance, owned }]
+function blueprintOptionsFor(rec) {
+  const sc = scmdbFor(rec);
+  const owned = (name) => { const h = blueprintsNamed(name); return h.length ? h.some(b => ownedBlueprints[b.blueprint_id]) : null; };
+  if (sc && sc.blueprints.length && scmdbData) {
+    const out = new Map();
+    for (const b of sc.blueprints) {
+      const pool = scmdbData.pools[b.pool];
+      if (!pool || !pool.blueprints.length) continue;
+      const total = pool.blueprints.reduce((n, x) => n + (x[1] || 1), 0) || 1;
+      for (const [name, w] of pool.blueprints) {
+        const chance = (b.chance || 0) * (w || 1) / total;
+        if (!out.has(name) || out.get(name).chance < chance) out.set(name, { name, chance, owned: owned(name) });
+      }
+    }
+    return [...out.values()].sort((a, b) => b.chance - a.chance || a.name.localeCompare(b.name));
+  }
+  return blueprintsForTitle(rec.title).map(x => ({ name: x.bp.name, chance: x.chance, owned: !!ownedBlueprints[x.bp.blueprint_id] }));
+}
+
+function setProfitMode(mode) {
+  profitMode = mode;
+  if (mode !== 'refining') ensureScmdb();
+  renderProfit();
+}
+function profitModeBar() {
+  const chip = (m, label) => `<div class="chip${profitMode === m ? ' active' : ''}" onclick="setProfitMode('${m}')">${label}</div>`;
+  return `<div class="filter-chips" style="margin:0;padding:10px 10px 0">${chip('refining', 'Refining')}${chip('contracts', 'My contracts')}${chip('browse', 'Browse')}</div>`;
+}
+
+function scmdbCredit() {
+  if (!scmdbData) return '';
+  return `<div style="font-size:10px;color:var(--text-dim);margin-top:12px;line-height:1.5">Contract data from <a href="#" onclick="api.openExternal('https://scmdb.net');return false" style="color:var(--accent)">SCMDB</a> (scmdb.net), a fan project like this one — version ${esc(scmdbData.version)}, updated ${esc(new Date(scmdbData.fetchedAt).toLocaleDateString())}. Rewards are the listed amounts; what you are paid can vary. <a href="#" style="color:var(--accent)" onclick="refreshScmdb(true);return false">Update now</a></div>`;
+}
+
+// An open contract's objectives, as the log reports them: pick-ups first, then drop-offs, each with its state.
+function objectivesHtml(r) {
+  const list = (r.objectives || []).filter(o => o.state !== 'withdrawn');
+  if (!list.length) return '';
+  const order = { pickup: 0, dropoff: 1, other: 2 };
+  const sorted = list.map((o, i) => ({ o, i })).sort((a, b) => (order[a.o.kind] - order[b.o.kind]) || (a.i - b.i)).map(x => x.o);
+  const done = sorted.filter(o => o.state === 'done').length;
+  const label = (o) => o.text || (o.kind === 'pickup' ? 'Pick up the cargo' : o.kind === 'dropoff' ? 'Deliver the cargo' : 'Objective');
+  const mark = { done: ['\u2713', 'var(--success)'], failed: ['\u2717', 'var(--danger)'], active: ['\u25cb', 'var(--accent)'] };
+  return `<div style="margin-top:5px;padding-top:4px;border-top:1px solid var(--border)">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);margin-bottom:2px">Objectives \u00b7 ${done} of ${sorted.length} done</div>
+    ${sorted.map(o => { const [ch, col] = mark[o.state] || mark.active; return `<div style="display:flex;gap:6px;font-size:11px;line-height:1.5;${o.state === 'done' ? 'opacity:.6;text-decoration:line-through' : ''}"><span style="color:${col};flex-shrink:0;width:10px">${ch}</span><span>${esc(label(o))}</span></div>`; }).join('')}
+  </div>`;
+}
+
+function renderContracts(body) {
+  const recs = contractData.records || [];
+  const tile = (label, value, sub) => `
+    <div style="flex:1 1 30%;min-width:0;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)">${label}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-bright);margin-top:2px;font-variant-numeric:tabular-nums">${value}</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:1px">${sub || '&nbsp;'}</div>
+    </div>`;
+  const head = (s) => `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">${s}</div>`;
+  const card = (inner) => `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">${inner}</div>`;
+  const pill = (key) => { const [label, color] = CONTRACT_OUTCOME[key] || CONTRACT_OUTCOME.ended; return `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:8px;border:1px solid ${color};color:${color};white-space:nowrap">${label}</span>`; };
+  const money = (n) => fmtMoney(Math.round(n));
+
+  const status = recs.map(contractOutcome);
+  const count = (k) => status.filter(s => s === k).length;
+  const done = count('completed'), failed = count('failed'), abandoned = count('abandoned');
+  const finished = done + failed + abandoned;
+  const span = (r) => (r.endedAt && r.endedAt > r.acceptedAt && r.endedAt - r.acceptedAt < 3 * 86400000) ? r.endedAt - r.acceptedAt : null;
+  const times = recs.filter(r => r.outcome === 'completed').map(span).filter(Boolean);
+  const avg = times.length ? times.reduce((a, b) => a + b, 0) / times.length : null;
+  const awardTotal = (contractData.awards || []).reduce((n, a) => n + a.amount, 0);
+
+  // earnings: the listed reward of each completed contract SCMDB knows
+  const paid = recs.filter(r => r.outcome === 'completed').map(r => ({ r, sc: scmdbFor(r) })).filter(x => x.sc && x.sc.reward != null);
+  const earned = paid.reduce((n, x) => n + x.sc.reward, 0);
+  const paidMs = paid.map(x => span(x.r)).filter(Boolean);
+  const paidMsSum = paidMs.reduce((a, b) => a + b, 0);
+  const perHour = paidMsSum > 0 ? paid.filter(x => span(x.r)).reduce((n, x) => n + x.sc.reward, 0) / (paidMsSum / 3600000) : null;
+
+  // open now: first, because it is what is being played
+  const open = recs.filter(r => contractOutcome(r) === 'active');
+  const openHtml = open.length ? head(`Open now \u00b7 ${open.length}`) + open.map(r => {
+    const sc = scmdbFor(r);
+    return card(`<div style="display:flex;justify-content:space-between;gap:8px"><span style="color:var(--text-bright);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</span><span style="color:var(--text-dim);flex-shrink:0">${fmtSpan(Date.now() - r.acceptedAt)}${sc && sc.minutes ? ' of ' + fmtSpan(sc.minutes * 60000) : ''}</span></div>
+      <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(prettyOrg(r.generator))}${sc && sc.reward != null ? ' \u00b7 ' + money(sc.reward) + ' aUEC' : ''}${sc && sc.standing ? ' \u00b7 needs ' + esc(sc.standing) : ''}</div>
+      ${objectivesHtml(r)}`);
+  }).join('') : '';
+
+  let html = profitModeBar() + `<div style="padding:10px 10px 12px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="flex:1;min-width:120px;font-size:11px;color:var(--text-dim)">${esc(contractStatus || scmdbStatus || (recs.length ? `${recs.length} contract${recs.length === 1 ? '' : 's'} read from Game.log${contractData.imported ? '' : ' (this session)'}.` : 'Contracts you accept in the game are recorded here as you play.'))}</span>
+      <button class="btn btn-sm" onclick="importContractLogs()" data-tip="Read your current and older Game.log files (the logbackups folder) for contracts and blueprint rewards">Import from old logs</button>
+      <button id="contracts-clear-btn" class="btn btn-sm" onclick="clearContractHistory()">Clear</button>
+    </div>
+    ${openHtml ? openHtml.replace(/margin:14px 0 6px/, 'margin:2px 0 6px') + '<div style="height:8px"></div>' : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${tile('Completed', done, finished ? Math.round(done / finished * 100) + '% of finished' : '')}
+      ${tile('Failed', failed, '')}
+      ${tile('Abandoned', abandoned, '')}
+      ${tile('Avg. time', avg != null ? fmtSpan(avg) : '—', 'accepted → completed')}
+      ${tile('Listed pay', paid.length ? money(earned) : '—', paid.length ? `aUEC, ${paid.length} of ${done} completed` : (scmdbData ? 'no match yet' : 'loading…'))}
+      ${tile('Per hour', perHour != null ? money(perHour) : '—', 'aUEC, accept → complete')}
+      ${tile('Blueprints', (contractData.blueprints || []).length, 'received from contracts')}
+      ${tile('Awarded (log)', awardTotal ? fmtMoney(awardTotal) : '—', 'every "Awarded" line')}
+    </div>`;
+
+  if (!recs.length) {
+    html += `<div class="empty-state" style="margin-top:16px"><div class="ico">📋</div><div class="lbl">No contracts recorded yet.<br><span style="font-size:10px">Accept one in the game, or press Import from old logs to bring in the ones you have already done. <a href="#" style="color:var(--accent)" onclick="setProfitMode('browse');return false">Browse all contracts</a></span></div></div>${scmdbCredit()}</div>`;
+    body.innerHTML = html;
+    return;
+  }
+
+  // by contract and by organisation
+  const group = (keyFn) => {
+    const m = new Map();
+    recs.forEach(r => {
+      const k = keyFn(r); if (!k) return;
+      const g = m.get(k) || { name: k, n: 0, done: 0, failed: 0, abandoned: 0, ms: 0, timed: 0, rewards: [], earned: 0 };
+      g.n++;
+      const s = contractOutcome(r), sc = scmdbFor(r);
+      if (sc && sc.reward != null) g.rewards.push(sc.reward);
+      if (s === 'completed') { g.done++; const sp = span(r); if (sp) { g.ms += sp; g.timed++; } if (sc && sc.reward != null) g.earned += sc.reward; }
+      else if (s === 'failed') g.failed++; else if (s === 'abandoned') g.abandoned++;
+      m.set(k, g);
+    });
+    return [...m.values()].map(g => {
+      g.pay = g.rewards.length ? g.rewards.reduce((a, b) => a + b, 0) / g.rewards.length : null;
+      g.rate = g.pay != null && g.timed ? g.pay / ((g.ms / g.timed) / 3600000) : null;
+      return g;
+    }).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  };
+  const grid = 'grid-template-columns:1fr 30px 44px 62px 66px';
+  const cols = (a, b, c, d, e, st) => `<div style="display:grid;${grid};gap:6px;${st}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a)}">${esc(a)}</span><span style="text-align:right">${b}</span><span style="text-align:right">${c}</span><span style="text-align:right">${d}</span><span style="text-align:right">${e}</span></div>`;
+  const tableHead = (label) => cols(label, 'Taken', 'Done', 'Pays', 'Per hour', 'font-size:9px;color:var(--text-dim);text-transform:uppercase;padding:0 8px 3px').replace(/title="[^"]*"/, '');
+  const table = (rows, label, limit = 12) => tableHead(label) + rows.slice(0, limit).map(g => {
+    const fin = g.done + g.failed + g.abandoned;
+    return `<div style="padding:5px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:3px;font-size:11px;font-variant-numeric:tabular-nums">${cols(g.name, g.n, fin ? Math.round(g.done / fin * 100) + '%' : '—', g.pay != null ? money(g.pay) : '—', g.rate != null ? money(g.rate) : '—', '')}</div>`;
+  }).join('');
+  const byContract = group(r => r.title);
+  html += head('By contract') + table(byContract, 'Contract');
+  const best = byContract.filter(g => g.rate != null && g.done > 0).sort((a, b) => b.rate - a.rate);
+  if (best.length > 1) html += head('Best pay per hour (your history)') + table(best, 'Contract', 8);
+  html += head('By organisation') + table(group(r => prettyOrg(r.generator) || 'Unknown'), 'Organisation');
+
+  // blueprints received
+  const got = (contractData.blueprints || []).slice().sort((a, b) => b.ts - a.ts);
+  if (got.length) {
+    html += head(`Blueprints received · ${got.length}`);
+    html += got.map(b => {
+      const hits = blueprintsNamed(b.name);
+      const src = b.contractId ? recs.find(r => r.id === b.contractId) : null;
+      let state;
+      if (!allBlueprints.length) state = '<span style="color:var(--text-dim)">open the Hangar once to check</span>';
+      else if (hits.length === 1) state = ownedBlueprints[hits[0].blueprint_id] ? '<span style="color:var(--success)">✓ Owned</span>' : `<button class="btn btn-sm" onclick="ownReceivedBlueprint('${esc(hits[0].blueprint_id)}')">+ Own</button>`;
+      else if (hits.length > 1) state = hits.map(h => ownedBlueprints[h.blueprint_id] ? `<span style="color:var(--success)">✓ ${esc(h.category || h.blueprint_id)}</span>` : `<button class="btn btn-sm" onclick="ownReceivedBlueprint('${esc(h.blueprint_id)}')" title="${esc(h.blueprint_id)}">Own: ${esc(h.category || h.blueprint_id)}</button>`).join(' ');
+      else state = '<span style="color:var(--text-dim)">not in the blueprint list</span>';
+      return card(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="color:var(--text-bright)">🎁 ${esc(b.name)}</span><span>${state}</span></div>
+        <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(new Date(b.ts).toLocaleDateString())}${src ? ' · from ' + esc(src.title) : ''}</div>`);
+    }).join('');
+  }
+
+  // history
+  html += head('History');
+  html += recs.slice(0, 60).map(r => {
+    const key = contractOutcome(r);
+    const sp = r.endedAt ? fmtSpan(r.endedAt - r.acceptedAt) : '';
+    const sc = scmdbFor(r);
+    const facts = sc ? [sc.reward != null ? money(sc.reward) + ' aUEC' : '', sc.type, sc.standing ? 'needs ' + sc.standing : '', sc.minutes ? fmtSpan(sc.minutes * 60000) + ' limit' : ''].filter(Boolean).join(' · ') : '';
+    const can = blueprintOptionsFor(r);
+    const bpLine = can.length
+      ? `<a href="#" style="color:var(--accent);font-size:10px" onclick="toggleContractBps('${esc(r.id)}');return false">can award ${can.length} blueprint${can.length === 1 ? '' : 's'}</a>
+         <div id="cbps-${esc(r.id)}" style="display:none;margin-top:4px;font-size:10px;line-height:1.6">${can.slice(0, 30).map(x => `<span style="display:inline-block;margin-right:8px;${x.owned ? 'color:var(--success)' : 'color:var(--text-dim)'}">${x.owned ? '✓ ' : ''}${esc(x.name)}${x.chance && x.chance < 0.995 ? ` (${x.chance < 0.01 ? '<1' : Math.round(x.chance * 100)}%)` : ''}</span>`).join('')}${can.length > 30 ? ` +${can.length - 30} more` : ''}</div>`
+      : '';
+    return card(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-bright)">${esc(r.title)}</span>${pill(key)}</div>
+      <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(new Date(r.acceptedAt).toLocaleDateString())} · ${esc(prettyOrg(r.generator) || 'unknown organisation')}${sp ? ' · ' + sp : ''}${(r.blueprints || []).length ? ' · 🎁 ' + esc(r.blueprints.join(', ')) : ''}</div>
+      ${facts ? `<div style="color:var(--text-dim);font-size:10px;margin-top:1px">${esc(facts)}</div>` : ''}
+      ${bpLine ? `<div style="margin-top:3px">${bpLine}</div>` : ''}`);
+  }).join('');
+  html += `<div style="font-size:10px;color:var(--text-dim);margin-top:12px;line-height:1.5">Read from Game.log. "Listed pay" adds up the reward SCMDB lists for each contract you completed; the log itself does not say what a contract paid, and "Awarded (log)" is just the total of every Awarded line.</div>${scmdbCredit()}`;
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+// ── Browse: every contract SCMDB lists ──
+let _browse = { q: '', type: '', sort: 'pay' };
+function renderContractBrowse(body) {
+  const types = scmdbData ? [...new Set(scmdbData.contracts.map(c => c.type).filter(Boolean))].sort() : [];
+  body.innerHTML = profitModeBar() + `<div style="padding:10px 10px 12px">
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">${esc(scmdbStatus || (scmdbData ? `${scmdbData.contracts.length} contracts · SCMDB ${scmdbData.version}` : 'Loading contract data…'))}</div>
+    <div class="search-bar" style="margin-bottom:6px"><span class="ico">🔍</span><input type="text" id="cbrowse-q" placeholder="Search title, organisation, type…" value="${esc(_browse.q)}" oninput="_browse.q = this.value; renderContractBrowseResults()"></div>
+    <div class="mining-tools" style="padding:0 0 8px">
+      <select id="cbrowse-type" onchange="_browse.type = this.value; renderContractBrowseResults()"><option value="">All types</option>${types.map(t => `<option value="${esc(t)}"${_browse.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <select id="cbrowse-sort" onchange="_browse.sort = this.value; renderContractBrowseResults()">
+        <option value="pay"${_browse.sort === 'pay' ? ' selected' : ''}>Sort: best pay</option>
+        <option value="rate"${_browse.sort === 'rate' ? ' selected' : ''}>Sort: pay per hour of time limit</option>
+        <option value="title"${_browse.sort === 'title' ? ' selected' : ''}>Sort: name</option>
+      </select>
+    </div>
+    <div id="cbrowse-results"></div>${scmdbCredit()}</div>`;
+  renderContractBrowseResults();
+}
+function renderContractBrowseResults() {
+  const el = document.getElementById('cbrowse-results');
+  if (!el) return;
+  if (!scmdbData) { el.innerHTML = '<div class="empty-state"><div class="lbl">Contract data has not loaded yet.</div></div>'; return; }
+  const q = _browse.q.toLowerCase().trim();
+  const mine = new Map();                                // how often you took each contract, by its internal name
+  (contractData.records || []).forEach(r => { if (!r.contract) return; const m = mine.get(r.contract) || { n: 0, done: 0 }; m.n++; if (r.outcome === 'completed') m.done++; mine.set(r.contract, m); });
+  let list = scmdbData.contracts.filter(c => (!_browse.type || c.type === _browse.type) && matchesAll(q, scTitle(c.title), c.org, c.type, c.names[0], c.standing));
+  const rate = (c) => (c.reward != null && c.minutes ? c.reward / (c.minutes / 60) : -1);
+  list.sort(_browse.sort === 'title' ? (a, b) => scTitle(a.title).localeCompare(scTitle(b.title))
+    : _browse.sort === 'rate' ? (a, b) => rate(b) - rate(a)
+    : (a, b) => (b.reward || -1) - (a.reward || -1));
+  const total = list.length;
+  el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${total} contract${total === 1 ? '' : 's'}${total > 40 ? ' · showing the first 40' : ''}</div>` +
+    list.slice(0, 40).map(c => {
+      const taken = c.names.map(n => mine.get(n)).filter(Boolean).reduce((a, m) => ({ n: a.n + m.n, done: a.done + m.done }), { n: 0, done: 0 });
+      const bps = [...new Set(c.blueprints.flatMap(b => ((scmdbData.pools[b.pool] || {}).blueprints || []).map(x => x[0])))];
+      const tags = [c.shareable ? 'shareable' : '', c.illegal ? 'illegal' : ''].filter(Boolean).join(' · ');
+      return `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;color:var(--text-bright)">${esc(scTitle(c.title))}</span><span style="flex-shrink:0;font-weight:700;color:var(--success)">${c.reward != null ? fmtMoney(c.reward) : 'varies'}</span></div>
+        <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc([c.org, c.type, c.standing ? 'needs ' + c.standing : '', c.minutes ? fmtSpan(c.minutes * 60000) + ' limit' : '', tags].filter(Boolean).join(' · '))}</div>
+        ${c.buyIn ? `<div style="color:var(--warn);font-size:10px">Buy-in ${fmtMoney(c.buyIn)}</div>` : ''}
+        ${bps.length ? `<div style="color:var(--text-dim);font-size:10px;margin-top:2px" title="${esc(bps.join(', '))}">🎁 can award ${bps.length} blueprint${bps.length === 1 ? '' : 's'}: ${esc(bps.slice(0, 3).join(', '))}${bps.length > 3 ? '…' : ''}</div>` : ''}
+        ${taken.n ? `<div style="color:var(--accent);font-size:10px;margin-top:2px">You took this ${taken.n}×, completed ${taken.done}×</div>` : ''}
+      </div>`;
+    }).join('');
+}
+
 function renderProfit() {
   const body = document.getElementById('profit-body');
   if (!body) return;
+  if (profitMode === 'contracts') { renderContracts(body); return; }
+  if (profitMode === 'browse') { renderContractBrowse(body); return; }
   const tile = (label, value, sub) => `
     <div style="flex:1 1 45%;min-width:0;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)">${label}</div>
@@ -2978,7 +3485,7 @@ function renderProfit() {
   const live = jobs.map(j => ({ job: j, p: jobProfit(j) })).filter(x => x.p.net != null);
   const liveNet = live.reduce((n, x) => n + x.p.net, 0);
 
-  let html = `<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 10px 0">
+  let html = profitModeBar() + `<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 10px 0">
     ${tile('Delivered jobs', hist.length, hist.length ? `${fmtMoney(totalHours)} refinery hours` : '')}
     ${tile('Net profit', hist.length ? fmtMoney(totalNet) + ' aUEC' : '—', hist.length ? 'estimated, after fees' : '')}
     ${tile('Per refinery hour', perHour != null ? fmtMoney(perHour) : '—', 'aUEC, delivered jobs')}
@@ -3244,7 +3751,7 @@ function applyPriceRows(rows) {
 function refreshPriceViews() {
   if (pricesView === 'station') renderStations(); else renderComs();
   renderJobs();                                  // job cards carry value estimates
-  if (refineryView === 'profit') renderProfit();
+  if (profitTabOpen()) renderProfit();
   if (craftingView === 'inventory' && document.getElementById('crafting-view-inventory')?.style.display !== 'none') {
     renderInventory();
   }
@@ -3979,23 +4486,20 @@ async function saveRefineryCaptureMode() {
 // creates the job directly. Best-effort: whatever isn't recognized is just left
 // blank for the user to fill in as normal.
 //
-// Takes several shots a couple seconds apart (see main.js) rather than one, so a
-// materials list longer than the screen can still be captured in full — scroll
-// the in-game list between shots and the button's countdown tells you how long
-// you have. onRefineryCaptureProgress (registered once, at startup) drives the
-// live "Capturing 2/4…" text during that window.
-let _captureBtnBusy = false, _captureScroll = false, _captureBtnEl = null;
+// Takes four shots in quick succession (see main.js) and reads them together, so a misread
+// digit in one is backed up by the others. A list longer than the terminal is captured a
+// screenful at a time instead (see the scroll capture dialog). onRefineryCaptureProgress
+// (registered once, at startup) drives the live "Capturing 2/4…" text.
+let _captureBtnBusy = false, _captureBtnEl = null;
 function onRefineryCaptureProgressTick(info) {
   if (!_captureBtnBusy) return;
   const btn = _captureBtnEl || document.getElementById('capture-job-btn');
   if (!btn) return;
   if (info.phase === 'reading') {
     btn.textContent = `📷 Reading ${info.current}/${info.total}` + (info.found ? ` · ${info.found} found` : '') + '…';
-  } else if (info.scroll) {
-    // scroll capture: the button is the Done button; how long is left shows as a count-up
-    btn.textContent = `✔ ${t('capture.finish')} · ${info.current} · ${info.elapsed}s`;
   } else {
-    btn.textContent = `📷 ${info.current}/${info.total} — scroll now!`;
+    // the quick capture: nothing to do in the game, just hold still while the shots are taken
+    btn.textContent = `📷 Capturing ${info.current}/${info.total}…`;
   }
 }
 
@@ -4144,13 +4648,12 @@ function reportImportProblem() {
   reportCaptureProblem();
 }
 
-// 📷 Capture first asks whether the materials list is longer than the terminal window. If it
-// is, the capture runs as a scroll capture — frames keep coming while the user scrolls the list in
-// the game, and the same button becomes Finish — otherwise it is the quick four-shot capture.
+// 📷 Capture first asks whether the materials list is longer than the terminal window. If it is,
+// a dialog walks through capturing a screenful at a time (capture, scroll, capture again, Finish);
+// otherwise it is the quick four-shot capture.
 let _captureLongLast = false;
 function captureRefineryJob() {
-  // while a scroll capture runs, the button is the Finish button
-  if (_captureBtnBusy) { if (_captureScroll) api.stopRefineryCapture(); return; }
+  if (_captureBtnBusy) return;
   document.getElementById('capture-ask-overlay').style.display = 'flex';
   document.getElementById(_captureLongLast ? 'capture-ask-yes' : 'capture-ask-no').focus();
 }
@@ -4160,28 +4663,82 @@ function closeCaptureAsk() {
 function answerCaptureLong(isLong) {
   _captureLongLast = !!isLong;
   closeCaptureAsk();
-  runRefineryCapture({ scroll: !!isLong });
+  if (isLong) openScrollCapture(); else runRefineryCapture();
 }
 
-async function runRefineryCapture(opts) {
-  const scroll = !!(opts && opts.scroll);
+// ── Scroll capture: the user takes each screenful themselves ──
+let _scrollBusy = false, _scrollShots = 0;
+function setScrollStatus(text, warn) {
+  const el = document.getElementById('capture-scroll-status');
+  el.textContent = text;
+  el.style.color = warn ? 'var(--warn, #e6c84a)' : 'var(--text)';
+}
+function openScrollCapture() {
+  _scrollBusy = false; _scrollShots = 0;
+  setScrollStatus('No views captured yet.');
+  document.getElementById('capture-scroll-shot').disabled = false;
+  document.getElementById('capture-scroll-finish').disabled = true;
+  document.getElementById('capture-scroll-overlay').style.display = 'flex';
+}
+function closeScrollCapture() {
+  document.getElementById('capture-scroll-overlay').style.display = 'none';
+}
+async function scrollCaptureShot() {
+  if (_scrollBusy) return;
+  _scrollBusy = true;
+  const shotBtn = document.getElementById('capture-scroll-shot'), finishBtn = document.getElementById('capture-scroll-finish');
+  shotBtn.disabled = true; finishBtn.disabled = true;
+  shotBtn.textContent = '📷 Reading…';
+  let r;
+  try { r = await api.scrollCaptureShot({ first: _scrollShots === 0 }); } catch (e) { r = { status: 'error', error: e.message }; }
+  _scrollBusy = false;
+  shotBtn.disabled = false; shotBtn.textContent = '📷 Capture this view';
+  finishBtn.disabled = _scrollShots === 0;
+  if (r.status !== 'ok') { setScrollStatus(r.error || 'The capture failed.', true); return; }
+  _scrollShots = r.shots;
+  finishBtn.disabled = false;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  let msg = `${plural(r.shots, 'view')} captured \u00b7 ${plural(r.rows, 'material')} found`;
+  if (r.shots > 1) msg += r.added ? ` (${r.added} new)` : ' \u2014 nothing new: did the list scroll?';
+  setScrollStatus(msg, r.shots > 1 && !r.added);
+}
+async function scrollCaptureFinish() {
+  if (_scrollBusy || !_scrollShots) return;
+  _scrollBusy = true;
+  let res;
+  try { res = await api.scrollCaptureFinish(); } catch (e) { res = { status: 'error', error: e.message }; }
+  _scrollBusy = false;
+  closeScrollCapture();
   const btn = document.getElementById('capture-job-btn');
-  const other = null;
+  handleCaptureResult(res, btn, btn.textContent);
+}
+function scrollCaptureCancel() {
+  api.scrollCaptureCancel();
+  _scrollBusy = false;
+  closeScrollCapture();
+}
+
+async function runRefineryCapture() {
+  const btn = document.getElementById('capture-job-btn');
   const originalText = btn.textContent;
-  _captureBtnBusy = true; _captureScroll = scroll; _captureBtnEl = btn;
-  btn.disabled = !scroll;
-  btn.textContent = scroll ? `✔ ${t('capture.finish')}` : '📷 1/4…';
+  _captureBtnBusy = true; _captureBtnEl = btn;
+  btn.disabled = true;
+  btn.textContent = '📷 1/4…';
 
   let res;
   try {
-    res = await api.captureRefineryJob({ scroll });
+    res = await api.captureRefineryJob();
   } catch (e) {
     res = { status: 'error', error: e.message };
   }
-  _captureBtnBusy = false; _captureScroll = false;
+  _captureBtnBusy = false;
   btn.disabled = false;
-  if (other) other.disabled = false;
+  handleCaptureResult(res, btn, originalText);
+}
 
+// What a finished capture (quick or scroll) does with its result: hand the running jobs to the
+// import dialog, or fill the Add Job form for review.
+function handleCaptureResult(res, btn, originalText) {
   if (res.status !== 'ok') {
     const notRunning = /doesn.t appear to be running/i.test(res.error || '');
     if (notRunning) {
@@ -5019,6 +5576,10 @@ if (api.onRefineryJobComplete) {
 if (api.onRefineryCaptureProgress) {
   api.onRefineryCaptureProgress(onRefineryCaptureProgressTick);
 }
+// contract activity read from Game.log by the main process
+if (api.onContractsUpdated) api.onContractsUpdated(() => loadContracts());
+if (api.onScmdbUpdated) api.onScmdbUpdated(async () => { await loadScmdb(); if (profitTabOpen() && profitMode !== 'refining') renderProfit(); });
+if (api.onContractBlueprints) api.onContractBlueprints((list) => onContractBlueprints(list));
 
 // ════════════════════════════════════════════════════════════════════
 // Crafting
@@ -5242,6 +5803,122 @@ function erkulNav(action) {
 
 function openErkul() { switchShipsSub('erkul'); }
 
+// ── RSI hangar (Settings → RSI Hangar; rsi-hangar.js reads it with a login the user does in RSI's own window) ──
+let rsiConnected = null, rsiCheckedAt = 0, rsiBusy = false;
+function rsiUi() {
+  const $ = (id) => document.getElementById(id);
+  if (!$('rsi-status')) return;
+  $('rsi-connect-btn').textContent = rsiConnected ? 'Reconnect\u2026' : 'Connect\u2026';
+  $('rsi-import-btn').style.display = rsiConnected ? '' : 'none';
+  $('rsi-disconnect-btn').style.display = rsiConnected ? '' : 'none';
+  [ 'rsi-connect-btn', 'rsi-import-btn', 'rsi-disconnect-btn' ].forEach(id => { $(id).disabled = rsiBusy; });
+}
+function rsiSay(text, result) {
+  const st = document.getElementById('rsi-status'), rs = document.getElementById('rsi-result');
+  if (st && text != null) st.textContent = text;
+  if (rs) { rs.style.display = result ? '' : 'none'; rs.textContent = result || ''; }
+}
+async function rsiRefreshStatus(force) {
+  if (rsiBusy || (!force && rsiConnected !== null && Date.now() - rsiCheckedAt < 10 * 60 * 1000)) { rsiUi(); return; }
+  rsiBusy = true; rsiUi();
+  rsiSay('Checking your RSI connection\u2026');
+  try { rsiConnected = !!(await api.rsiStatus()).connected; } catch { rsiConnected = false; }
+  rsiCheckedAt = Date.now(); rsiBusy = false;
+  rsiSay(rsiConnected ? 'Connected to your RSI account. Import hangar reads your pledges and adds the ships to My Ships.' : 'Bring the ships in your RSI hangar into My Ships. Connect opens RSI\'s own login page in a window; this app never sees your password.');
+  rsiUi();
+}
+async function rsiConnect() {
+  rsiBusy = true; rsiUi();
+  rsiSay('Log in to RSI in the window that opened (captcha and two-factor included), then close it.');
+  try { rsiConnected = !!(await api.rsiConnect()).connected; } catch { rsiConnected = false; }
+  rsiCheckedAt = Date.now(); rsiBusy = false;
+  rsiSay(rsiConnected ? 'Connected to your RSI account. Import hangar reads your pledges and adds the ships to My Ships.' : 'Not connected. If you logged in, close the RSI window after your hangar page has shown, then try again.');
+  rsiUi();
+}
+async function rsiDisconnect() {
+  rsiBusy = true; rsiUi();
+  try { await api.rsiDisconnect(); } catch { /* nothing to undo */ }
+  rsiConnected = false; rsiCheckedAt = Date.now(); rsiBusy = false;
+  rsiSay('Disconnected. The login stored for RSI was removed from this app; ships already imported stay.', '');
+  rsiUi();
+}
+
+const normShip = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// An RSI ship ("Gladius", maker "Aegis Dynamics") -> the matching entry of the ship list (UEX: "Aegis Gladius").
+// Returns { v, approx }: approx is true when only a close name was found (RSI "C8R Pisces" -> "C8R Pisces Rescue").
+function matchUexVehicle(vehicles, title, maker) {
+  const t = normShip(title), mk = normShip(maker);
+  if (!t) return null;
+  const sameMaker = (v) => { const co = normShip(v.company_name); return !!co && !!mk && (mk.includes(co) || co.includes(mk) || mk.startsWith(co.slice(0, 4))); };
+  let c = vehicles.filter(v => normShip(v.name) === t || normShip(v.name_full).endsWith(t));
+  if (c.length > 1) { const m = c.filter(sameMaker); if (m.length) c = m; }
+  if (c.length > 1) { const exact = c.filter(v => normShip(v.name) === t); if (exact.length) c = exact; }
+  if (c.length) return { v: c.sort((x, y) => String(x.name_full).length - String(y.name_full).length)[0], approx: false };
+  // no exact name: the list's name is longer (a variant) or shorter (RSI adds a word) — only for the same maker
+  c = vehicles.filter(v => sameMaker(v) && normShip(v.name).startsWith(t));
+  if (c.length) return { v: c.sort((x, y) => String(x.name_full).length - String(y.name_full).length)[0], approx: true };
+  c = vehicles.filter(v => sameMaker(v) && normShip(v.name).length >= 3 && t.startsWith(normShip(v.name)));
+  if (c.length) return { v: c.sort((x, y) => String(y.name_full).length - String(x.name_full).length)[0], approx: true };
+  return null;
+}
+
+// Adds the hangar's ships to My Ships and updates the ones imported before. A ship you added by hand is linked
+// rather than duplicated; ships that are no longer in the hangar are marked, never deleted.
+function mergeRsiShips(rsiShips, vehicles) {
+  const out = { added: [], linked: [], updated: [], unmatched: [], missing: [], approx: [] };
+  const claimed = new Set();
+  const seen = new Set(rsiShips.map(r => r.key));
+  for (const r of rsiShips) {
+    const meta = { key: r.key, pledgeId: r.pledgeId, pledgeName: r.pledgeName, insurance: r.insurance, paints: r.paints, hangar: r.hangar, gift: r.gift, created: r.created, missing: false };
+    const have = craftShips.find(x => x.rsi && x.rsi.key === r.key);
+    if (have) { have.rsi = { ...have.rsi, ...meta }; claimed.add(have.uid); out.updated.push(have.name); continue; }
+    const hit = matchUexVehicle(vehicles, r.title, r.maker);
+    if (!hit) { out.unmatched.push(`${r.maker} ${r.title}`.trim()); continue; }
+    const v = hit.v;
+    if (hit.approx) out.approx.push(`${r.title} → ${v.name}`);
+    const manual = craftShips.find(x => !x.rsi && x.vid === v.id && !claimed.has(x.uid));
+    if (manual) { manual.rsi = meta; claimed.add(manual.uid); out.linked.push(manual.name); continue; }
+    const ship = {
+      uid: newUid(), vid: v.id, slug: v.slug || '', installed: {}, name: v.name_full, company: v.company_name || '',
+      scu: v.scu ?? null, crew: v.crew || '', roles: shipRoles(v), nickname: '', location: '', notes: '', rsi: meta,
+    };
+    craftShips.push(ship); claimed.add(ship.uid); out.added.push(v.name_full);
+  }
+  craftShips.forEach(x => { if (x.rsi && !seen.has(x.rsi.key)) { x.rsi.missing = true; out.missing.push(x.name); } });
+  return out;
+}
+
+async function rsiImport() {
+  rsiBusy = true; rsiUi();
+  rsiSay('Reading your hangar from RSI\u2026 (about ten seconds)', '');
+  let res;
+  try { res = await api.rsiImport(); } catch (e) { res = { ok: false, error: e.message }; }
+  if (!res.ok) {
+    if (/not connected/i.test(res.error || '')) rsiConnected = false;
+    rsiBusy = false; rsiUi();
+    rsiSay(res.error || 'The import failed.', '');
+    return;
+  }
+  if (!uexVehicles) {
+    const r = await api.getVehicles();
+    if (r && r.status !== 'error' && Array.isArray(r.data)) uexVehicles = r.data.filter(v => !v.is_addon).sort((a, b) => (a.name_full || '').localeCompare(b.name_full || ''));
+  }
+  if (!uexVehicles) { rsiBusy = false; rsiUi(); rsiSay('Read your hangar, but the ship list could not be loaded to match it. Check your connection and try again.', ''); return; }
+  await initCrafting();                                   // makes sure the ships are loaded before they are merged into
+  const out = mergeRsiShips(res.ships, uexVehicles);
+  await api.setStore('craftShips', craftShips);
+  renderHangarLists();
+  rsiBusy = false; rsiUi();
+  const bits = [];
+  if (out.added.length) bits.push(`Added ${out.added.length}: ${out.added.join(', ')}.`);
+  if (out.linked.length) bits.push(`Linked ${out.linked.length} you had already added: ${out.linked.join(', ')}.`);
+  if (out.updated.length) bits.push(`Updated ${out.updated.length}.`);
+  if (out.approx.length) bits.push(`Matched by the closest name (check these): ${out.approx.join(', ')}.`);
+  if (out.unmatched.length) bits.push(`Could not match ${out.unmatched.length} to the ship list: ${out.unmatched.join(', ')} \u2014 add them with + Add in My Ships.`);
+  if (out.missing.length) bits.push(`No longer in your RSI hangar (kept, marked): ${out.missing.join(', ')}.`);
+  rsiSay(`Read ${res.pledgeCount} pledges across ${res.pages} page${res.pages === 1 ? '' : 's'}; ${res.ships.length} ship${res.ships.length === 1 ? '' : 's'} found.`, bits.join(' ') || 'Nothing changed.');
+}
+
 function shipRoles(v) {
   return Object.entries(SHIP_ROLE_FLAGS).filter(([flag]) => v[flag]).map(([, label]) => label);
 }
@@ -5251,7 +5928,7 @@ function renderShips() {
   const list = document.getElementById('ships-list');
   const ships = craftShips || [];
   const rows = ships.map((s, i) => ({ s, i })).filter(({ s }) =>
-    !q || matchesAll(q, s.name, s.nickname, s.company, s.location));
+    !q || matchesAll(q, s.name, s.nickname, s.company, s.location, s.rsi ? 'rsi ' + (s.rsi.insurance || '') : ''));
   if (!rows.length) {
     list.innerHTML = `<div class="empty-state"><div class="ico">🛸</div>
       <div class="lbl">${ships.length ? 'No ships match your search.' : 'No ships tracked yet.<br>Add the ships you own with + Add.'}</div></div>`;
@@ -5271,6 +5948,7 @@ function renderShips() {
           s.company, s.scu != null ? `${s.scu} SCU` : '', s.crew ? `Crew ${s.crew}` : '', s.location,
         ].filter(Boolean).map(esc).join(' · ')}</div>
         ${(s.roles || []).length ? `<div class="craft-ingredients">${s.roles.map(r => `<span class="craft-ing">${esc(r)}</span>`).join('')}</div>` : ''}
+        ${s.rsi ? `<div class="craft-ingredients"><span class="craft-ing${s.rsi.insurance === 'LTI' ? ' stocked' : (s.rsi.insurance ? ' timed' : '')}" title="${esc((s.rsi.pledgeName || '') + (s.rsi.insurance && s.rsi.insurance !== 'LTI' ? ' — insurance is not lifetime' : ''))}">RSI${s.rsi.insurance ? ' \u00b7 ' + esc(s.rsi.insurance) : ''}</span>${(s.rsi.paints || []).length ? `<span class="craft-ing" title="${esc(s.rsi.paints.join(', '))}">${s.rsi.paints.length} paint${s.rsi.paints.length === 1 ? '' : 's'}</span>` : ''}${s.rsi.missing ? '<span class="craft-ing" style="color:var(--warn)">No longer in your RSI hangar</span>' : ''}</div>` : ''}
         ${s.livery ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">Livery: ${esc(s.livery.name)}</div>` : ''}
         ${seedNote}
         ${swapped.length ? `<div style="font-size:10px;color:var(--text-dim);margin-top:6px">Custom components (${swapped.length})</div>
@@ -8014,6 +8692,10 @@ const SIGNATURE_DATA = [
   { name: 'Dolivine',    sig: 3000, tier: 'common'    },
   { name: 'Hadanite',    sig: 3000, tier: 'common'    },
   { name: 'Janalite',    sig: 3000, tier: 'common'    },
+  { name: 'Sadaryx',     sig: 3000, tier: 'common'    },
+  { name: 'Jaclium',     sig: 3000, tier: 'common'    },
+  { name: 'Saldynium',   sig: 3000, tier: 'common'    },
+  { name: 'Carinite',    sig: 3000, tier: 'common', note: 'hand mining' },
   { name: 'Ouratite',    sig: 3370, tier: 'epic'       },
   { name: 'Riccite',     sig: 3385, tier: 'epic'       },
   { name: 'Lindinium',   sig: 3400, tier: 'epic'       },
@@ -8031,9 +8713,12 @@ const SIGNATURE_DATA = [
   { name: 'Beradom',     sig: 4000, tier: 'common'    },
   { name: 'Feynmaline',  sig: 4000, tier: 'common'    },
   { name: 'Glacosite',   sig: 4000, tier: 'common'    },
+  { name: 'Carinite',    sig: 4000, tier: 'common', note: 'ground vehicle' },
+  { name: 'Hephaestanite', sig: 4180, tier: 'common'  },
   { name: 'Tin',         sig: 4195, tier: 'common'    },
   { name: 'Quartz',      sig: 4210, tier: 'common'    },
   { name: 'Corundum',    sig: 4225, tier: 'common'    },
+  { name: 'Copper',      sig: 4240, tier: 'common'    },
   { name: 'Silicon',     sig: 4255, tier: 'common'    },
   { name: 'Iron',        sig: 4270, tier: 'common'    },
   { name: 'Aluminum',   sig: 4285, tier: 'common'    },
@@ -8047,6 +8732,9 @@ const SIG_TIER_COLOR = {
   uncommon:  '#00cc66',
   common:    'var(--text-dim)',
 };
+
+// "hand mining" / "ground vehicle" beside a signature that is not ship rock (ship is the default, so it goes unlabelled)
+const sigNote = (m) => m.note || (sigMethod(m.sig) === 'hand' ? 'hand mining' : sigMethod(m.sig) === 'vehicle' ? 'ground vehicle' : '');
 
 function runScanner() {
   const raw = document.getElementById('scanner-input')?.value;
@@ -8084,7 +8772,7 @@ function runScanner() {
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border)">
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:13px;color:${color}">${esc(m.name)}</div>
-        <div style="font-size:10px;color:var(--text-dim);text-transform:capitalize;margin-top:1px">${m.tier}</div>
+        <div style="font-size:10px;color:var(--text-dim);text-transform:capitalize;margin-top:1px">${m.tier}${sigNote(m) ? ` \u00b7 ${esc(sigNote(m))}` : ''}</div>
       </div>
       <div style="text-align:center;flex-shrink:0">
         <div style="font-size:18px;font-weight:700;color:var(--text-bright);font-variant-numeric:tabular-nums">${m.rocks}</div>
@@ -8153,9 +8841,11 @@ function renderScannerRef() {
   const selRow = document.getElementById('scanner-ore-sel-row');
   const selLabel = document.getElementById('scanner-ore-sel-label');
   if (selRow) selRow.style.display = selectedMiningOres.size > 0 ? 'flex' : 'none';
+  // an ore picked in Ore Locations that has no signature row can never show up here — say so
+  const unsigned = [...selectedMiningOres].filter(o => !SIGNATURE_DATA.some(m => m.name === o));
   if (selLabel && selectedMiningOres.size > 0) {
     const names = [...selectedMiningOres].join(', ');
-    selLabel.textContent = `Ore Locations: ${names}`;
+    selLabel.textContent = `Ore Locations: ${names}` + (unsigned.length ? ` \u00b7 no signature known for ${unsigned.join(', ')}` : '');
   }
 
   SIGNATURE_DATA.forEach(m => {
@@ -8166,6 +8856,15 @@ function renderScannerRef() {
 
   const MULTS = [2, 3, 4, 5, 6];
 
+  if (!activeTiers.some(tier => byTier[tier].length)) {
+    // filters that leave nothing used to leave a blank panel; say why instead
+    const why = selectedMiningOres.size > 0
+      ? 'None of the ores you picked in Ore Locations fit the rarity and location filters above.'
+      : 'No ores fit the rarity and location filters above.';
+    resultsEl.innerHTML = `<div class="empty-state"><div class="ico">📡</div><div class="lbl">${why}<br><span style="font-size:10px">Try All rarities / All locations, or press Clear.</span></div></div>`;
+    return;
+  }
+
   resultsEl.innerHTML = activeTiers.map(tier => {
     const minerals = byTier[tier];
     if (!minerals.length) return '';
@@ -8175,7 +8874,7 @@ function renderScannerRef() {
         `<td style="text-align:right;font-variant-numeric:tabular-nums;padding:2px 4px;font-size:10px;color:var(--text)">${(m.sig * r).toLocaleString()}</td>`
       ).join('');
       return `<tr style="border-top:1px solid rgba(255,255,255,0.04)">
-        <td style="padding:4px 6px;font-weight:600;color:${color};white-space:nowrap">${esc(m.name)}</td>
+        <td style="padding:4px 6px;font-weight:600;color:${color};white-space:nowrap">${esc(m.name)}${sigNote(m) ? `<span style="font-weight:400;font-size:9px;color:var(--text-dim)"> ${esc(sigNote(m))}</span>` : ''}</td>
         <td style="padding:4px 6px;text-align:right;font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-dim)">${m.sig.toLocaleString()}</td>
         ${rockCols}
       </tr>`;

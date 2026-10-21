@@ -4,6 +4,7 @@ const TRANSLATIONS = {
     'tab.mining': '⛰ Mining',
     'tab.prices': '📈 Prices',
     'tab.craft': '🚀 Hangar',
+    'tab.profit': '💰 Profit',
 
     'refinery.addJob': '+ Add Refinery Job',
     'refinery.empty.line1': 'No active refinery jobs.',
@@ -125,7 +126,7 @@ const TRANSLATIONS = {
 
     'capture.ask.title': 'Is the list longer than the terminal?',
 
-    'capture.ask.body': "If the materials list scrolls, choose Yes — you'll scroll through it in the game, then press Finish.",
+    'capture.ask.body': 'If the materials list scrolls, choose Yes — you\'ll capture it a screenful at a time: capture, scroll down in the game, capture again, then press Finish.',
 
     'capture.ask.no': 'No, capture now',
 
@@ -139,6 +140,7 @@ const TRANSLATIONS = {
     'tab.mining': '⛰ Bergbau',
     'tab.prices': '📈 Preise',
     'tab.craft': '🚀 Hangar',
+    'tab.profit': '💰 Gewinn',
 
     'refinery.addJob': '+ Raffinerieauftrag hinzufügen',
     'refinery.empty.line1': 'Keine aktiven Raffinerieaufträge.',
@@ -260,7 +262,7 @@ const TRANSLATIONS = {
 
     'capture.ask.title': 'Ist die Liste länger als das Terminal?',
 
-    'capture.ask.body': 'Wenn die Materialliste scrollt, wähle Ja – du scrollst im Spiel durch die Liste und drückst dann Fertig.',
+    'capture.ask.body': 'Wenn die Materialliste scrollt, wähle Ja – du erfasst sie bildschirmweise: aufnehmen, im Spiel nach unten scrollen, erneut aufnehmen und dann auf Fertig drücken.',
 
     'capture.ask.no': 'Nein, jetzt aufnehmen',
 
@@ -274,6 +276,7 @@ const TRANSLATIONS = {
     'tab.mining': '⛰ Minage',
     'tab.prices': '📈 Prix',
     'tab.craft': '🚀 Hangar',
+    'tab.profit': '💰 Profits',
 
     'refinery.addJob': '+ Ajouter une tâche',
     'refinery.empty.line1': 'Aucune tâche active.',
@@ -395,7 +398,7 @@ const TRANSLATIONS = {
 
     'capture.ask.title': 'La liste est-elle plus longue que le terminal ?',
 
-    'capture.ask.body': 'Si la liste des matériaux défile, choisissez Oui — vous la ferez défiler dans le jeu, puis appuierez sur Terminer.',
+    'capture.ask.body': 'Si la liste des matériaux défile, choisissez Oui — vous la capturerez écran par écran : capturer, faire défiler vers le bas dans le jeu, capturer de nouveau, puis appuyer sur Terminer.',
 
     'capture.ask.no': 'Non, capturer maintenant',
 
@@ -409,6 +412,7 @@ const TRANSLATIONS = {
     'tab.mining': '⛰ Minería',
     'tab.prices': '📈 Precios',
     'tab.craft': '🚀 Hangar',
+    'tab.profit': '💰 Beneficios',
 
     'refinery.addJob': '+ Agregar trabajo de refinería',
     'refinery.empty.line1': 'No hay trabajos activos.',
@@ -530,7 +534,7 @@ const TRANSLATIONS = {
 
     'capture.ask.title': '¿La lista es más larga que el terminal?',
 
-    'capture.ask.body': 'Si la lista de materiales se desplaza, elige Sí: la recorrerás en el juego y luego pulsarás Terminar.',
+    'capture.ask.body': 'Si la lista de materiales se desplaza, elige Sí: la capturarás pantalla a pantalla: captura, desplázate hacia abajo en el juego, captura de nuevo y pulsa Terminar.',
 
     'capture.ask.no': 'No, capturar ahora',
 
@@ -544,6 +548,7 @@ const TRANSLATIONS = {
     "tab.mining": "⛰ Górnictwo",
     "tab.prices": "📈 Ceny",
     "tab.craft": "🚀 Hangar",
+    "tab.profit": "💰 Zysk",
     "refinery.addJob": "+ Dodaj zlecenie rafinerii",
     "refinery.empty.line1": "Brak aktywnych zleceń rafinerii.",
     "refinery.empty.line2": "Dodaj jedno, aby zacząć śledzenie.",
@@ -654,7 +659,7 @@ const TRANSLATIONS = {
     "toast.kiosk": "⛏ Wykryto kiosk rafinerii — licznik gotowy!",
 
     "capture.ask.title": "Czy lista jest dłuższa niż terminal?",
-    "capture.ask.body": "Jeśli lista materiałów się przewija, wybierz Tak — przewiniesz ją w grze, a potem naciśniesz Zakończ.",
+    "capture.ask.body": "Jeśli lista materiałów się przewija, wybierz Tak — przechwycisz ją ekran po ekranie: przechwyć, przewiń w dół w grze, przechwyć ponownie, a potem naciśnij Zakończ.",
     "capture.ask.no": "Nie, przechwyć teraz",
     "capture.ask.yes": "Tak, przewija się",
     "capture.finish": "Zakończ",
@@ -665,6 +670,7 @@ const TRANSLATIONS = {
     "tab.mining": "⛰ Mineração",
     "tab.prices": "📈 Preços",
     "tab.craft": "🚀 Hangar",
+    "tab.profit": "💰 Lucro",
     "refinery.addJob": "+ Adicionar trabalho de refinaria",
     "refinery.empty.line1": "Nenhum trabalho de refinaria ativo.",
     "refinery.empty.line2": "Adicione um para começar a acompanhar.",
@@ -773,7 +779,7 @@ const TRANSLATIONS = {
     "toast.kiosk": "⛏ Quiosque de refinaria detectado — cronômetro pronto!",
 
     "capture.ask.title": "A lista é maior que o terminal?",
-    "capture.ask.body": "Se a lista de materiais rola, escolha Sim — você vai rolá-la no jogo e depois pressionar Concluir.",
+    "capture.ask.body": "Se a lista de materiais rola, escolha Sim — você a capturará uma tela por vez: capture, role para baixo no jogo, capture de novo e depois pressione Concluir.",
     "capture.ask.no": "Não, capturar agora",
     "capture.ask.yes": "Sim, ela rola",
     "capture.finish": "Concluir",
@@ -784,6 +790,7 @@ const TRANSLATIONS = {
     "tab.mining": "⛰ Добыча",
     "tab.prices": "📈 Цены",
     "tab.craft": "🚀 Ангар",
+    "tab.profit": "💰 Прибыль",
     "refinery.addJob": "+ Добавить задание переработки",
     "refinery.empty.line1": "Нет активных заданий переработки.",
     "refinery.empty.line2": "Добавьте задание, чтобы начать отслеживание.",
@@ -894,7 +901,7 @@ const TRANSLATIONS = {
     "toast.kiosk": "⛏ Обнаружен терминал переработки — таймер готов!",
 
     "capture.ask.title": "Список длиннее, чем помещается на терминале?",
-    "capture.ask.body": "Если список материалов прокручивается, выберите «Да» — вы прокрутите его в игре, затем нажмёте «Готово».",
+    "capture.ask.body": "Если список материалов прокручивается, выберите «Да» — вы захватите его по одному экрану: захват, прокрутка вниз в игре, снова захват, затем «Готово».",
     "capture.ask.no": "Нет, захватить сейчас",
     "capture.ask.yes": "Да, он прокручивается",
     "capture.finish": "Готово",
@@ -905,6 +912,7 @@ const TRANSLATIONS = {
     "tab.mining": "⛰ 採掘",
     "tab.prices": "📈 価格",
     "tab.craft": "🚀 ハンガー",
+    "tab.profit": "💰 収益",
     "refinery.addJob": "+ 精製ジョブを追加",
     "refinery.empty.line1": "進行中の精製ジョブはありません。",
     "refinery.empty.line2": "ジョブを追加して追跡を始めましょう。",
@@ -1013,7 +1021,7 @@ const TRANSLATIONS = {
     "toast.kiosk": "⛏ 精製所の端末を検出 — タイマーの準備ができました！",
 
     "capture.ask.title": "リストはターミナルに収まりきりませんか？",
-    "capture.ask.body": "素材リストがスクロールする場合は「はい」を選び、ゲーム内でスクロールしてから「完了」を押します。",
+    "capture.ask.body": "素材リストがスクロールする場合は「はい」を選びます。1画面ずつキャプチャします：キャプチャし、ゲーム内で下にスクロールし、もう一度キャプチャして、「完了」を押します。",
     "capture.ask.no": "いいえ、今すぐキャプチャ",
     "capture.ask.yes": "はい、スクロールします",
     "capture.finish": "完了",
