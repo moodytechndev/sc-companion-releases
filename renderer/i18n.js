@@ -1,7 +1,7 @@
 const TRANSLATIONS = {
   en: {
-    'tab.refinery': '⛏ Refinery',
-    'tab.mining': '⛰ Mining',
+    'tab.refinery': '🏭 Refinery',
+    'tab.mining': '⛏️ Mining',
     'tab.prices': '📈 Prices',
     'tab.craft': '🚀 Hangar',
     'tab.profit': '💰 Profit',
@@ -84,7 +84,7 @@ const TRANSLATIONS = {
     'status.activeJobs_one': '{n} active job',
     'status.activeJobs_other': '{n} active jobs',
 
-    'modal.addJob.title': '⛏ Add Refinery Job',
+    'modal.addJob.title': '🏭 Add Refinery Job',
     'modal.editJob.title': '✎ Edit Refinery Job',
     'modal.addJob.oreMaterials': 'Ore / Materials',
     'modal.addJob.addOre': '+ Add Ore',
@@ -121,7 +121,7 @@ const TRANSLATIONS = {
     'job.complete.toast': '✓ Refinery job complete',
     'job.complete.toastAt': '✓ Refinery job complete — {0}',
 
-    'toast.kiosk': '⛏ Refinery kiosk detected — timer ready!',
+    'toast.kiosk': '🏭 Refinery kiosk detected — timer ready!',
 
 
     'capture.ask.title': 'Is the list longer than the terminal?',
@@ -136,8 +136,8 @@ const TRANSLATIONS = {
   },
 
   de: {
-    'tab.refinery': '⛏ Raffinerie',
-    'tab.mining': '⛰ Bergbau',
+    'tab.refinery': '🏭 Raffinerie',
+    'tab.mining': '⛏️ Bergbau',
     'tab.prices': '📈 Preise',
     'tab.craft': '🚀 Hangar',
     'tab.profit': '💰 Gewinn',
@@ -220,7 +220,7 @@ const TRANSLATIONS = {
     'status.activeJobs_one': '{n} aktiver Auftrag',
     'status.activeJobs_other': '{n} aktive Aufträge',
 
-    'modal.addJob.title': '⛏ Raffinerieauftrag hinzufügen',
+    'modal.addJob.title': '🏭 Raffinerieauftrag hinzufügen',
     'modal.editJob.title': '✎ Raffinerieauftrag bearbeiten',
     'modal.addJob.oreMaterials': 'Erz / Materialien',
     'modal.addJob.addOre': '+ Erz hinzufügen',
@@ -257,7 +257,7 @@ const TRANSLATIONS = {
     'job.complete.toast': '✓ Raffinerieauftrag abgeschlossen',
     'job.complete.toastAt': '✓ Raffinerieauftrag abgeschlossen — {0}',
 
-    'toast.kiosk': '⛏ Raffinerie-Kiosk erkannt — Timer bereit!',
+    'toast.kiosk': '🏭 Raffinerie-Kiosk erkannt — Timer bereit!',
 
 
     'capture.ask.title': 'Ist die Liste länger als das Terminal?',
@@ -272,8 +272,8 @@ const TRANSLATIONS = {
   },
 
   fr: {
-    'tab.refinery': '⛏ Raffinerie',
-    'tab.mining': '⛰ Minage',
+    'tab.refinery': '🏭 Raffinerie',
+    'tab.mining': '⛏️ Minage',
     'tab.prices': '📈 Prix',
     'tab.craft': '🚀 Hangar',
     'tab.profit': '💰 Profits',
@@ -356,7 +356,7 @@ const TRANSLATIONS = {
     'status.activeJobs_one': '{n} tâche active',
     'status.activeJobs_other': '{n} tâches actives',
 
-    'modal.addJob.title': '⛏ Ajouter une tâche',
+    'modal.addJob.title': '🏭 Ajouter une tâche',
     'modal.editJob.title': '✎ Modifier la tâche',
     'modal.addJob.oreMaterials': 'Minerai / Matériaux',
     'modal.addJob.addOre': '+ Ajouter minerai',
@@ -393,7 +393,7 @@ const TRANSLATIONS = {
     'job.complete.toast': '✓ Tâche de raffinerie terminée',
     'job.complete.toastAt': '✓ Tâche terminée — {0}',
 
-    'toast.kiosk': '⛏ Kiosque détecté — minuteur prêt !',
+    'toast.kiosk': '🏭 Kiosque détecté — minuteur prêt !',
 
 
     'capture.ask.title': 'La liste est-elle plus longue que le terminal ?',
@@ -408,8 +408,8 @@ const TRANSLATIONS = {
   },
 
   es: {
-    'tab.refinery': '⛏ Refinería',
-    'tab.mining': '⛰ Minería',
+    'tab.refinery': '🏭 Refinería',
+    'tab.mining': '⛏️ Minería',
     'tab.prices': '📈 Precios',
     'tab.craft': '🚀 Hangar',
     'tab.profit': '💰 Beneficios',
@@ -492,7 +492,7 @@ const TRANSLATIONS = {
     'status.activeJobs_one': '{n} trabajo activo',
     'status.activeJobs_other': '{n} trabajos activos',
 
-    'modal.addJob.title': '⛏ Agregar trabajo de refinería',
+    'modal.addJob.title': '🏭 Agregar trabajo de refinería',
     'modal.editJob.title': '✎ Editar trabajo de refinería',
     'modal.addJob.oreMaterials': 'Mineral / Materiales',
     'modal.addJob.addOre': '+ Agregar mineral',
@@ -529,7 +529,7 @@ const TRANSLATIONS = {
     'job.complete.toast': '✓ Trabajo de refinería completado',
     'job.complete.toastAt': '✓ Trabajo completado — {0}',
 
-    'toast.kiosk': '⛏ Kiosco de refinería detectado — ¡temporizador listo!',
+    'toast.kiosk': '🏭 Kiosco de refinería detectado — ¡temporizador listo!',
 
 
     'capture.ask.title': '¿La lista es más larga que el terminal?',
@@ -544,8 +544,8 @@ const TRANSLATIONS = {
   },
 
   pl: {
-    "tab.refinery": "⛏ Rafineria",
-    "tab.mining": "⛰ Górnictwo",
+    "tab.refinery": "🏭 Rafineria",
+    "tab.mining": "⛏️ Górnictwo",
     "tab.prices": "📈 Ceny",
     "tab.craft": "🚀 Hangar",
     "tab.profit": "💰 Zysk",
@@ -623,7 +623,7 @@ const TRANSLATIONS = {
     "status.activeJobs_few": "{n} aktywne zlecenia",
     "status.activeJobs_many": "{n} aktywnych zleceń",
     "status.activeJobs_other": "{n} aktywnego zlecenia",
-    "modal.addJob.title": "⛏ Dodaj zlecenie rafinerii",
+    "modal.addJob.title": "🏭 Dodaj zlecenie rafinerii",
     "modal.editJob.title": "✎ Edytuj zlecenie rafinerii",
     "modal.addJob.oreMaterials": "Rudy / materiały",
     "modal.addJob.addOre": "+ Dodaj rudę",
@@ -656,7 +656,7 @@ const TRANSLATIONS = {
     "job.readyAt": "Gotowe {0}",
     "job.complete.toast": "✓ Zlecenie rafinerii zakończone",
     "job.complete.toastAt": "✓ Zlecenie rafinerii zakończone — {0}",
-    "toast.kiosk": "⛏ Wykryto kiosk rafinerii — licznik gotowy!",
+    "toast.kiosk": "🏭 Wykryto kiosk rafinerii — licznik gotowy!",
 
     "capture.ask.title": "Czy lista jest dłuższa niż terminal?",
     "capture.ask.body": "Jeśli lista materiałów się przewija, wybierz Tak — przechwycisz ją ekran po ekranie: przechwyć, przewiń w dół w grze, przechwyć ponownie, a potem naciśnij Zakończ.",
@@ -666,8 +666,8 @@ const TRANSLATIONS = {
   },
 
   pt: {
-    "tab.refinery": "⛏ Refinaria",
-    "tab.mining": "⛰ Mineração",
+    "tab.refinery": "🏭 Refinaria",
+    "tab.mining": "⛏️ Mineração",
     "tab.prices": "📈 Preços",
     "tab.craft": "🚀 Hangar",
     "tab.profit": "💰 Lucro",
@@ -743,7 +743,7 @@ const TRANSLATIONS = {
     "status.connecting": "Conectando…",
     "status.activeJobs_one": "{n} trabalho ativo",
     "status.activeJobs_other": "{n} trabalhos ativos",
-    "modal.addJob.title": "⛏ Adicionar trabalho de refinaria",
+    "modal.addJob.title": "🏭 Adicionar trabalho de refinaria",
     "modal.editJob.title": "✎ Editar trabalho de refinaria",
     "modal.addJob.oreMaterials": "Minérios / materiais",
     "modal.addJob.addOre": "+ Adicionar minério",
@@ -776,7 +776,7 @@ const TRANSLATIONS = {
     "job.readyAt": "Pronto {0}",
     "job.complete.toast": "✓ Trabalho de refinaria concluído",
     "job.complete.toastAt": "✓ Trabalho de refinaria concluído — {0}",
-    "toast.kiosk": "⛏ Quiosque de refinaria detectado — cronômetro pronto!",
+    "toast.kiosk": "🏭 Quiosque de refinaria detectado — cronômetro pronto!",
 
     "capture.ask.title": "A lista é maior que o terminal?",
     "capture.ask.body": "Se a lista de materiais rola, escolha Sim — você a capturará uma tela por vez: capture, role para baixo no jogo, capture de novo e depois pressione Concluir.",
@@ -786,8 +786,8 @@ const TRANSLATIONS = {
   },
 
   ru: {
-    "tab.refinery": "⛏ Переработка",
-    "tab.mining": "⛰ Добыча",
+    "tab.refinery": "🏭 Переработка",
+    "tab.mining": "⛏️ Добыча",
     "tab.prices": "📈 Цены",
     "tab.craft": "🚀 Ангар",
     "tab.profit": "💰 Прибыль",
@@ -865,7 +865,7 @@ const TRANSLATIONS = {
     "status.activeJobs_few": "{n} активных задания",
     "status.activeJobs_many": "{n} активных заданий",
     "status.activeJobs_other": "{n} активного задания",
-    "modal.addJob.title": "⛏ Добавить задание переработки",
+    "modal.addJob.title": "🏭 Добавить задание переработки",
     "modal.editJob.title": "✎ Изменить задание переработки",
     "modal.addJob.oreMaterials": "Руда / материалы",
     "modal.addJob.addOre": "+ Добавить руду",
@@ -898,7 +898,7 @@ const TRANSLATIONS = {
     "job.readyAt": "Готово {0}",
     "job.complete.toast": "✓ Задание переработки завершено",
     "job.complete.toastAt": "✓ Задание переработки завершено — {0}",
-    "toast.kiosk": "⛏ Обнаружен терминал переработки — таймер готов!",
+    "toast.kiosk": "🏭 Обнаружен терминал переработки — таймер готов!",
 
     "capture.ask.title": "Список длиннее, чем помещается на терминале?",
     "capture.ask.body": "Если список материалов прокручивается, выберите «Да» — вы захватите его по одному экрану: захват, прокрутка вниз в игре, снова захват, затем «Готово».",
@@ -908,8 +908,8 @@ const TRANSLATIONS = {
   },
 
   ja: {
-    "tab.refinery": "⛏ 精製",
-    "tab.mining": "⛰ 採掘",
+    "tab.refinery": "🏭 精製",
+    "tab.mining": "⛏️ 採掘",
     "tab.prices": "📈 価格",
     "tab.craft": "🚀 ハンガー",
     "tab.profit": "💰 収益",
@@ -985,7 +985,7 @@ const TRANSLATIONS = {
     "status.connecting": "接続中…",
     "status.activeJobs_one": "進行中のジョブ {n} 件",
     "status.activeJobs_other": "進行中のジョブ {n} 件",
-    "modal.addJob.title": "⛏ 精製ジョブを追加",
+    "modal.addJob.title": "🏭 精製ジョブを追加",
     "modal.editJob.title": "✎ 精製ジョブを編集",
     "modal.addJob.oreMaterials": "鉱石 / 素材",
     "modal.addJob.addOre": "+ 鉱石を追加",
@@ -1018,7 +1018,7 @@ const TRANSLATIONS = {
     "job.readyAt": "完了予定 {0}",
     "job.complete.toast": "✓ 精製ジョブが完了しました",
     "job.complete.toastAt": "✓ 精製ジョブが完了しました — {0}",
-    "toast.kiosk": "⛏ 精製所の端末を検出 — タイマーの準備ができました！",
+    "toast.kiosk": "🏭 精製所の端末を検出 — タイマーの準備ができました！",
 
     "capture.ask.title": "リストはターミナルに収まりきりませんか？",
     "capture.ask.body": "素材リストがスクロールする場合は「はい」を選びます。1画面ずつキャプチャします：キャプチャし、ゲーム内で下にスクロールし、もう一度キャプチャして、「完了」を押します。",

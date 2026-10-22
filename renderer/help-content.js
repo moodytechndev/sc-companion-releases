@@ -34,7 +34,7 @@ const HELP_SECTIONS = [
     ],
   },
   {
-    id: 'mining', icon: '⛰', title: 'Mining',
+    id: 'mining', icon: '⛏️', title: 'Mining',
     intro: ['Three reference tools for the mining side of the game. Pick one with the chips under the tab bar.'],
     shots: ['mining-locations', 'mining-scanner-ref', 'mining-scanner-scan', 'mining-halo'],
     howto: [
@@ -56,7 +56,7 @@ const HELP_SECTIONS = [
     ],
   },
   {
-    id: 'refinery', icon: '⛏', title: 'Refinery',
+    id: 'refinery', icon: '🏭', title: 'Refinery',
     intro: [
       'Track every refinery job with a live countdown, get a desktop notification when it finishes, and record exactly what you collected so it lands in your inventory.',
     ],

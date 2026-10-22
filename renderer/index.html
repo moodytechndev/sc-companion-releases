@@ -58,6 +58,10 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
   letter-spacing:.5px; text-transform:uppercase; color:var(--text-dim); cursor:pointer;
   border-bottom:2px solid transparent; transition:color .15s,border-color .15s;
 }
+.tab { white-space:nowrap; min-width:0; }
+/* five tabs share the width: on a narrow window the label shrinks instead of the last word dropping to a second line */
+@media (max-width: 470px) { .tab { font-size:10px; letter-spacing:.2px; padding:8px 1px; } }
+@media (max-width: 410px) { .tab { font-size:9.5px; letter-spacing:0; } }
 .tab:hover { color:var(--text); }
 .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 #settings-btn {
@@ -261,6 +265,14 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .lo-row .n { font-weight:700; font-size:12px; }
 .lo-row .m { color:var(--text-dim); font-variant-numeric:tabular-nums; text-align:right; }
 .lo-row.best { background:var(--accent-dim); margin:0 -6px; padding-left:6px; padding-right:6px; }
+.terr { display:inline-block; font-size:9px; font-weight:700; letter-spacing:.04em; padding:1px 6px; border-radius:8px; white-space:nowrap; vertical-align:middle; margin-left:6px; }
+.terr.maybe { color:#ffd84a; background:rgba(255,216,74,0.16); box-shadow:inset 0 0 0 1px rgba(255,216,74,0.5); }
+.terr.hostile { color:var(--danger); background:rgba(255,93,93,0.14); box-shadow:inset 0 0 0 1px var(--danger); }
+.price-row.terr-maybe { background:rgba(255,216,74,0.06); }
+.price-row.terr-hostile { background:rgba(255,93,93,0.08); }
+.terr-banner { margin:8px 10px 0; padding:6px 9px; border-radius:var(--r); font-size:11px; line-height:1.45; }
+.terr-banner.maybe { color:#ffd84a; background:rgba(255,216,74,0.10); box-shadow:inset 0 0 0 1px rgba(255,216,74,0.45); }
+.terr-banner.hostile { color:var(--danger); background:rgba(255,93,93,0.10); box-shadow:inset 0 0 0 1px var(--danger); }
 .ore-method { font-size:9px; font-weight:600; letter-spacing:.04em; padding:1px 6px; border-radius:8px; margin-left:5px; border:1px solid var(--border); color:var(--text-dim); vertical-align:middle; white-space:nowrap; }
 .ore-tier { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:1px 6px; border-radius:8px; margin-left:7px; border:1px solid; vertical-align:middle; }
 .ore-tier.common { color:#9aa4b2; } .ore-tier.uncommon { color:#5bd68a; } .ore-tier.rare { color:#5aa9ff; } .ore-tier.epic { color:#b57bff; } .ore-tier.legendary { color:#ffb020; }
@@ -386,8 +398,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 
   <!-- ── Tabs ── -->
   <div id="tabs">
-    <div class="tab active" data-tab="mining" data-i18n="tab.mining">⛰ Mining</div>
-    <div class="tab" data-tab="refinery" data-i18n="tab.refinery">⛏ Refinery</div>
+    <div class="tab active" data-tab="mining" data-i18n="tab.mining">⛏️ Mining</div>
+    <div class="tab" data-tab="refinery" data-i18n="tab.refinery">🏭 Refinery</div>
     <div class="tab" data-tab="prices" data-i18n="tab.prices">📈 Prices</div>
     <div class="tab" data-tab="crafting" data-i18n="tab.craft">🚀 Hangar</div>
     <div class="tab" data-tab="profit" data-i18n="tab.profit">💰 Profit</div>
@@ -536,7 +548,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         </div>
         <div class="scroll-area" id="jobs-list">
           <div class="empty-state" id="no-jobs">
-            <div class="ico">⛏</div>
+            <div class="ico">🏭</div>
             <div class="lbl"><span data-i18n="refinery.empty.line1">No active refinery jobs.</span><br><span data-i18n="refinery.empty.line2">Add one to start tracking.</span></div>
           </div>
         </div>
@@ -907,6 +919,15 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           </div>
         </div>
 
+        <div class="setting-row" style="margin-top:12px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div class="setting-label">Faction standing</div>
+            <div class="setting-desc">Tell the app which factions you are hostile with. Stations they control are marked red; stations held by a faction you have not set are marked yellow, because you could be shot there. Nine Tails and XenoThreat start as hostile; set them to Friendly if you have gone the illegal route with them.</div>
+            <div id="faction-panel" style="display:none;margin-top:8px"></div>
+          </div>
+          <button class="btn btn-sm" id="faction-toggle" onclick="toggleFactionPanel()">Set…</button>
+        </div>
+
         <div class="setting-row" style="margin-top:12px">
           <div>
             <div class="setting-label" data-i18n="settings.clearCompleted">Clear Completed Jobs</div>
@@ -1255,6 +1276,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <div>
         <div id="tm-terminal" style="font-size:13px;font-weight:700;color:var(--text-bright)"></div>
         <div id="tm-loc" style="font-size:11px;color:var(--text-dim);margin-top:2px"></div>
+        <div id="tm-terr" style="margin-top:4px"></div>
       </div>
       <button onclick="closeTerminalModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;margin-left:8px">✕</button>
     </div>
@@ -1280,7 +1302,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 </div>
 
 <!-- ── Kiosk Detected Toast ── -->
-<div id="kiosk-toast" data-i18n="toast.kiosk">⛏ Refinery kiosk detected — timer ready!</div>
+<div id="kiosk-toast" data-i18n="toast.kiosk">🏭 Refinery kiosk detected — timer ready!</div>
 <!-- ── Job Complete Toast ── -->
 <div id="complete-toast" style="
   position:fixed; bottom:36px; left:50%; transform:translateX(-50%) translateY(16px);
@@ -1292,7 +1314,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <!-- ── Add Job Modal ── -->
 <div id="modal-overlay">
   <div class="modal">
-    <h3 id="modal-title" data-i18n="modal.addJob.title">⛏ Add Refinery Job</h3>
+    <h3 id="modal-title" data-i18n="modal.addJob.title">🏭 Add Refinery Job</h3>
     <div id="modal-capture-debug" style="display:none;font-size:11px;color:var(--text-dim);margin:-8px 0 10px;word-break:break-all"></div>
     <div class="form-group">
       <label data-i18n="modal.addJob.oreMaterials">Ore / Materials</label>
@@ -2034,6 +2056,8 @@ async function init() {
   craftInventory = (await api.getStore('craftInventory', [])) || [];
   jobHistory = (await api.getStore('jobHistory', [])) || [];
   miningLoadout = sanitizeLoadout(await api.getStore('miningLoadout', null));
+  factionStanding = (await api.getStore('factionStanding', {})) || {};
+  ensureTerminals().then(() => { if (typeof refreshPriceViews === 'function') refreshPriceViews(); });
   loadContracts();
 
   // Restore persisted price data so Prices/Inventory tabs show values instantly
@@ -3221,6 +3245,11 @@ function scmdbFor(rec) {
   return c || null;
 }
 
+// Illegal contracts (SCMDB flags them) carry a red "Illegal" tag and a red-tinted card wherever a contract is listed.
+const illegalPill = (sc) => (sc && sc.illegal
+  ? `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:8px;border:1px solid var(--danger);color:var(--danger);background:rgba(255,93,93,.12);white-space:nowrap;flex-shrink:0" data-tip="Illegal work: SCMDB marks this contract as illegal">\u26a0 Illegal</span>` : '');
+const illegalBorder = (illegal) => (illegal ? 'rgba(255,93,93,.5)' : 'var(--border)');
+
 // "Contract names" as SCMDB prints them can carry a [PLACEHOLDER]; show the rest plainly
 const scTitle = (t) => String(t || '').replace(/\[([A-Z ]+)\]/g, (m, w) => w.charAt(0) + w.slice(1).toLowerCase());
 
@@ -3284,7 +3313,7 @@ function renderContracts(body) {
       <div style="font-size:10px;color:var(--text-dim);margin-top:1px">${sub || '&nbsp;'}</div>
     </div>`;
   const head = (s) => `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">${s}</div>`;
-  const card = (inner) => `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">${inner}</div>`;
+  const card = (inner, illegal) => `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid ${illegalBorder(illegal)};border-radius:var(--r);margin-bottom:4px;font-size:11px">${inner}</div>`;
   const pill = (key) => { const [label, color] = CONTRACT_OUTCOME[key] || CONTRACT_OUTCOME.ended; return `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:8px;border:1px solid ${color};color:${color};white-space:nowrap">${label}</span>`; };
   const money = (n) => fmtMoney(Math.round(n));
 
@@ -3308,9 +3337,9 @@ function renderContracts(body) {
   const open = recs.filter(r => contractOutcome(r) === 'active');
   const openHtml = open.length ? head(`Open now \u00b7 ${open.length}`) + open.map(r => {
     const sc = scmdbFor(r);
-    return card(`<div style="display:flex;justify-content:space-between;gap:8px"><span style="color:var(--text-bright);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</span><span style="color:var(--text-dim);flex-shrink:0">${fmtSpan(Date.now() - r.acceptedAt)}${sc && sc.minutes ? ' of ' + fmtSpan(sc.minutes * 60000) : ''}</span></div>
+    return card(`<div style="display:flex;justify-content:space-between;gap:8px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="color:var(--text-bright);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</span>${illegalPill(sc)}</span><span style="color:var(--text-dim);flex-shrink:0">${fmtSpan(Date.now() - r.acceptedAt)}${sc && sc.minutes ? ' of ' + fmtSpan(sc.minutes * 60000) : ''}</span></div>
       <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(prettyOrg(r.generator))}${sc && sc.reward != null ? ' \u00b7 ' + money(sc.reward) + ' aUEC' : ''}${sc && sc.standing ? ' \u00b7 needs ' + esc(sc.standing) : ''}</div>
-      ${objectivesHtml(r)}`);
+      ${objectivesHtml(r)}`, sc && sc.illegal);
   }).join('') : '';
 
   let html = profitModeBar() + `<div style="padding:10px 10px 12px">
@@ -3398,10 +3427,10 @@ function renderContracts(body) {
       ? `<a href="#" style="color:var(--accent);font-size:10px" onclick="toggleContractBps('${esc(r.id)}');return false">can award ${can.length} blueprint${can.length === 1 ? '' : 's'}</a>
          <div id="cbps-${esc(r.id)}" style="display:none;margin-top:4px;font-size:10px;line-height:1.6">${can.slice(0, 30).map(x => `<span style="display:inline-block;margin-right:8px;${x.owned ? 'color:var(--success)' : 'color:var(--text-dim)'}">${x.owned ? '✓ ' : ''}${esc(x.name)}${x.chance && x.chance < 0.995 ? ` (${x.chance < 0.01 ? '<1' : Math.round(x.chance * 100)}%)` : ''}</span>`).join('')}${can.length > 30 ? ` +${can.length - 30} more` : ''}</div>`
       : '';
-    return card(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-bright)">${esc(r.title)}</span>${pill(key)}</div>
+    return card(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-bright)">${esc(r.title)}</span><span style="display:flex;align-items:center;gap:6px;flex-shrink:0">${illegalPill(sc)}${pill(key)}</span></div>
       <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(new Date(r.acceptedAt).toLocaleDateString())} · ${esc(prettyOrg(r.generator) || 'unknown organisation')}${sp ? ' · ' + sp : ''}${(r.blueprints || []).length ? ' · 🎁 ' + esc(r.blueprints.join(', ')) : ''}</div>
       ${facts ? `<div style="color:var(--text-dim);font-size:10px;margin-top:1px">${esc(facts)}</div>` : ''}
-      ${bpLine ? `<div style="margin-top:3px">${bpLine}</div>` : ''}`);
+      ${bpLine ? `<div style="margin-top:3px">${bpLine}</div>` : ''}`, sc && sc.illegal);
   }).join('');
   html += `<div style="font-size:10px;color:var(--text-dim);margin-top:12px;line-height:1.5">Read from Game.log. "Listed pay" adds up the reward SCMDB lists for each contract you completed; the log itself does not say what a contract paid, and "Awarded (log)" is just the total of every Awarded line.</div>${scmdbCredit()}`;
   html += '</div>';
@@ -3409,7 +3438,7 @@ function renderContracts(body) {
 }
 
 // ── Browse: every contract SCMDB lists ──
-let _browse = { q: '', type: '', sort: 'pay' };
+let _browse = { q: '', type: '', legal: '', sort: 'pay' };
 function renderContractBrowse(body) {
   const types = scmdbData ? [...new Set(scmdbData.contracts.map(c => c.type).filter(Boolean))].sort() : [];
   body.innerHTML = profitModeBar() + `<div style="padding:10px 10px 12px">
@@ -3417,6 +3446,11 @@ function renderContractBrowse(body) {
     <div class="search-bar" style="margin-bottom:6px"><span class="ico">🔍</span><input type="text" id="cbrowse-q" placeholder="Search title, organisation, type…" value="${esc(_browse.q)}" oninput="_browse.q = this.value; renderContractBrowseResults()"></div>
     <div class="mining-tools" style="padding:0 0 8px">
       <select id="cbrowse-type" onchange="_browse.type = this.value; renderContractBrowseResults()"><option value="">All types</option>${types.map(t => `<option value="${esc(t)}"${_browse.type === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <select id="cbrowse-legal" onchange="_browse.legal = this.value; renderContractBrowseResults()" data-tip="Show only legal or only illegal contracts">
+        <option value=""${_browse.legal === '' ? ' selected' : ''}>Legal and illegal</option>
+        <option value="legal"${_browse.legal === 'legal' ? ' selected' : ''}>Legal only</option>
+        <option value="illegal"${_browse.legal === 'illegal' ? ' selected' : ''}>Illegal only</option>
+      </select>
       <select id="cbrowse-sort" onchange="_browse.sort = this.value; renderContractBrowseResults()">
         <option value="pay"${_browse.sort === 'pay' ? ' selected' : ''}>Sort: best pay</option>
         <option value="rate"${_browse.sort === 'rate' ? ' selected' : ''}>Sort: pay per hour of time limit</option>
@@ -3433,7 +3467,7 @@ function renderContractBrowseResults() {
   const q = _browse.q.toLowerCase().trim();
   const mine = new Map();                                // how often you took each contract, by its internal name
   (contractData.records || []).forEach(r => { if (!r.contract) return; const m = mine.get(r.contract) || { n: 0, done: 0 }; m.n++; if (r.outcome === 'completed') m.done++; mine.set(r.contract, m); });
-  let list = scmdbData.contracts.filter(c => (!_browse.type || c.type === _browse.type) && matchesAll(q, scTitle(c.title), c.org, c.type, c.names[0], c.standing));
+  let list = scmdbData.contracts.filter(c => (!_browse.type || c.type === _browse.type) && (!_browse.legal || (_browse.legal === 'illegal') === !!c.illegal) && matchesAll(q, scTitle(c.title), c.org, c.type, c.names[0], c.standing));
   const rate = (c) => (c.reward != null && c.minutes ? c.reward / (c.minutes / 60) : -1);
   list.sort(_browse.sort === 'title' ? (a, b) => scTitle(a.title).localeCompare(scTitle(b.title))
     : _browse.sort === 'rate' ? (a, b) => rate(b) - rate(a)
@@ -3443,9 +3477,9 @@ function renderContractBrowseResults() {
     list.slice(0, 40).map(c => {
       const taken = c.names.map(n => mine.get(n)).filter(Boolean).reduce((a, m) => ({ n: a.n + m.n, done: a.done + m.done }), { n: 0, done: 0 });
       const bps = [...new Set(c.blueprints.flatMap(b => ((scmdbData.pools[b.pool] || {}).blueprints || []).map(x => x[0])))];
-      const tags = [c.shareable ? 'shareable' : '', c.illegal ? 'illegal' : ''].filter(Boolean).join(' · ');
-      return `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
-        <div style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;color:var(--text-bright)">${esc(scTitle(c.title))}</span><span style="flex-shrink:0;font-weight:700;color:var(--success)">${c.reward != null ? fmtMoney(c.reward) : 'varies'}</span></div>
+      const tags = [c.shareable ? 'shareable' : ''].filter(Boolean).join(' · ');
+      return `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid ${illegalBorder(c.illegal)};border-radius:var(--r);margin-bottom:4px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="min-width:0;color:var(--text-bright)">${esc(scTitle(c.title))}</span>${illegalPill(c)}</span><span style="flex-shrink:0;font-weight:700;color:var(--success)">${c.reward != null ? fmtMoney(c.reward) : 'varies'}</span></div>
         <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc([c.org, c.type, c.standing ? 'needs ' + c.standing : '', c.minutes ? fmtSpan(c.minutes * 60000) + ' limit' : '', tags].filter(Boolean).join(' · '))}</div>
         ${c.buyIn ? `<div style="color:var(--warn);font-size:10px">Buy-in ${fmtMoney(c.buyIn)}</div>` : ''}
         ${bps.length ? `<div style="color:var(--text-dim);font-size:10px;margin-top:2px" title="${esc(bps.join(', '))}">🎁 can award ${bps.length} blueprint${bps.length === 1 ? '' : 's'}: ${esc(bps.slice(0, 3).join(', '))}${bps.length > 3 ? '…' : ''}</div>` : ''}
@@ -3599,7 +3633,7 @@ function tickTimers() {
     // Notify once when job completes
     if (done && !notified.has(job.id)) {
       notified.add(job.id);
-      api.notify(`⛏ ${jobOres(job).join(' + ')} Ready!`, 'Your refinery job is complete — head to the deck to collect.');
+      api.notify(`🏭 ${jobOres(job).join(' + ')} Ready!`, 'Your refinery job is complete — head to the deck to collect.');
       anyNewDone = true;
     }
 
@@ -3713,6 +3747,94 @@ function rowLocation(p) {
 
 const terminalIndex = {};
 let terminalsLoaded = false;
+const terminalFaction = {};       // UEX terminal id -> the faction that controls the place
+let factionStanding = {};         // { 'Rough & Ready': 'friendly' | 'neutral' | 'hostile' }, set by the player in Settings
+const UEE_FACTION = /^united empire of earth$/i;
+// Hostile to most players until they go the illegal route and become friendly with them: hostile unless the player says otherwise.
+const HOSTILE_BY_DEFAULT = /^(nine tails|xenothreat)$/i;
+const standingOf = (faction) => factionStanding[faction] || (HOSTILE_BY_DEFAULT.test(faction) ? 'hostile' : '');
+
+// Loads the terminal list once: where each one is, and who controls it.
+async function ensureTerminals() {
+  if (terminalsLoaded) return true;
+  try {
+    const res = await api.getTerminals();
+    if (res && res.status === 'ok') {
+      (res.data || []).filter(t => t.is_available && t.type === 'commodity').forEach(t => {
+        const row = { ...t, terminal_name: t.name };
+        terminalIndex[t.id] = { id_terminal: t.id, terminal_name: t.name, loc: placeParts(row).join(' > '), path: terminalPath(row) };
+        if (t.faction_name) terminalFaction[t.id] = t.faction_name;
+      });
+      terminalsLoaded = true;
+    }
+  } catch (err) { /* shown as "could not load" where it is needed */ }
+  return terminalsLoaded;
+}
+
+// Is a place one the player should be wary of? Red: a faction they marked hostile. Yellow: held by a faction other
+// than the UEE whose standing they have not set (it could be hostile). Nothing for the UEE, or for a faction marked
+// friendly or neutral. The game does not tell the app a player's standing, so it is only what the player entered.
+function territoryOf(idTerminal) {
+  const f = terminalFaction[idTerminal];
+  if (!f) return null;
+  const st = standingOf(f);
+  if (st === 'hostile') return { level: 'hostile', faction: f, byDefault: !factionStanding[f] };
+  if (st === 'friendly' || st === 'neutral' || UEE_FACTION.test(f)) return null;
+  return { level: 'maybe', faction: f };
+}
+const territoryText = (t) => (t.level === 'hostile'
+  ? (t.byDefault
+    ? `${t.faction} is hostile to most players, and this place is theirs: they may attack you on sight. If you have gone the illegal route and are friendly with them, set them to Friendly in Settings \u2192 Faction standing.`
+    : `You marked ${t.faction} as hostile to you, and this place is theirs: they may attack you on sight. Change it in Settings \u2192 Faction standing.`)
+  : `Controlled by ${t.faction}. Your standing with them is not set, so you could be shot here if it is poor. Set it in Settings \u2192 Faction standing.`);
+function territoryPill(idTerminal) {
+  const t = territoryOf(idTerminal);
+  return t ? `<span class="terr ${t.level}" data-tip="${esc(territoryText(t))}">${t.level === 'hostile' ? '\u26d4 Hostile' : '\u26a0 ' + esc(t.faction)}</span>` : '';
+}
+function territoryBanner(idTerminal) {
+  const t = territoryOf(idTerminal);
+  if (!t) return null;
+  const el = document.createElement('div');
+  el.className = 'terr-banner ' + t.level;
+  el.textContent = (t.level === 'hostile' ? '\u26d4 ' : '\u26a0 ') + territoryText(t);
+  return el;
+}
+// one banner at a time: clearStationContent() does not know about it
+function showTerritoryBanner(list, idTerminal) {
+  list.querySelectorAll('.terr-banner').forEach(el => el.remove());
+  const b = territoryBanner(idTerminal);
+  if (b) list.prepend(b);
+}
+const territoryMark = (idTerminal) => { const t = territoryOf(idTerminal); return t ? (t.level === 'hostile' ? '\u26d4 ' : '\u26a0 ') : ''; };
+
+// ── Settings → Faction standing ──
+function toggleFactionPanel() {
+  const panel = document.getElementById('faction-panel');
+  const open = panel.style.display === 'none';
+  panel.style.display = open ? '' : 'none';
+  document.getElementById('faction-toggle').textContent = open ? 'Hide' : 'Set\u2026';
+  if (open) renderFactionSettings();
+}
+async function renderFactionSettings() {
+  const panel = document.getElementById('faction-panel');
+  if (!panel) return;
+  panel.innerHTML = '<div class="setting-desc">Loading factions\u2026</div>';
+  await ensureTerminals();
+  const names = [...new Set(Object.values(terminalFaction))].sort((a, b) => (UEE_FACTION.test(b) - UEE_FACTION.test(a)) || a.localeCompare(b));
+  if (!names.length) { panel.innerHTML = '<div class="setting-desc">The station list could not be loaded. Check your connection and try again.</div>'; return; }
+  const count = (f) => Object.values(terminalFaction).filter(x => x === f).length;
+  panel.innerHTML = names.map(f => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
+      <span style="font-size:12px;min-width:0">${esc(f)} <span style="color:var(--text-dim);font-size:10px">${count(f)} station${count(f) === 1 ? '' : 's'}</span></span>
+      <select data-faction="${encodeURIComponent(f)}" onchange="setFactionStanding(decodeURIComponent(this.dataset.faction), this.value)" style="padding:3px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;outline:none">
+        ${[['', HOSTILE_BY_DEFAULT.test(f) ? 'Hostile (default)' : 'Not set'], ['friendly', 'Friendly'], ['neutral', 'Neutral'], ['hostile', 'Hostile']].map(([v, l]) => `<option value="${v}"${(factionStanding[f] || '') === v ? ' selected' : ''}>${l}</option>`).join('')}
+      </select></div>`).join('');
+}
+async function setFactionStanding(faction, value) {
+  if (value) factionStanding[faction] = value; else delete factionStanding[faction];
+  await api.setStore('factionStanding', factionStanding);
+  if (typeof refreshPriceViews === 'function') refreshPriceViews();
+  if (pricesView === 'station' && terminalsLoaded) renderStations();
+}
 
 function applyPriceRows(rows) {
   const bestSell    = {};  // id -> price
@@ -3815,16 +3937,7 @@ async function renderStations() {
 
   if (!terminalsLoaded) {
     sel.innerHTML = '<option value="">Loading stations…</option>';
-    try {
-      const res = await api.getTerminals();
-      if (res.status === 'ok') {
-        (res.data || []).filter(t => t.is_available && t.type === 'commodity').forEach(t => {
-          const row = { ...t, terminal_name: t.name };
-          terminalIndex[t.id] = { id_terminal: t.id, terminal_name: t.name, loc: placeParts(row).join(' > '), path: terminalPath(row) };
-        });
-        terminalsLoaded = true;
-      }
-    } catch (err) {}
+    await ensureTerminals();
   }
 
   const terminals = Object.values(terminalIndex)
@@ -3842,7 +3955,7 @@ async function renderStations() {
   const prev = sel.value;
   sel.innerHTML = '<option value="">Select a station…</option>' +
     terminals.map(t =>
-      `<option value="${esc(String(t.id_terminal))}"${String(t.id_terminal) === prev ? ' selected' : ''}>${esc(t.path)}</option>`
+      `<option value="${esc(String(t.id_terminal))}"${String(t.id_terminal) === prev ? ' selected' : ''}>${territoryMark(t.id_terminal)}${esc(t.path)}</option>`
     ).join('');
 
   if (prev && sel.value === prev) {
@@ -3860,6 +3973,7 @@ function onStationSelect(selectEl) {
 async function selectStation(t) {
   const list = document.getElementById('com-list');
   clearStationContent();
+  showTerritoryBanner(list, t.id_terminal);
   const loadDiv = document.createElement('div');
   loadDiv.className = 'station-spinner loading';
   loadDiv.innerHTML = '<div class="spinner"></div>Fetching…';
@@ -3881,6 +3995,7 @@ async function selectStation(t) {
     });
 
     clearStationContent();
+    showTerritoryBanner(list, t.id_terminal);
 
     const items = Object.values(byName).sort((a, b) => a.name.localeCompare(b.name));
     if (!items.length) {
@@ -4178,11 +4293,12 @@ async function selectCom(com, el) {
         id_terminal: p.id_terminal,
         loc,
       }));
+      const terr = territoryOf(p.id_terminal);
       return `
-        <div class="price-row" style="cursor:pointer" onclick="showTerminalPrices('${rowData}')">
+        <div class="price-row${terr ? ' terr-' + terr.level : ''}" style="cursor:pointer" onclick="showTerminalPrices('${rowData}')">
           <span class="price-rank">${medal}</span>
           <div class="price-location">
-            <div class="price-terminal">${esc(p.terminal_name)}</div>
+            <div class="price-terminal">${esc(p.terminal_name)}${territoryPill(p.id_terminal)}</div>
             <div class="price-place">${esc(loc)}</div>
           </div>
           <div style="text-align:right">
@@ -4200,6 +4316,7 @@ async function showTerminalPrices(encodedData) {
   const p = JSON.parse(decodeURIComponent(encodedData));
 
   document.getElementById('tm-terminal').textContent = p.terminal_name;
+  document.getElementById('tm-terr').innerHTML = territoryPill(p.id_terminal).replace('margin-left:6px', '');
   document.getElementById('tm-loc').textContent      = p.loc || '';
   document.getElementById('tm-commodity').textContent = '';
   document.getElementById('tm-sell').textContent     = '';
