@@ -3921,12 +3921,14 @@ function switchPricesView(view, el) {
   document.getElementById('com-search-bar').style.display     = view === 'commodity' ? '' : 'none';
   document.getElementById('station-select-row').style.display = view === 'station'   ? '' : 'none';
   closePriceDetail();
+  // the territory banner belongs to the station view; renderStations() puts it back for the selected station
+  document.querySelectorAll('#com-list .terr-banner').forEach(e => e.remove());
   if (view === 'station') renderStations(); else renderComs();
 }
 
 function clearStationContent() {
   document.getElementById('com-list')
-    .querySelectorAll('.commodity-item,.empty-state,.station-price-table,.station-spinner').forEach(e => e.remove());
+    .querySelectorAll('.commodity-item,.empty-state,.station-price-table,.station-spinner,.terr-banner').forEach(e => e.remove());
 }
 
 async function renderStations() {
@@ -3983,6 +3985,7 @@ async function selectStation(t) {
     const gen = priceGen;
     const res = await api.getTerminalPrices(t.id_terminal);
     if (gen !== priceGen) return;
+    if (pricesView !== 'station') return;      // the user went back to Commodity while this loaded
     if (res.status !== 'ok') throw new Error(res.error || 'API error');
 
     const rows = res.data || [];
