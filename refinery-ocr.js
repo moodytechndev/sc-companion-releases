@@ -146,7 +146,7 @@ function extractMaterialRows(text, lowerText) {
 // often garbled ("TOTAL cosT", "TOTAL COST") and the unit comes out as "UEC" / "°C" /
 // "“=", so this takes the first number after the label and ignores whatever follows.
 function extractTotalCost(text) {
-  const m = String(text || '').match(/total\s*cos[t7l]?[^0-9\n]{0,6}(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/i);
+  const m = String(text || '').match(/(?:t?otal|tal)\s*cos[t7l]?[^0-9\n]{0,6}(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?![uU][eE][cC])/i);
   if (!m) return null;
   const v = parseFloat(m[1].replace(/,/g, ''));
   return Number.isFinite(v) && v >= 0 && v < 10000000 ? v : null;
@@ -266,6 +266,54 @@ function findTableAnchor(words) {
     return { left: refine.x1 - 34 * u, top: q.y0, right: refine.x1, hh: qh, u, fromHeaders: true };
   }
   return null;
+}
+
+// The header row ("MATERIALS SELECTED … REFINE") is the smallest text on the screen and often comes back
+// unreadable from a whole-frame read, while the heading above the method dropdown, "02 // PROCESSING
+// SELECTION, YIELD AND COSTS", is bigger and reads fine. Its width is ~28.5u (PROCESSING's left edge to
+// COSTS' right edge) and the header row sits ~12.3u below its centre, ~4.8u left of PROCESSING; measured
+// on real captures. This gives an estimate of the same geometry the header would give.
+function findHeadingGeometry(words, W) {
+  for (const p of words) {
+    if (!/^proces/.test(lettersOf(p.text))) continue;
+    const cy = (p.y0 + p.y1) / 2;
+    const tol = Math.max(W * 0.006, p.y1 - p.y0);
+    const c = words.filter(w => /^costs?$/.test(lettersOf(w.text)) && w.x0 > p.x1 && Math.abs((w.y0 + w.y1) / 2 - cy) <= tol)
+      .sort((a, b) => b.x1 - a.x1)[0];
+    if (!c) continue;
+    const u = (c.x1 - p.x0) / 28.5;
+    if (u < W * 0.003 || u > W * 0.009) continue;
+    const left = p.x0 - 4.8 * u;
+    return { left, top: cy + 12.3 * u - 0.45 * u, right: left + 34 * u, hh: u, u, fromHeading: true };
+  }
+  return null;
+}
+
+// Looks again at the strip where the header row should be, enlarged so its small letters read, and
+// takes the real geometry from it. Falls back to the estimate when the header still can't be read.
+async function anchorFromHeading(image, worker, est, W, H) {
+  const rect = clampRect({ x0: est.left - 2 * est.u, y0: est.top - 2.4 * est.u, x1: est.left + 38 * est.u, y1: est.top + 3.4 * est.u }, W, H);
+  if (rect) {
+    const base = Math.min(MAX_SCALE, Math.max(1.5, TARGET_TEXT_PX / est.u));
+    for (const [psm, mult] of [['6', 1], ['11', 1], ['6', 1.4], ['11', 1.4]]) {
+      const sc = Math.min(MAX_SCALE, base * mult);
+      try {
+        await worker.setParameters({ tessedit_pageseg_mode: psm });
+        const png = prepRegion(image, rect, sc);
+        const real = Math.round(rect.width * sc) / rect.width;
+        const data = (await worker.recognize(png, {}, { blocks: true, text: true })).data;
+        const w = flattenWords(data).map(x => ({ text: x.text, x0: rect.x + x.x0 / real, y0: rect.y + x.y0 / real, x1: rect.x + x.x1 / real, y1: rect.y + x.y1 / real }));
+        const a = findTableAnchor(w);
+        if (a) {
+          // Without REFINE the unit falls back to the (inflated) word height. The heading gave an independent
+          // measure of the same unit, so when the two disagree by much the heading's is the one to trust.
+          if (a.u < est.u * 0.8 || a.u > est.u * 1.25) { a.u = est.u; a.hh = est.u; a.right = a.left + 34 * est.u; }
+          return a;
+        }
+      } catch { /* try the next reading */ }
+    }
+  }
+  return est;
 }
 
 // "REFINEMENT CENTER" sits on the same row as the station title, to its right.
@@ -817,10 +865,12 @@ async function readSetupTableCells(image, worker, rect, geo) {
     const sc = scale * m;
     const g = wipeRules(grayRegion(image, rect, sc)).g;
     const has = new Array(g.h).fill(false);
+    // a thin rail the scrollbar wipe leaves behind puts a few dark pixels in every row; a row of text has far more
+    const minInk = Math.max(2, Math.round(g.w * 0.012));
     for (let y = 0; y < g.h; y++) {
       let c = 0;
       for (let x = 0; x < g.w; x++) if (g.v[y * g.w + x] < INK) c++;
-      has[y] = c >= 2;
+      has[y] = c >= minInk;
     }
     const gapMax = Math.max(2, Math.round(0.4 * u * sc));
     const bands = [];
@@ -835,7 +885,7 @@ async function readSetupTableCells(image, worker, rect, geo) {
     passes.push({ sc, g, bands });
   }
   const n = passes[0].bands.length;
-  if (!n || passes.some(p => p.bands.length !== n)) return [];
+  if (!n || passes.some(p => p.bands.length !== n)) return { rows: [], debug: 'row bands per pass: ' + passes.map(p => p.bands.length).join('/') };
 
   const half = 2.1 * u;
   const cellsOf = (pass, bi) => {
@@ -898,7 +948,10 @@ async function readSetupTableCells(image, worker, rect, geo) {
       texts.push(vals.join('/'));
       const tally = {};
       vals.filter(v => v).forEach(v => { tally[v] = (tally[v] || 0) + 1; });
-      const ranked = Object.keys(tally).sort((a, b) => tally[b] - tally[a] || vals.indexOf(b) - vals.indexOf(a));
+      // A quality is 0 to 1000 and is shown as three digits (0 for a material with none); a read with fewer
+      // digits is a number that lost its leading digits, so it ranks below any plausible three-digit read.
+      const plausible = (v) => c !== 0 || (Number(v) <= 1000 && (v.length === 3 || v === '0'));
+      const ranked = Object.keys(tally).sort((a, b) => (plausible(b) - plausible(a)) || tally[b] - tally[a] || vals.indexOf(b) - vals.indexOf(a));
       if (!ranked.length) { cells.length = 0; break; }
       cells.push({ cands: [Number(ranked[0])], clean: vals.every(v => v === ranked[0]) });
     }
@@ -1399,7 +1452,12 @@ async function readFrame(image, worker, opts) {
     const text = full.data.text || '';
     if (firstText === null) firstText = text;
     const w = flattenWords(full.data).map(x => (f === 1 ? x : { text: x.text, x0: x.x0 / f, y0: x.y0 / f, x1: x.x1 / f, y1: x.y1 / f }));
-    const anchor = findTableAnchor(w);
+    let anchor = findTableAnchor(w);
+    if (!anchor) {
+      const est = findHeadingGeometry(w, W);
+      if (est) anchor = await anchorFromHeading(image, worker, est, W, H);
+      await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    }
     const panels = anchor ? [] : allProcessingPanels(w);
     if (anchor || panels.length || !words.length) { fullText = text; words = w; t = anchor; procPanels = panels; }
     if (anchor) break;
@@ -1468,14 +1526,16 @@ async function readFrame(image, worker, opts) {
     // rows as the text reading did — a dropped row is the worse mistake, and every number in it
     // was read alone with only digits allowed.
     try {
-      if (!tableRows.some(r => r.yield)) throw new Error('no yields quoted yet — text reading only');
+      // rows found but none with a yield: the quote has not been requested, nothing for the digits pass to add.
+      // No rows at all is different: a dropped yield cell can lose every row of the text reading.
+      if (tableRows.length && !tableRows.some(r => r.yield)) throw new Error('no yields quoted yet — text reading only');
       const refineX = (name) => { const w = words.find(x => lettersOf(x.text) === name && Math.abs(x.y0 - t.top) <= t.hh * 1.2 && x.x0 > t.left); return w ? (w.x0 + w.x1) / 2 : null; };
       const hq = refineX('quality'), hn = refineX('qty'), hy = refineX('yield');
       const colCenters = (hq && hn && hy && hq < hn && hn < hy) ? [hq, hn, hy]
         : [t.left + 17.5 * t.u, t.left + 22.3 * t.u, t.left + 27.2 * t.u];
       const cellRead = await readSetupTableCells(image, worker, rects.table, { u: t.u, scale, colCenters });
       if (cellRead && cellRead.rows) {
-        regionTexts.cells = cellRead.debug;
+        regionTexts.cells = cellRead.debug || 'cell pass found no rows';
         if (cellRead.rows.length && cellRead.rows.length >= tableRows.length) {
           // A digits-only read is best at telling 6/8/9 apart but sometimes loses a faint digit
           // outright ("21" for "521"). Where the text reading of the same row (same ore, two
@@ -1601,7 +1661,7 @@ module.exports = {
   REFINERY_METHODS, KNOWN_MATERIALS, parseRefineryOcrText, readFrame, mergeRows,
   // exposed for tests
   parseTableText, finalizeTableRows, readSetupTableCells, snapStation, voteRows, extractTotalCost, methodFromRegion,
-  findProcessingPanels, findProcessingPanelsByLabels, allProcessingPanels, parseProcessingRows, parseRemaining, parseFooterYield, closestMaterialName, voteProcessingRows, mergeWorkOrders,
+  findProcessingPanels, findProcessingPanelsByLabels, findHeadingGeometry, allProcessingPanels, parseProcessingRows, parseRemaining, parseFooterYield, closestMaterialName, voteProcessingRows, mergeWorkOrders,
   grayRegion, wipeRules, trimToInk, cleanLinePng, tallestLinePng, tableRowPngs, encodeGray,
   tableRowGrays, numberCells, sharpenGray, stretchGray, padGray, locationFromRegion, plausibleStation, findTableAnchor, findTitleAnchor, numberCandidates,
 };

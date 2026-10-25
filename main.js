@@ -10,6 +10,16 @@ const { createWorker } = require('tesseract.js');
 
 const store = new Store();
 let mainWindow;
+// "Keep the game in control": the overlay never takes keyboard focus unless the user clicks into a text box.
+// Clicking it (or moving the mouse over it and firing) used to make Windows activate it, which took the keyboard
+// and the mouse capture away from Star Citizen mid-fight. A window that cannot be activated receives clicks
+// like any other but leaves the game as the active window.
+let gameSafe = store.get('gameSafeOverlay', true) !== false;
+let keyboardHold = false;      // Erkul on screen: the window stays focusable until it is left
+function applyFocusMode() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try { mainWindow.setFocusable(!gameSafe); } catch { /* not supported: the window keeps behaving as before */ }
+}
 let tray = null;
 
 const CURRENT_VERSION = require('./package.json').version;
@@ -27,10 +37,10 @@ function toggleWindow() {
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
-    mainWindow.show();
+    if (gameSafe) mainWindow.showInactive(); else mainWindow.show();
     mainWindow.setAlwaysOnTop(true, 'screen-saver');
     mainWindow.moveTop();
-    mainWindow.focus();
+    if (!gameSafe) mainWindow.focus();
   }
 }
 
@@ -109,86 +119,99 @@ const LOCATION_MAP = {
   'RR_PYR_L5': 'Checkmate',
 };
 
+let logPoll = null;
+
+// Reads whatever the game has appended to Game.log since the last read and hands it on.
+// The size is taken from an open handle, not from the path: while the game holds the log open for
+// writing, Windows can report a stale size for the path until something else touches the file, which
+// is why change events alone left new contracts unseen for a long time.
+function readLogAppend() {
+  if (!logWatchPath) return;
+  let fd;
+  try {
+    fd = fs.openSync(logWatchPath, 'r');
+    const size = fs.fstatSync(fd).size;
+    if (size < logPos) logPos = 0;
+    if (size <= logPos) return;
+
+    const len = size - logPos;
+    const buf = Buffer.alloc(len);
+    const got = fs.readSync(fd, buf, 0, len, logPos);
+    logPos += got;
+    const text = buf.toString('utf8', 0, got);
+
+    // Contract activity (a failure here must never stop the location tracking below)
+    try {
+      const res = contractTracker.ingestLive(text);
+      if (res.changed) sendToWindow('contracts:updated', null);
+      if (res.blueprints.length) sendToWindow('contracts:blueprints', res.blueprints);
+    } catch (e) { console.error('[Contracts] parse error:', e.message); }
+
+    // Track current station location
+    const locMatch = text.match(/requested inventory for Location\[(\w+)\]/);
+    if (locMatch) {
+      const code = locMatch[1];
+      lastKnownLocation = LOCATION_MAP[code] || code.replace(/_/g, '-');
+    }
+
+    // Kiosk detection commented out — unreliable, revisit later
+    // if (text.includes('populating refinery list flash')) {
+    //   const now = Date.now();
+    //   if (now - lastKioskFire > 30000) {
+    //     lastKioskFire = now;
+    //     if (mainWindow && !mainWindow.isDestroyed()) {
+    //       mainWindow.webContents.send('log:refineryKioskDetected', lastKnownLocation);
+    //       if (!mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
+    //     }
+    //   }
+    // }
+
+    // Completion detection commented out — regex needs validation against live logs
+    // const completionMatches = [...text.matchAll(/A Refinery Work Order has been Completed at ([^":\n]+?)[\s:"]+/g)];
+    // for (const m of completionMatches) {
+    //   const station = m[1].trim();
+    //   if (mainWindow && !mainWindow.isDestroyed()) {
+    //     mainWindow.webContents.send('log:refineryJobComplete', station);
+    //     if (!mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
+    //   }
+    // }
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('[LogWatcher] Read error:', e.message);
+  } finally {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch {} }
+  }
+}
+
 function startLogWatcher(filePath) {
   if (logWatcher) { try { logWatcher.close(); } catch {} logWatcher = null; }
+  if (logPoll) { clearInterval(logPoll); logPoll = null; }
   logWatchPath = filePath || '';
+  contractTracker.carry = '';
+  logPos = 0;
 
-  if (!logWatchPath || !fs.existsSync(logWatchPath)) {
-    console.log('[LogWatcher] Not found or no path set:', logWatchPath);
+  if (!logWatchPath) {
+    console.log('[LogWatcher] No path set');
     return;
   }
 
+  // start from the end of what is there now, so old lines are not treated as new
   try {
-    logPos = fs.statSync(logWatchPath).size;
+    const fd = fs.openSync(logWatchPath, 'r');
+    try { logPos = fs.fstatSync(fd).size; } finally { fs.closeSync(fd); }
   } catch { logPos = 0; }
-  contractTracker.carry = '';
 
+  // a once-a-second check is the dependable path; the file watcher just makes it quicker when it does fire
+  logPoll = setInterval(readLogAppend, 1000);
   try {
-    logWatcher = fs.watch(logWatchPath, (event) => {
-      if (event !== 'change') return;
-      try {
-        const stat = fs.statSync(logWatchPath);
-        if (stat.size < logPos) logPos = 0;
-        if (stat.size <= logPos) return;
-
-        const len = stat.size - logPos;
-        const buf = Buffer.alloc(len);
-        const fd = fs.openSync(logWatchPath, 'r');
-        fs.readSync(fd, buf, 0, len, logPos);
-        fs.closeSync(fd);
-        logPos = stat.size;
-
-        const text = buf.toString('utf8');
-
-        // Contract activity (a failure here must never stop the location tracking below)
-        try {
-          const res = contractTracker.ingestLive(text);
-          if (res.changed) sendToWindow('contracts:updated', null);
-          if (res.blueprints.length) sendToWindow('contracts:blueprints', res.blueprints);
-        } catch (e) { console.error('[Contracts] parse error:', e.message); }
-
-        // Track current station location
-        const locMatch = text.match(/requested inventory for Location\[(\w+)\]/);
-        if (locMatch) {
-          const code = locMatch[1];
-          lastKnownLocation = LOCATION_MAP[code] || code.replace(/_/g, '-');
-        }
-
-        // Kiosk detection commented out — unreliable, revisit later
-        // if (text.includes('populating refinery list flash')) {
-        //   const now = Date.now();
-        //   if (now - lastKioskFire > 30000) {
-        //     lastKioskFire = now;
-        //     if (mainWindow && !mainWindow.isDestroyed()) {
-        //       mainWindow.webContents.send('log:refineryKioskDetected', lastKnownLocation);
-        //       if (!mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
-        //     }
-        //   }
-        // }
-
-        // Completion detection commented out — regex needs validation against live logs
-        // const completionMatches = [...text.matchAll(/A Refinery Work Order has been Completed at ([^":\n]+?)[\s:"]+/g)];
-        // for (const m of completionMatches) {
-        //   const station = m[1].trim();
-        //   if (mainWindow && !mainWindow.isDestroyed()) {
-        //     mainWindow.webContents.send('log:refineryJobComplete', station);
-        //     if (!mainWindow.isVisible()) { mainWindow.show(); mainWindow.focus(); }
-        //   }
-        // }
-      } catch (e) {
-        console.error('[LogWatcher] Read error:', e.message);
-      }
-    });
-
+    logWatcher = fs.watch(logWatchPath, (event) => { if (event === 'change') readLogAppend(); });
     logWatcher.on('error', (e) => {
       console.error('[LogWatcher] Watch error:', e.message);
       logWatcher = null;
     });
-
-    console.log('[LogWatcher] Watching', logWatchPath, '@ byte', logPos);
   } catch (e) {
-    console.error('[LogWatcher] Failed to start:', e.message);
+    console.error('[LogWatcher] fs.watch unavailable, polling only:', e.message);
   }
+  console.log('[LogWatcher] Watching', logWatchPath, '@ byte', logPos);
 }
 
 function fetchJson(url, timeoutMs = 15000) {
@@ -238,6 +261,7 @@ function createWindow() {
     alwaysOnTop: true,
     skipTaskbar: false,
     resizable: true,
+    focusable: !gameSafe,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -248,6 +272,9 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  // after typing (or any time the window is left), go back to not taking focus
+  mainWindow.on('blur', () => { if (gameSafe && !keyboardHold) applyFocusMode(); });
 
   mainWindow.on('moved',   saveBounds);
   mainWindow.on('resized', saveBounds);
@@ -613,6 +640,22 @@ ipcMain.handle('window:close', () => {
     mainWindow?.hide();
   }
 });
+ipcMain.handle('overlay:getGameSafe', () => gameSafe);
+ipcMain.handle('overlay:setGameSafe', (_, v) => {
+  gameSafe = v !== false;
+  store.set('gameSafeOverlay', gameSafe);
+  applyFocusMode();
+  return gameSafe;
+});
+// The renderer asks for the keyboard when the user clicks into a text box, and gives it back when they are done.
+ipcMain.handle('overlay:keyboard', (_, wants, hold) => {
+  if (!gameSafe || !mainWindow || mainWindow.isDestroyed()) return false;
+  keyboardHold = !!(wants && hold);
+  if (wants) { mainWindow.setFocusable(true); mainWindow.focus(); }
+  else applyFocusMode();
+  return true;
+});
+ipcMain.handle('overlay:state', () => (mainWindow ? { gameSafe, focusable: mainWindow.isFocusable(), focused: mainWindow.isFocused() } : null));
 ipcMain.handle('window:setOpacity', (_, opacity) => mainWindow?.setOpacity(opacity));
 ipcMain.handle('window:setAlwaysOnTop', (_, v) => mainWindow?.setAlwaysOnTop(v));
 
@@ -669,6 +712,12 @@ ipcMain.handle('contracts:import', () => {
   try { return { ok: true, ...contractTracker.importLogs(p) }; } catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle('contracts:clear', () => { contractTracker.clear(); return true; });
+ipcMain.handle('contracts:resolve', (_, ids, outcome) => {
+  if (!Array.isArray(ids) || typeof outcome !== 'string') return 0;
+  const n = contractTracker.resolve(ids.filter(x => typeof x === 'string').slice(0, 500), outcome);
+  if (n) sendToWindow('contracts:updated', null);
+  return n;
+});
 // Your RSI hangar, read with a login you do yourself (see rsi-hangar.js)
 const rsiHangar = require('./rsi-hangar');
 ipcMain.handle('rsi:status', async () => ({ connected: await rsiHangar.isConnected() }));
@@ -687,7 +736,7 @@ ipcMain.handle('scmdb:refresh', async (_, force) => {
   return { result: r, status: getScmdb().status(), data: r.changed || force ? getScmdb().snapshot() : null };
 });
 ipcMain.handle('log:getStatus', () => ({
-  watching: !!logWatcher,
+  watching: !!logPoll,
   path: logWatchPath,
 }));
 
@@ -1104,7 +1153,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['gameSafeOverlay', 'jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -1120,6 +1169,7 @@ function validateImport(data) {
   if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
   if (data.factionStanding !== undefined && (typeof data.factionStanding !== 'object' || data.factionStanding === null || Array.isArray(data.factionStanding))) return 'factionStanding must be an object';
   if (data.contractLog !== undefined && (typeof data.contractLog !== 'object' || data.contractLog === null || Array.isArray(data.contractLog))) return 'contractLog must be an object';
+  if (data.gameSafeOverlay !== undefined && typeof data.gameSafeOverlay !== 'boolean') return 'gameSafeOverlay must be true or false';
   if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
   if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';
   if (data.logPath !== undefined && (typeof data.logPath !== 'string' || data.logPath.length > 500 || /[\x00-\x1f]/.test(data.logPath))) return 'logPath must be a plain file path string';

@@ -849,6 +849,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         </div>
         <div class="setting-row">
           <div>
+            <div class="setting-label">Over the game</div>
+            <div class="setting-desc">Keep Star Citizen in control: clicking the overlay does not take the keyboard from the game. Click into a text box to type; the game gets control back when you are done.</div>
+          </div>
+          <select id="game-safe-select" onchange="saveGameSafe()"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
+            <option value="on">Game keeps control</option>
+            <option value="off">Normal window</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div>
             <div class="setting-label" data-i18n="settings.close">Close Button</div>
             <div class="setting-desc" data-i18n="settings.close.desc">What happens when you click ✕</div>
           </div>
@@ -3164,6 +3175,19 @@ async function importContractLogs() {
   renderProfit();
 }
 
+// "Clear as": closes open contracts the log never showed ending. Menu log-out = the game was left with the contract
+// open, so no ending was seen, which counts as failed.
+const CLEAR_AS = [['', 'Clear as\u2026'], ['completed', 'Completed'], ['failed', 'Menu log-out (failed)'], ['abandoned', 'Abandoned']];
+const clearAsSelect = (attrs) => `<select ${attrs} style="padding:2px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:10px;outline:none;max-width:150px" data-tip="Close a contract the log never showed ending. Menu log-out counts it as failed (no ending seen).">${CLEAR_AS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`;
+async function resolveContracts(which, outcome) {
+  if (!outcome) return;
+  const ids = which === 'all' ? (contractData.records || []).filter(r => contractOutcome(r) === 'active').map(r => r.id) : [which];
+  if (!ids.length) return;
+  await api.resolveContracts(ids, outcome);
+  await loadContracts();
+  renderProfit();
+}
+
 let _clearContractsArmed = false;
 async function clearContractHistory() {
   if (!_clearContractsArmed) {
@@ -3321,7 +3345,7 @@ function renderContracts(body) {
   const count = (k) => status.filter(s => s === k).length;
   const done = count('completed'), failed = count('failed'), abandoned = count('abandoned');
   const finished = done + failed + abandoned;
-  const span = (r) => (r.endedAt && r.endedAt > r.acceptedAt && r.endedAt - r.acceptedAt < 3 * 86400000) ? r.endedAt - r.acceptedAt : null;
+  const span = (r) => (!r.manual && r.endedAt && r.endedAt > r.acceptedAt && r.endedAt - r.acceptedAt < 3 * 86400000) ? r.endedAt - r.acceptedAt : null;
   const times = recs.filter(r => r.outcome === 'completed').map(span).filter(Boolean);
   const avg = times.length ? times.reduce((a, b) => a + b, 0) / times.length : null;
   const awardTotal = (contractData.awards || []).reduce((n, a) => n + a.amount, 0);
@@ -3335,10 +3359,11 @@ function renderContracts(body) {
 
   // open now: first, because it is what is being played
   const open = recs.filter(r => contractOutcome(r) === 'active');
-  const openHtml = open.length ? head(`Open now \u00b7 ${open.length}`) + open.map(r => {
+  const openHtml = open.length ? head(`Open now \u00b7 ${open.length}`) +
+    `<div style="display:flex;align-items:center;gap:6px;margin:-2px 0 6px"><span style="font-size:10px;color:var(--text-dim)">All open contracts:</span>${clearAsSelect('onchange="resolveContracts(\'all\', this.value)"')}</div>` + open.map(r => {
     const sc = scmdbFor(r);
     return card(`<div style="display:flex;justify-content:space-between;gap:8px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="color:var(--text-bright);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</span>${illegalPill(sc)}</span><span style="color:var(--text-dim);flex-shrink:0">${fmtSpan(Date.now() - r.acceptedAt)}${sc && sc.minutes ? ' of ' + fmtSpan(sc.minutes * 60000) : ''}</span></div>
-      <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(prettyOrg(r.generator))}${sc && sc.reward != null ? ' \u00b7 ' + money(sc.reward) + ' aUEC' : ''}${sc && sc.standing ? ' \u00b7 needs ' + esc(sc.standing) : ''}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px"><span style="color:var(--text-dim);font-size:10px;min-width:0">${esc(prettyOrg(r.generator))}${sc && sc.reward != null ? ' \u00b7 ' + money(sc.reward) + ' aUEC' : ''}${sc && sc.standing ? ' \u00b7 needs ' + esc(sc.standing) : ''}</span>${clearAsSelect(`data-id="${esc(r.id)}" onchange="resolveContracts(this.dataset.id, this.value)"`)}</div>
       ${objectivesHtml(r)}`, sc && sc.illegal);
   }).join('') : '';
 
@@ -4483,6 +4508,29 @@ async function saveLogPath() {
   await api.setLogPath(p);
   setTimeout(refreshLogStatus, 500);
 }
+
+async function initGameSafe() {
+  const on = await api.getGameSafe();
+  const el = document.getElementById('game-safe-select');
+  if (el) el.value = on === false ? 'off' : 'on';
+}
+async function saveGameSafe() {
+  await api.setGameSafe(document.getElementById('game-safe-select').value === 'on');
+}
+
+// While the overlay cannot take focus, a text box would never receive keystrokes. Clicking into one asks for the
+// keyboard (the user is choosing to type); leaving it gives control back to the game. Erkul is a whole web page
+// that needs the keyboard, so it keeps it for as long as it is on screen.
+const TEXT_FIELD = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=range]):not([type=color]):not([type=file]), textarea, [contenteditable=""], [contenteditable="true"]';
+document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest(TEXT_FIELD)) api.overlayKeyboard(true); }, true);
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (typeof erkulWidened !== 'undefined' && erkulWidened) return;
+    const a = document.activeElement;
+    if (!(a && a.matches && a.matches(TEXT_FIELD))) api.overlayKeyboard(false);
+  }, 150);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.activeElement && document.activeElement.matches && document.activeElement.matches(TEXT_FIELD)) document.activeElement.blur(); });
 
 async function initCloseBehavior() {
   const val = await api.getStore('closeBehavior') || 'tray';
@@ -5674,6 +5722,7 @@ init();
 initShortcut();
 initLogWatcher();
 initCloseBehavior();
+initGameSafe();
 initPriceSource();
 loadLastLocations();
 loadHomeUndo();
@@ -5894,9 +5943,11 @@ async function syncErkulWindow() {
     erkulWidened = true;
     await api.expandWindowForEmbed(ERKUL_MIN_WIDTH);
     ensureErkulWebview();
+    api.overlayKeyboard(true, true);
   } else if (!want && erkulWidened) {
     erkulWidened = false;
     await api.restoreWindowFromEmbed();
+    api.overlayKeyboard(false);
   }
 }
 

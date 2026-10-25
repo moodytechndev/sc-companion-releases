@@ -87,6 +87,23 @@ class ContractTracker {
     });
   }
 
+  // Closes open contracts by hand, for the ones whose ending the log never showed (the player quit to the menu,
+  // the game crashed, a log was lost). `manual` keeps them out of the time statistics: the time between
+  // accepting and the moment the player cleared them says nothing about how long the contract took.
+  resolve(ids, outcome) {
+    if (!['completed', 'failed', 'abandoned'].includes(outcome)) return 0;
+    const want = new Set(ids);
+    const now = Date.now();
+    let n = 0;
+    for (const r of this.records.values()) {
+      if (r.outcome !== 'active' || !want.has(r.id)) continue;
+      r.outcome = outcome; r.endedAt = now; r.objectives = []; r.manual = true;
+      n++;
+    }
+    if (n) this.save();
+    return n;
+  }
+
   clear() {
     this.records.clear(); this.awards = []; this.blueprints = []; this.imported = null; this.carry = '';
     this.save();
