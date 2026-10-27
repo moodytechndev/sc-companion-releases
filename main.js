@@ -823,17 +823,20 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // What has been read so far from one or more screenshots of the refinery terminal. The quick capture
 // builds one and finishes it at once; a scroll capture keeps one between the user's presses of
 // Capture, so a long materials list is taken a screenful at a time.
-function newCaptureSession() {
+function newCaptureSession(keepShots) {
   return { method: null, duration: null, location: null, cost: null, processing: null, capturedWindow: true,
-    materials: [], rawTexts: [], shots: 0, best: null };
+    materials: [], rawTexts: [], shots: 0, best: null,
+    // a scroll capture is several different screens, and a report about it needs all of them, not just the best one
+    keepShots: !!keepShots, jpegs: [] };
 }
+const MAX_REPORT_FRAMES = 5;       // the report allows 6 files, one of them the text
 
 // Kept in memory so "Report a Bug" can offer to attach what was on screen and what was read from
 // it — set before the slow part, so even a crash while reading leaves something to attach.
 function rememberCapture(image) {
   try {
     const first = encodeShot(image, 3840);
-    bugLastCapture = { at: Date.now(), jpeg: first, thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
+    bugLastCapture = { at: Date.now(), jpeg: first, jpegs: [first], thumb: thumbDataUrl(nativeImage.createFromBuffer(first)),
       text: 'Capture started; reading did not finish.', summary: null };
   } catch { bugLastCapture = null; }
 }
@@ -862,6 +865,13 @@ async function readIntoSession(session, image) {
   }
   session.rawTexts.push(frame.rawText);
   session.shots++;
+  if (session.keepShots && session.jpegs.length < MAX_REPORT_FRAMES) {
+    try {
+      session.jpegs.push(encodeShot(image, 3200));
+      // kept up to date shot by shot, so a report made mid-scroll (or after a crash) has every screen so far
+      if (bugLastCapture) { bugLastCapture.jpegs = session.jpegs.slice(); bugLastCapture.at = Date.now(); }
+    } catch { /* attaching is a convenience */ }
+  }
   if (!session.best || score > session.best.score) session.best = { score, image };
   return session.materials.length - before;
 }
@@ -874,7 +884,8 @@ function finishSession(session) {
     const summary = processing
       ? { kind: 'processing', location: processing.location, workOrders: processing.workOrders.map(w => ({ index: w.index, remainingSeconds: w.remainingSeconds, rows: w.rows.map(r => `${r.name} q${r.quality}/y${r.yield}`) })) }
       : { method: session.method, duration: session.duration, location: session.location, cost: session.cost, materials: session.materials.map(m => `${m.name} ${m.quality}/${m.yield}`) };
-    bugLastCapture = { at: Date.now(), jpeg: best, thumb: thumbDataUrl(nativeImage.createFromBuffer(best)), summary,
+    bugLastCapture = { at: Date.now(), jpeg: best, jpegs: session.jpegs.length > 1 ? session.jpegs.slice() : [best],
+      thumb: thumbDataUrl(nativeImage.createFromBuffer(session.jpegs.length > 1 ? session.jpegs[0] : best)), summary,
       text: `Parsed: ${JSON.stringify(summary)}\n\n` + rawTexts.map((t, i) => `── Shot ${i + 1}/${rawTexts.length} ──\n${t}`).join('\n\n') };
   } catch { /* attaching is a convenience */ }
 
@@ -935,7 +946,7 @@ let scrollSession = null;
 ipcMain.handle('refinery:scrollShot', async (_, opts) => {
   try {
     if (!(await isGameRunning())) return NOT_RUNNING;
-    if (!scrollSession || (opts && opts.first)) scrollSession = newCaptureSession();
+    if (!scrollSession || (opts && opts.first)) scrollSession = newCaptureSession(true);
     const session = scrollSession;
     const grabbed = await grabFrame();
     session.capturedWindow = grabbed.capturedWindow;
@@ -1005,7 +1016,7 @@ const MAX_ATTACH_FILES = 6;
 const JPEG_DATA_PREFIX = 'data:image/jpeg;base64,';
 
 let bugViewShot = null;      // { image: nativeImage, tab, at } — kept in memory only
-let bugLastCapture = null;   // { at, jpeg, thumb, text, summary }
+let bugLastCapture = null;   // { at, jpeg (the best screen), jpegs (every screen of a scroll capture), thumb, text, summary }
 
 // maxWidth: window snapshots are plenty at 2560; a refinery capture keeps up to 3840 so a 4K
 // player's report still carries the detail the reader had to work with.
@@ -1049,7 +1060,8 @@ ipcMain.handle('bug:getAttachables', () => {
   const age = (t) => Math.max(0, Math.round((Date.now() - t) / 1000));
   return {
     view: bugViewShot ? { tab: bugViewShot.tab, ageSec: age(bugViewShot.at), thumb: thumbDataUrl(bugViewShot.image) } : null,
-    capture: bugLastCapture ? { ageSec: age(bugLastCapture.at), thumb: bugLastCapture.thumb, summary: bugLastCapture.summary } : null,
+    capture: bugLastCapture ? { ageSec: age(bugLastCapture.at), thumb: bugLastCapture.thumb, summary: bugLastCapture.summary,
+      shots: (bugLastCapture.jpegs || [bugLastCapture.jpeg]).length } : null,
   };
 });
 
@@ -1099,8 +1111,10 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
   const files = [];
   if (includeView && bugViewShot) files.push({ name: 'app-window.jpg', mime: 'image/jpeg', data: encodeShot(bugViewShot.image) });
   if (includeCapture && bugLastCapture) {
-    files.push({ name: 'refinery-frame.jpg', mime: 'image/jpeg', data: bugLastCapture.jpeg });
+    // the text goes first: if the upload is too big it is the last file to be dropped
     files.push({ name: 'refinery-ocr.txt', mime: 'text/plain', data: Buffer.from(bugLastCapture.text, 'utf8') });
+    const frames = (bugLastCapture.jpegs && bugLastCapture.jpegs.length ? bugLastCapture.jpegs : [bugLastCapture.jpeg]).slice(0, MAX_REPORT_FRAMES);
+    frames.forEach((jpeg, i) => files.push({ name: frames.length > 1 ? `refinery-frame-${i + 1}.jpg` : 'refinery-frame.jpg', mime: 'image/jpeg', data: jpeg }));
   }
   (Array.isArray(images) ? images.slice(0, 3) : []).forEach((im, i) => {
     const data = readJpegDataUrl(im && im.dataUrl);
@@ -1111,7 +1125,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
   while (files.length && total > MAX_ATTACH_TOTAL) total -= files.pop().data.length;
 
   // the picture shown inline in the Discord message: the refinery screen if there is one
-  const firstImage = files.find(f => f.name === 'refinery-frame.jpg') || files.find(f => f.name === 'game-screen.jpg')
+  const firstImage = files.find(f => /^refinery-frame(-1)?\.jpg$/.test(f.name)) || files.find(f => f.name === 'game-screen.jpg')
     || files.find(f => f.mime === 'image/jpeg');
   const fields = [
     { name: 'Version', value: CURRENT_VERSION, inline: true },
@@ -1153,7 +1167,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['gameSafeOverlay', 'jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['gameSafeOverlay', 'wikeloHave', 'jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -1169,6 +1183,7 @@ function validateImport(data) {
   if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
   if (data.factionStanding !== undefined && (typeof data.factionStanding !== 'object' || data.factionStanding === null || Array.isArray(data.factionStanding))) return 'factionStanding must be an object';
   if (data.contractLog !== undefined && (typeof data.contractLog !== 'object' || data.contractLog === null || Array.isArray(data.contractLog))) return 'contractLog must be an object';
+  if (data.wikeloHave !== undefined && (typeof data.wikeloHave !== 'object' || data.wikeloHave === null || Array.isArray(data.wikeloHave))) return 'wikeloHave must be an object';
   if (data.gameSafeOverlay !== undefined && typeof data.gameSafeOverlay !== 'boolean') return 'gameSafeOverlay must be true or false';
   if (data.closeBehavior !== undefined && !VALID_CLOSE.has(data.closeBehavior)) return 'closeBehavior must be "tray" or "quit"';
   if (data.hotkeyVK !== undefined && !VK_RE.test(data.hotkeyVK)) return 'hotkeyVK must be a 2-char hex string';

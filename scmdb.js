@@ -17,6 +17,7 @@ const BASE = 'https://scmdb.net';
 const CHECK_EVERY_MS = 12 * 3600 * 1000;       // look for a newer version at most this often
 const MIN_RECHECK_MS = 30 * 60 * 1000;          // ... and never twice within this, even after a failure
 const MAX_BYTES = 80 * 1024 * 1024;
+const SCHEMA = 2;                                // bumped when compact() keeps more, so stored data is fetched again
 
 function get(url, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
@@ -34,6 +35,27 @@ function get(url, timeoutMs = 120000) {
   });
 }
 
+// What a Wikelo trade asks you to bring and what it gives back. Other contracts have no use for this.
+function wikeloTrade(raw, c) {
+  const names = raw.resourcePools || {};
+  const bring = (c.haulingOrders || []).map(h => {
+    const scu = h.minSCU != null;
+    return { n: (names[h.resource] || {}).name || '', q: scu ? h.minSCU : (h.minAmount || 1), scu };
+  }).filter(b => b.n);
+  const item = (i) => ({ n: i.name || '', q: i.amount || 1, k: i.itemType || '' });
+  const flat = [], groups = [];
+  for (const r of c.itemRewards || []) {
+    if (Array.isArray(r.groups)) for (const g of r.groups) groups.push({ p: Math.round((g.probability != null ? g.probability : 1) * 100), items: (g.items || []).map(item).filter(i => i.n) });
+    else if (r.name) flat.push(item(r));
+  }
+  const get = [];
+  if (flat.length) get.push({ p: 100, items: flat });
+  groups.filter(g => g.items.length).forEach(g => get.push(g));
+  const rewards = (raw.factionRewardsPools || [])[c.factionRewardsIndex] || [];
+  const rep = (rewards.find(x => x && x.amount) || {}).amount;
+  return { bring, get, rep: typeof rep === 'number' ? rep : null };
+}
+
 // The whole merged file -> only what the app shows.
 function compact(raw) {
   const pools = {};
@@ -42,6 +64,7 @@ function compact(raw) {
     const blueprints = (c.blueprintRewards || []).map(b => ({ pool: b.blueprintPool, chance: b.chance, trigger: b.trigger }));
     blueprints.forEach(b => wanted.add(b.pool));
     return {
+      ...(/wikelo/i.test(c.contractorName || '') ? { trade: wikeloTrade(raw, c) } : {}),
       names: [...new Set([c.debugName, ...(c.debugNames || [])].filter(Boolean))],
       ids: [...new Set([c.id, ...(c.contractDefinitionIds || [])].filter(Boolean))],
       title: c.title || '',
@@ -83,21 +106,22 @@ class Scmdb {
     if (this.busy) return this.busy;
     this.busy = (async () => {
       const now = Date.now();
-      const fresh = this.data && now - (this.data.checkedAt || this.data.fetchedAt || 0) < CHECK_EVERY_MS;
+      const outdated = !!this.data && this.data.schema !== SCHEMA;       // stored by an older version of the app: fetch again
+      const fresh = this.data && !outdated && now - (this.data.checkedAt || this.data.fetchedAt || 0) < CHECK_EVERY_MS;
       if (!force && fresh) return { ok: true, changed: false };
-      if (!force && this.data && now - this.lastCheck < MIN_RECHECK_MS) return { ok: true, changed: false };
+      if (!force && this.data && !outdated && now - this.lastCheck < MIN_RECHECK_MS) return { ok: true, changed: false };
       this.lastCheck = now;
       try {
         const versions = await get(`${BASE}/data/game-versions.json`, 30000);
         const v = (Array.isArray(versions) ? versions : []).find(x => /live/i.test(x.version)) || (versions || [])[0];
         if (!v || !v.file) throw new Error('SCMDB has no data listed');
-        if (this.data && this.data.version === v.version && !force) {
+        if (this.data && this.data.version === v.version && !force && !outdated) {
           this.data.checkedAt = now; this.persist();
           return { ok: true, changed: false };
         }
         const raw = await get(`${BASE}/data/${encodeURIComponent(v.file)}`, 180000);
         const slim = compact(raw);
-        this.data = { version: v.version, fetchedAt: now, checkedAt: now, source: 'scmdb.net', ...slim };
+        this.data = { version: v.version, fetchedAt: now, checkedAt: now, source: 'scmdb.net', schema: SCHEMA, ...slim };
         this.persist();
         return { ok: true, changed: true };
       } catch (e) {

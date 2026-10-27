@@ -185,11 +185,15 @@ function extractLocation(text, lowerText) {
   return candidate.length >= 3 ? candidate : null;
 }
 
+// A running job's panel can sit beside the setup panel, and its "TIME REMAINING 58m 25s" is not the new job's
+// "PROCESSING TIME 1h 39m": lines about time remaining are left out when looking for the job's duration.
+const withoutRemaining = (text) => text.split('\n').filter(l => !/remain/i.test(l)).join('\n');
+
 function parseRefineryOcrText(text) {
   const lowerText = text.toLowerCase();
   return {
     method: extractMethod(lowerText),
-    duration: extractDuration(text),
+    duration: extractDuration(withoutRemaining(text)),
     materials: extractMaterialRows(text, lowerText),
     location: extractLocation(text, lowerText),
     cost: extractTotalCost(text),
@@ -1487,7 +1491,7 @@ async function readFrame(image, worker, opts) {
     const titleX0 = Math.max(0, t.left - 29.5 * hh);
     const titleX1 = ta ? Math.min(ta.refLeft - 0.5 * hh, t.left + 38 * hh) : t.left + 38 * hh;
     rects.title = clampRect({ x0: titleX0, y0: t.top - 33.8 * hh, x1: titleX1, y1: t.top - 30.2 * hh }, W, H);
-    if (!duration && !known.duration) {
+    if (!known.duration) {
       rects.duration = clampRect({ x0: t.left - hh, y0: t.top + 31 * hh, x1: t.right + 5 * hh, y1: t.top + 39 * hh }, W, H);
     }
 
@@ -1614,7 +1618,8 @@ async function readFrame(image, worker, opts) {
     else if (plausibleStation(fromTitle)) location = fromTitle;
     else if (snapStation(location)) location = snapStation(location);
     else if (!plausibleStation(location)) location = null;
-    if (!duration && regionTexts.duration) duration = extractDuration(regionTexts.duration);
+    // the strip under the table is the setup panel's own PROCESSING TIME, so it outranks anything found on the whole frame
+    { const fromRegion = regionTexts.duration ? extractDuration(regionTexts.duration) : null; if (fromRegion) duration = fromRegion; }
     // the fee sits under the table, so the enlarged table read is the clearest copy of it
     if (cost == null) cost = extractTotalCost(regionTexts.table);
   }

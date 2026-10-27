@@ -42,6 +42,7 @@ const HELP_SECTIONS = [
       '**Identify a rock from your scanner:** Scanner → Scan → type the RS number your ship shows.',
       '**Read the whole signature table:** Scanner → Reference, then filter by rarity or location.',
       '**Plan a quantum drop into the Aaron Halo:** Aaron Halo → pick a preset route, or choose From / To / Band yourself.',
+      '**Plan a quantum drop into a Nyx belt:** Nyx belts → pick the Glaciem Ring or Keeger Belt, then From and To. The Glaciem Ring works for routes that cross it (for example Nyx I to the Pyro jump point). Nothing known in Nyx lies beyond the Keeger Belt, so no route between known points crosses it.',
       '**See how your mining gear changes each ore:** Loadout → pick your laser and modules. Every ore then shows its resistance and instability with that gear, and Ore Locations does too.',
       '**Work out what a rock probably is:** Loadout → Check a rock → type the instability and resistance your scanner shows. The ores are ranked by how close they are.',
       '**Find easy or safe ores:** Ore Locations → use the Sort box, or tick Stable only / Easy to crack.',
@@ -70,6 +71,7 @@ const HELP_SECTIONS = [
       '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison.',
       '**Capture a long list:** if the materials list is longer than the terminal window, click 📷 Capture and answer Yes when asked. Press Capture this view, scroll the list down in the game, and press Capture this view again; repeat until you have seen the whole list, then click Finish. A row that appears in two views is counted once.',
       '**See your contracts:** Profit → My contracts lists every contract the game log shows you accepted, completed, failed or abandoned, with totals, listed pay and pay per hour by contract and organisation (pay and requirements come from SCMDB). Press Import from old logs once to bring in your earlier logs. Browse searches every contract SCMDB lists.',
+      '**Trade with Wikelo:** Profit → Wikelo lists his trades (what to bring and what you get) and has a favor calculator. Pick a trade, enter the favors and materials you have, and it shows what is still missing. Favors come from handing him Carinite, scrip or irradiated pearls; Polaris Bits come from Quantainium.',
       '**Get contract blueprints marked for you:** when a contract awards a blueprint, the game log says so; the app marks it as owned in Hangar → Blueprints and shows a message. Contracts can also show which blueprints they can award.',
     ],
     tips: [

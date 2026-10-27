@@ -416,6 +416,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
           <div class="chip" onclick="switchMiningView('scanner',this)">📡 Scanner</div>
           <div class="chip" onclick="switchMiningView('loadout',this)">🛠 Loadout</div>
           <div class="chip" onclick="switchMiningView('halo',this)">🪨 Aaron Halo</div>
+          <div class="chip" onclick="switchMiningView('belts',this)">🧊 Nyx belts</div>
         </div>
       </div>
 
@@ -485,6 +486,39 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         </div>
         <div class="scroll-area">
           <div id="halo-result"></div>
+        </div>
+      </div>
+
+      <!-- Nyx belts view (Glaciem Ring, Keeger Belt) -->
+      <div id="mining-view-belts" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+            <button class="btn btn-sm" onclick="applyBeltPreset('glaciem','nyx1','pyro-jp')">Nyx I→Pyro JP</button>
+            <button class="btn btn-sm" onclick="applyBeltPreset('glaciem','nyx2','castra')">Nyx II→Castra JP</button>
+            <button class="btn btn-sm" onclick="applyBeltPreset('glaciem','nyx2','nyx3')">Nyx II→Nyx III</button>
+            <button class="btn btn-sm" onclick="applyBeltPreset('glaciem','pyro-jp','nyx1')">Pyro JP→Nyx I</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:end;margin-bottom:6px">
+            <div>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">From</div>
+              <select id="belt-from" onchange="calcBelt()" style="width:100%;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none"></select>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">To</div>
+              <select id="belt-to" onchange="calcBelt()" style="width:100%;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none"></select>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-dim);margin-bottom:3px">Belt</div>
+            <select id="belt-ring" onchange="calcBelt()" style="width:100%;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none">
+              <option value="glaciem" selected>Glaciem Ring (15.0 million km)</option>
+              <option value="keeger">Keeger Belt (48.0 million km)</option>
+            </select>
+          </div>
+        </div>
+        <div class="scroll-area">
+          <div id="belt-result"></div>
+          <div style="padding:6px 10px 10px;font-size:10px;color:var(--text-dim);line-height:1.5">Distances come from the game's own system data (build 4.10): the belts are circles around the Nyx star. The centre line is exact; the belt edges are estimated from the belt model's outer edge, so treat the crossing window as a guide and check the HUD.</div>
         </div>
       </div>
 
@@ -2068,6 +2102,7 @@ async function init() {
   jobHistory = (await api.getStore('jobHistory', [])) || [];
   miningLoadout = sanitizeLoadout(await api.getStore('miningLoadout', null));
   factionStanding = (await api.getStore('factionStanding', {})) || {};
+  { const h = (await api.getStore('wikeloHave', {})) || {}; wikeloHave = { favor: wkNum(h.favor), bit: wkNum(h.bit), raw: Object.fromEntries(Object.entries(h.raw || {}).map(([k, v]) => [k, wkNum(v)])) }; }
   ensureTerminals().then(() => { if (typeof refreshPriceViews === 'function') refreshPriceViews(); });
   loadContracts();
 
@@ -2135,7 +2170,7 @@ function switchTabNow(name) {
   const sb = document.getElementById('settings-btn');
   if (sb) sb.classList.toggle('active', name === 'settings');
   if (name === 'profit')   { if (profitMode !== 'refining') ensureScmdb(); renderProfit(); }
-  if (name === 'mining')   { if (miningView === 'halo') initHalo(); else if (miningView === 'loadout') renderLoadout(); else renderMining(); }
+  if (name === 'mining')   { if (miningView === 'halo') initHalo(); else if (miningView === 'belts') initBelts(); else if (miningView === 'loadout') renderLoadout(); else renderMining(); }
   if (name === 'refinery') { if (refineryView === 'bonuses') renderBonuses(); }
   if (name === 'crafting') initCrafting();
   if (name === 'help') renderHelp();
@@ -2311,9 +2346,11 @@ function switchMiningView(view, chipEl) {
   chipEl.classList.add('active');
   document.getElementById('mining-view-locations').style.display = view === 'locations' ? 'flex' : 'none';
   document.getElementById('mining-view-halo').style.display      = view === 'halo'      ? 'flex' : 'none';
+  document.getElementById('mining-view-belts').style.display     = view === 'belts'     ? 'flex' : 'none';
   document.getElementById('mining-view-scanner').style.display   = view === 'scanner'   ? 'flex' : 'none';
   document.getElementById('mining-view-loadout').style.display   = view === 'loadout'   ? 'flex' : 'none';
   if (view === 'halo') initHalo();
+  if (view === 'belts') initBelts();
   if (view === 'loadout') renderLoadout();
   if (view === 'locations') renderMining();
   // Reference is the Scanner's default mode, so it has to be drawn the first time the view opens.
@@ -3269,6 +3306,20 @@ function scmdbFor(rec) {
   return c || null;
 }
 
+// Wikelo trades: what to bring and what you get. SCMDB lists the items; `trade` is kept only for Wikelo's contracts.
+const tradeQty = (i) => (i.q > 1 || i.scu ? ' \u00d7' + i.q + (i.scu ? ' SCU' : '') : '');
+const tradeText = (list) => list.map(i => i.n + tradeQty(i)).join(', ');
+function wikeloHtml(c) {
+  const t = c && c.trade;
+  if (!t || (!t.bring.length && !t.get.length)) return '';
+  const line = (label, color, text) => `<div style="margin-top:3px;font-size:10px;line-height:1.5"><span style="color:${color};font-weight:700">${label}</span> <span style="color:var(--text)">${esc(text)}</span></div>`;
+  const get = t.get.length === 1 ? line('You get:', 'var(--success)', tradeText(t.get[0].items))
+    : t.get.length > 1 ? line('You get one of:', 'var(--success)', t.get.map(g => (g.p < 100 ? g.p + '% ' : '') + tradeText(g.items)).join('  |  '))
+    : '';
+  return `${t.bring.length ? line('Bring:', 'var(--warn)', tradeText(t.bring)) : ''}${get}${t.rep ? `<div style="margin-top:2px;font-size:10px;color:var(--text-dim)">+${t.rep} Wikelo standing</div>` : ''}`;
+}
+const tradeWords = (c) => (c.trade ? [...c.trade.bring, ...c.trade.get.flatMap(g => g.items)].map(i => i.n).join(' ') : '');
+
 // Illegal contracts (SCMDB flags them) carry a red "Illegal" tag and a red-tinted card wherever a contract is listed.
 const illegalPill = (sc) => (sc && sc.illegal
   ? `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:8px;border:1px solid var(--danger);color:var(--danger);background:rgba(255,93,93,.12);white-space:nowrap;flex-shrink:0" data-tip="Illegal work: SCMDB marks this contract as illegal">\u26a0 Illegal</span>` : '');
@@ -3305,7 +3356,7 @@ function setProfitMode(mode) {
 }
 function profitModeBar() {
   const chip = (m, label) => `<div class="chip${profitMode === m ? ' active' : ''}" onclick="setProfitMode('${m}')">${label}</div>`;
-  return `<div class="filter-chips" style="margin:0;padding:10px 10px 0">${chip('refining', 'Refining')}${chip('contracts', 'My contracts')}${chip('browse', 'Browse')}</div>`;
+  return `<div class="filter-chips" style="margin:0;padding:10px 10px 0">${chip('refining', 'Refining')}${chip('contracts', 'My contracts')}${chip('browse', 'Browse')}${chip('wikelo', 'Wikelo')}</div>`;
 }
 
 function scmdbCredit() {
@@ -3364,6 +3415,7 @@ function renderContracts(body) {
     const sc = scmdbFor(r);
     return card(`<div style="display:flex;justify-content:space-between;gap:8px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="color:var(--text-bright);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</span>${illegalPill(sc)}</span><span style="color:var(--text-dim);flex-shrink:0">${fmtSpan(Date.now() - r.acceptedAt)}${sc && sc.minutes ? ' of ' + fmtSpan(sc.minutes * 60000) : ''}</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px"><span style="color:var(--text-dim);font-size:10px;min-width:0">${esc(prettyOrg(r.generator))}${sc && sc.reward != null ? ' \u00b7 ' + money(sc.reward) + ' aUEC' : ''}${sc && sc.standing ? ' \u00b7 needs ' + esc(sc.standing) : ''}</span>${clearAsSelect(`data-id="${esc(r.id)}" onchange="resolveContracts(this.dataset.id, this.value)"`)}</div>
+      ${wikeloHtml(sc)}
       ${objectivesHtml(r)}`, sc && sc.illegal);
   }).join('') : '';
 
@@ -3464,6 +3516,117 @@ function renderContracts(body) {
 
 // ── Browse: every contract SCMDB lists ──
 let _browse = { q: '', type: '', legal: '', sort: 'pay' };
+// ── Wikelo: the trades, and a calculator for the favors they take ──────────────────────────────────────
+// Favors (and Polaris Bits) are made by handing Wikelo other things. The routes, and how much each one needs, are
+// read from his own conversion contracts in the SCMDB data, so they follow the game if it changes them.
+const WK_FAVOR = 'Wikelo Favor', WK_BIT = 'Polaris Bit';
+let _wk = { q: '', kind: 'all', trade: '', want: 10 };
+let wikeloHave = { favor: 0, bit: 0, raw: {} };
+const wikeloContracts = () => (scmdbData ? scmdbData.contracts : []).filter(c => c.trade);
+const isCurrencyTrade = (c) => c.trade.get.length > 0 && c.trade.get.every(g => g.items.every(i => i.n === WK_FAVOR || i.n === WK_BIT));
+function wikeloRoutes() {
+  const out = {};
+  for (const c of wikeloContracts()) {
+    if (!isCurrencyTrade(c) || c.trade.get.length !== 1 || c.trade.get[0].items.length !== 1 || c.trade.bring.length !== 1) continue;
+    const got = c.trade.get[0].items[0];
+    (out[got.n] = out[got.n] || []).push({ n: c.trade.bring[0].n, q: c.trade.bring[0].q, scu: !!c.trade.bring[0].scu, per: got.q, title: c.title });
+  }
+  return out;
+}
+const wkSlug = (s) => String(s).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+function saveWikeloHave() { try { api.setStore('wikeloHave', wikeloHave); } catch { /* kept for this session */ } }
+function wkNum(v) { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? Math.min(n, 1e7) : 0; }
+
+function wkSetTrade(name) { _wk.trade = name || ''; const sel = document.getElementById('wk-trade'); if (sel) sel.value = _wk.trade; wkCalc(); }
+function wkInput(kind, key, value) {
+  const n = wkNum(value);
+  if (kind === 'want') _wk.want = n;
+  else if (kind === 'raw') wikeloHave.raw[key] = n;
+  else wikeloHave[kind] = n;
+  if (kind !== 'want') saveWikeloHave();
+  wkCalc();
+}
+
+function wkCalc() {
+  const el = document.getElementById('wk-calc');
+  if (!el) return;
+  const wantBox = document.getElementById('wk-want-box');
+  if (wantBox) wantBox.style.display = _wk.trade ? 'none' : '';
+  const routes = wikeloRoutes();
+  const sel = _wk.trade ? wikeloContracts().find(c => c.names[0] === _wk.trade) : null;
+  const needOf = (cur) => sel ? ((sel.trade.bring.find(b => b.n === cur) || {}).q || 0) : (cur === WK_FAVOR ? _wk.want : 0);
+  const rows = [];
+  for (const cur of [WK_FAVOR, WK_BIT]) {
+    const want = needOf(cur);
+    const rs = routes[cur] || [];
+    if (!want) continue;
+    const have = cur === WK_FAVOR ? wikeloHave.favor : wikeloHave.bit;
+    const made = rs.reduce((n, r) => n + Math.floor((wikeloHave.raw[r.n] || 0) / r.q) * r.per, 0);
+    const total = have + made;
+    const short = Math.max(0, want - total);
+    const color = short === 0 && want ? 'var(--success)' : 'var(--warn)';
+    rows.push(`<div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span style="color:var(--text-bright);font-weight:700">${cur}s${want ? ` needed: ${want}` : ''}</span><span style="color:${color};font-weight:700">${want ? (short ? `${short} short` : 'covered') : ''}</span></div>
+      <div style="font-size:10px;color:var(--text-dim)">You have ${have}${made ? ` + ${made} you can make from your materials = ${total}` : ''}</div>
+      ${short && rs.length ? `<div style="margin-top:3px;font-size:10px;line-height:1.5"><span style="color:var(--warn);font-weight:700">To make ${short} more, bring one of:</span> <span style="color:var(--text)">${esc(rs.map(r => { const times = Math.ceil(short / r.per); return `${r.q * times}${r.scu ? ' SCU' : ''} ${r.n}`; }).join('  |  '))}</span></div>` : ''}
+    </div>`);
+  }
+  const others = sel ? sel.trade.bring.filter(b => b.n !== WK_FAVOR && b.n !== WK_BIT) : [];
+  el.innerHTML = `${rows.join('')}
+    ${others.length ? `<div style="margin-top:8px;font-size:10px;line-height:1.5"><span style="color:var(--warn);font-weight:700">Also bring:</span> <span style="color:var(--text)">${esc(tradeText(others))}</span></div>` : ''}
+    ${sel ? `<div style="margin-top:4px;font-size:10px;line-height:1.5"><span style="color:var(--success);font-weight:700">You get:</span> <span style="color:var(--text)">${esc(sel.trade.get.length === 1 ? tradeText(sel.trade.get[0].items) : sel.trade.get.map(g => tradeText(g.items)).join('  |  '))}</span></div>` : ''}`;
+}
+
+function renderWikelo(body) {
+  if (!scmdbData) {
+    body.innerHTML = profitModeBar() + `<div style="padding:10px"><div class="empty-state"><div class="lbl">${esc(scmdbStatus || 'Loading contract data from SCMDB\u2026')}</div></div></div>`;
+    return;
+  }
+  const routes = wikeloRoutes();
+  const trades = wikeloContracts().filter(c => !isCurrencyTrade(c) && c.trade.bring.length).sort((a, b) => scTitle(a.title).localeCompare(scTitle(b.title)));
+  const inp = (id, value, oninput) => `<input type="number" min="0" step="1" id="${id}" value="${value || ''}" placeholder="0" oninput="${oninput}" style="width:70px;padding:3px 5px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none;text-align:right">`;
+  const routeRows = [WK_FAVOR, WK_BIT].flatMap(cur => (routes[cur] || []).map(r => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px">
+      <span style="font-size:11px;min-width:0"><span style="color:var(--text-bright)">${esc(r.n)}</span> <span style="color:var(--text-dim);font-size:10px">${r.q}${r.scu ? ' SCU' : ''} \u2192 ${r.per} ${cur}</span></span>
+      ${inp('wk-raw-' + wkSlug(r.n), wikeloHave.raw[r.n], `wkInput('raw', ${JSON.stringify(r.n).replace(/"/g, '&quot;')}, this.value)`)}</div>`));
+  body.innerHTML = profitModeBar() + `<div style="padding:10px 10px 12px">
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;line-height:1.5">Wikelo trades ships, armor and weapons for favors and other items. Favors are made by handing him materials. Pick a trade and say what you have, and this shows what is still missing.</div>
+    <div class="card" style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Favor calculator</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <select id="wk-trade" onchange="wkSetTrade(this.value)" style="flex:1;min-width:0;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none">
+          <option value="">Just favors \u2014 how many do I want?</option>
+          ${trades.map(c => `<option value="${esc(c.names[0])}"${_wk.trade === c.names[0] ? ' selected' : ''}>${esc(scTitle(c.title))}</option>`).join('')}
+        </select>
+        <span id="wk-want-box" style="${_wk.trade ? 'display:none' : ''}">${inp('wk-want', _wk.want, "wkInput('want', '', this.value)")}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">What you have</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px"><span style="font-size:11px;color:var(--text-bright)">${WK_FAVOR}s</span>${inp('wk-have-favor', wikeloHave.favor, "wkInput('favor', '', this.value)")}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:5px"><span style="font-size:11px;color:var(--text-bright)">${WK_BIT}s</span>${inp('wk-have-bit', wikeloHave.bit, "wkInput('bit', '', this.value)")}</div>
+      <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-top:10px">Materials you could turn in</div>
+      ${routeRows.join('') || '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">The conversion trades are not in the data yet.</div>'}
+      <div id="wk-calc" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"></div>
+    </div>
+    <div class="search-bar" style="margin-bottom:6px"><span class="ico">\ud83d\udd0d</span><input type="text" id="wk-q" placeholder="Search trades, items, rewards\u2026" value="${esc(_wk.q)}" oninput="_wk.q = this.value; wkList()"></div>
+    <div class="filter-chips" style="margin:0 0 8px;padding:0">${[['all', 'All'], ['vehicles', 'Ships & vehicles'], ['items', 'Other items'], ['favors', 'Making favors']].map(([k, l]) => `<div class="chip${_wk.kind === k ? ' active' : ''}" onclick="_wk.kind = '${k}'; renderWikelo(document.getElementById('profit-body'))">${l}</div>`).join('')}</div>
+    <div id="wk-list"></div>${scmdbCredit()}</div>`;
+  wkCalc();
+  wkList();
+}
+
+function wkList() {
+  const el = document.getElementById('wk-list');
+  if (!el || !scmdbData) return;
+  const q = _wk.q.toLowerCase().trim();
+  const kindOk = (c) => _wk.kind === 'all' || (_wk.kind === 'favors' ? isCurrencyTrade(c) : !isCurrencyTrade(c) && (_wk.kind === 'vehicles') === /vehicle/i.test(c.type));
+  const list = wikeloContracts().filter(c => kindOk(c) && matchesAll(q, scTitle(c.title), c.type, tradeWords(c)))
+    .sort((a, b) => scTitle(a.title).localeCompare(scTitle(b.title)));
+  el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${list.length} trade${list.length === 1 ? '' : 's'}</div>` + list.map(c => `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="min-width:0;color:var(--text-bright)">${esc(scTitle(c.title))}</span>${isCurrencyTrade(c) || !c.trade.bring.length ? '' : `<button class="btn btn-sm" style="flex-shrink:0;padding:1px 8px;font-size:10px" data-name="${esc(c.names[0])}" onclick="wkSetTrade(this.dataset.name); document.getElementById('wk-trade').scrollIntoView({ block: 'center' })">Calculate</button>`}</div>
+      <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc(c.type)}</div>
+      ${wikeloHtml(c)}
+    </div>`).join('');
+}
+
 function renderContractBrowse(body) {
   const types = scmdbData ? [...new Set(scmdbData.contracts.map(c => c.type).filter(Boolean))].sort() : [];
   body.innerHTML = profitModeBar() + `<div style="padding:10px 10px 12px">
@@ -3492,21 +3655,23 @@ function renderContractBrowseResults() {
   const q = _browse.q.toLowerCase().trim();
   const mine = new Map();                                // how often you took each contract, by its internal name
   (contractData.records || []).forEach(r => { if (!r.contract) return; const m = mine.get(r.contract) || { n: 0, done: 0 }; m.n++; if (r.outcome === 'completed') m.done++; mine.set(r.contract, m); });
-  let list = scmdbData.contracts.filter(c => (!_browse.type || c.type === _browse.type) && (!_browse.legal || (_browse.legal === 'illegal') === !!c.illegal) && matchesAll(q, scTitle(c.title), c.org, c.type, c.names[0], c.standing));
+  let list = scmdbData.contracts.filter(c => (!_browse.type || c.type === _browse.type) && (!_browse.legal || (_browse.legal === 'illegal') === !!c.illegal) && matchesAll(q, scTitle(c.title), c.org, c.type, c.names[0], c.standing, tradeWords(c)));
   const rate = (c) => (c.reward != null && c.minutes ? c.reward / (c.minutes / 60) : -1);
   list.sort(_browse.sort === 'title' ? (a, b) => scTitle(a.title).localeCompare(scTitle(b.title))
     : _browse.sort === 'rate' ? (a, b) => rate(b) - rate(a)
     : (a, b) => (b.reward || -1) - (a.reward || -1));
   const total = list.length;
-  el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${total} contract${total === 1 ? '' : 's'}${total > 40 ? ' · showing the first 40' : ''}</div>` +
-    list.slice(0, 40).map(c => {
+  const limit = /wikelo/i.test(_browse.type) || (q && list.every(c => c.trade)) ? 100 : 40;
+  el.innerHTML = `<div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${total} contract${total === 1 ? '' : 's'}${total > limit ? ' · showing the first ' + limit : ''}</div>` +
+    list.slice(0, limit).map(c => {
       const taken = c.names.map(n => mine.get(n)).filter(Boolean).reduce((a, m) => ({ n: a.n + m.n, done: a.done + m.done }), { n: 0, done: 0 });
       const bps = [...new Set(c.blueprints.flatMap(b => ((scmdbData.pools[b.pool] || {}).blueprints || []).map(x => x[0])))];
       const tags = [c.shareable ? 'shareable' : ''].filter(Boolean).join(' · ');
       return `<div style="padding:6px 8px;background:var(--bg-card);border:1px solid ${illegalBorder(c.illegal)};border-radius:var(--r);margin-bottom:4px;font-size:11px">
-        <div style="display:flex;justify-content:space-between;gap:8px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="min-width:0;color:var(--text-bright)">${esc(scTitle(c.title))}</span>${illegalPill(c)}</span><span style="flex-shrink:0;font-weight:700;color:var(--success)">${c.reward != null ? fmtMoney(c.reward) : 'varies'}</span></div>
+        <div style="display:flex;justify-content:space-between;gap:8px"><span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="min-width:0;color:var(--text-bright)">${esc(scTitle(c.title))}</span>${illegalPill(c)}</span><span style="flex-shrink:0;font-weight:700;color:var(--success)">${c.reward != null ? fmtMoney(c.reward) : c.trade ? 'trade' : 'varies'}</span></div>
         <div style="color:var(--text-dim);font-size:10px;margin-top:2px">${esc([c.org, c.type, c.standing ? 'needs ' + c.standing : '', c.minutes ? fmtSpan(c.minutes * 60000) + ' limit' : '', tags].filter(Boolean).join(' · '))}</div>
         ${c.buyIn ? `<div style="color:var(--warn);font-size:10px">Buy-in ${fmtMoney(c.buyIn)}</div>` : ''}
+        ${wikeloHtml(c)}
         ${bps.length ? `<div style="color:var(--text-dim);font-size:10px;margin-top:2px" title="${esc(bps.join(', '))}">🎁 can award ${bps.length} blueprint${bps.length === 1 ? '' : 's'}: ${esc(bps.slice(0, 3).join(', '))}${bps.length > 3 ? '…' : ''}</div>` : ''}
         ${taken.n ? `<div style="color:var(--accent);font-size:10px;margin-top:2px">You took this ${taken.n}×, completed ${taken.done}×</div>` : ''}
       </div>`;
@@ -3518,6 +3683,7 @@ function renderProfit() {
   if (!body) return;
   if (profitMode === 'contracts') { renderContracts(body); return; }
   if (profitMode === 'browse') { renderContractBrowse(body); return; }
+  if (profitMode === 'wikelo') { renderWikelo(body); return; }
   const tile = (label, value, sub) => `
     <div style="flex:1 1 45%;min-width:0;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)">${label}</div>
@@ -5099,7 +5265,7 @@ async function refreshBugAttachables() {
   cr.style.display = a.capture ? 'flex' : 'none';
   if (a.capture) {
     document.getElementById('bug-capture-thumb').src = a.capture.thumb;
-    document.getElementById('bug-capture-age').textContent = `(${ago(a.capture.ageSec)})`;
+    document.getElementById('bug-capture-age').textContent = `(${a.capture.shots > 1 ? a.capture.shots + ' screenshots, ' : ''}${ago(a.capture.ageSec)})`;
   }
 }
 
@@ -5410,6 +5576,10 @@ const HINTS_BY_CALL = {
   'switchMiningView:scanner': 'Identify ore from a scanner signature, or read the signature table',
   'switchMiningView:loadout': 'Pick your mining laser and modules, and see how they change each ore',
   'switchMiningView:halo': 'Plan a quantum drop into the Aaron Halo asteroid belt',
+  'wkSetTrade': 'Work out what is missing for this trade',
+  'switchMiningView:belts': 'Plan a quantum drop into the Glaciem Ring or the Keeger Belt in Nyx',
+  'applyBeltPreset': 'Fill in this Nyx route',
+  'calcBelt': 'Recalculate the drop numbers',
   'setScannerMode:ref': 'Table of every signature, with the values for 2–6 rocks in one cluster',
   'setScannerMode:scan': 'Type the RS signature your scanner shows to find the ore and rock count',
   'setScannerTierFilter:all': 'Show signatures of every rarity',
@@ -9203,6 +9373,69 @@ const HALO_BANDS = [
   {band:10,name:'Band 10',inner:21132e3,center:21207e3,outer:21298e3,width:166e3,tier:'Low',hotspot:false,ores:['Quartz','Corundum','Aluminum'],desc:'Outer edge of the Aaron Halo'},
 ];
 
+// ── Nyx belts (Glaciem Ring and Keeger Belt) ─────────────────────────────────────
+// Measured from the game's own data (Nyx system container, build 4.10): the belts are circles around the
+// Nyx star. Every location placed on the Glaciem Ring is 15.000 million km out (spread under 6,000 km), and
+// every one on the Keeger Belt 48.000 million km out. The belts are thin: the outer edge of each belt's model
+// is 15.0069 and 48.022 million km, so the edges below are the centre line plus or minus that, a symmetric
+// estimate. Ore shares are the game's spawn weights for each belt (Torite, Bexalite, Lindinium, Savrilium...).
+const NYX_BELTS = {
+  glaciem: { band: 1, name: 'Glaciem Ring', inner: 14993131, center: 15000000, outer: 15006869, tier: 'Thin belt',
+    tag: '', ores: ['Torite 28%', 'Ice 21%', 'Iron 21%', 'Bexalite 18%', 'Lindinium 10%', 'Savrilium 2%'],
+    desc: 'The dense inner belt, 15.0 million km from the Nyx star; Levski is on it' },
+  keeger:  { band: 2, name: 'Keeger Belt', inner: 47977978, center: 48000000, outer: 48022022, tier: 'Thin belt',
+    tag: '', ores: ['Torite 28%', 'Ice 21%', 'Aluminum 21%', 'Bexalite 18%', 'Lindinium 10%', 'Savrilium 2%'],
+    desc: 'The outer belt, 48.0 million km from the Nyx star, with fewer asteroids than the Glaciem Ring' },
+};
+// km from the Nyx star, in the plane of the system
+const NYX_POINTS = [
+  { id: 'levski',  name: 'Levski (Delamar)',            short: 'Levski',  x: -9641675.7,  y: -11490740.3, refinery: false },
+  { id: 'ring-a',  name: 'Glaciem Transit Point Alpha', short: 'Alpha',   x: -13592383.2, y: 6338233.6 },
+  { id: 'ring-b',  name: 'Glaciem Transit Point Bravo', short: 'Bravo',   x: 9640228.8,   y: -11488779.8 },
+  { id: 'ring-c',  name: 'Glaciem Transit Point Charlie', short: 'Charlie', x: 9640231.4, y: 11488779.9 },
+  { id: 'nyx1',    name: 'Nyx I',                       short: 'Nyx I',   x: 6495194.2,   y: -3749995.5 },
+  { id: 'nyx2',    name: 'Nyx II',                      short: 'Nyx II',  x: -3591210.9,  y: 9866771.4 },
+  { id: 'nyx3',    name: 'Nyx III',                     short: 'Nyx III', x: -29109694.3, y: -24425930.8 },
+  { id: 'pyro-jp', name: 'Pyro jump point',             short: 'Pyro JP', x: -12000043.8, y: 20784584.1 },
+  { id: 'castra',  name: 'Castra jump point',           short: 'Castra',  x: -13499935.7, y: -23382715.1 },
+];
+
+function initBelts() {
+  const fromSel = document.getElementById('belt-from'), toSel = document.getElementById('belt-to');
+  if (!fromSel.options.length) {
+    NYX_POINTS.forEach(s => { fromSel.add(new Option(s.name, s.id)); toSel.add(new Option(s.name, s.id)); });
+    fromSel.value = 'nyx1'; toSel.value = 'pyro-jp';
+  }
+  calcBelt();
+}
+function applyBeltPreset(belt, fromId, toId) {
+  document.getElementById('belt-ring').value = belt;
+  document.getElementById('belt-from').value = fromId;
+  document.getElementById('belt-to').value = toId;
+  calcBelt();
+}
+function calcBelt() {
+  const result = document.getElementById('belt-result');
+  const band = NYX_BELTS[document.getElementById('belt-ring').value];
+  const from = NYX_POINTS.find(s => s.id === document.getElementById('belt-from').value);
+  const to = NYX_POINTS.find(s => s.id === document.getElementById('belt-to').value);
+  if (!band || !from || !to || from === to) {
+    result.innerHTML = '<div class="empty-state"><div class="ico">🧊</div><div class="lbl">Select different departure and destination points.</div></div>';
+    return;
+  }
+  // A route between two points on the same side of a belt never reaches it. Say how far short it stops.
+  const closest = (() => {
+    const ex = to.x - from.x, ey = to.y - from.y, len2 = ex * ex + ey * ey;
+    const t = Math.max(0, Math.min(1, -(from.x * ex + from.y * ey) / len2));
+    return Math.hypot(from.x + t * ex, from.y + t * ey);
+  })();
+  const farthest = Math.max(Math.hypot(from.x, from.y), Math.hypot(to.x, to.y));
+  const help = band.center > farthest
+    ? `Nothing between these points gets as far out as the ${band.name} (${(band.center / 1e6).toFixed(1)} million km from the star; the furthest point on this route is ${(farthest / 1e6).toFixed(1)}). A straight route between points inside it cannot cross it. Fly to a location in the belt instead.`
+    : `This route stays on one side of the belt. Try points on opposite sides of it, such as Nyx I or Nyx II to a jump point.`;
+  renderRingRoute(result, from, to, band, { densityLabel: 'Belt', noRouteHelp: help });
+}
+
 const HALO_STATIONS = [
   {id:'arc-l1',name:'ARC-L1 Wide Forest',x:17070426,y:-19640279,solar:26020000,refinery:true},
   {id:'arc-l2',name:'ARC-L2 Lively Pathway',x:21561875,y:-23401164,solar:31810000,refinery:true},
@@ -9259,6 +9492,8 @@ function haloRaySphere(from, to, radiusKm) {
   return [(-b - sq)/(2*c), (-b + sq)/(2*c)].filter(t => t >= 0 && t <= 1).sort((a,b) => a-b);
 }
 
+const shortOf = (st) => st.short || st.name.split(' ')[0];
+
 function calcHalo() {
   const fromId = document.getElementById('halo-from').value;
   const toId   = document.getElementById('halo-to').value;
@@ -9273,7 +9508,13 @@ function calcHalo() {
     result.innerHTML = '<div class="empty-state"><div class="ico">🪨</div><div class="lbl">Select different departure and destination stations.</div></div>';
     return;
   }
+  renderRingRoute(result, from, to, band, {});
+}
 
+// Where a straight quantum route crosses a ring or belt, and the HUD distance to cut engines at.
+// Everything is in the plane of the system with the star at the origin, in km. Shared by the Aaron
+// Halo and the Nyx belts. band = { name, inner, center, outer (km from the star), tier, ores[], desc, tag? }.
+function renderRingRoute(result, from, to, band, opts) {
   const totalKm = Math.sqrt((to.x - from.x)**2 + (to.y - from.y)**2);
   const totalGM = totalKm / 1e6;
 
@@ -9305,6 +9546,7 @@ function calcHalo() {
   const _xX = _edges.length > 1 ? _tx(_edges[_edges.length - 1])   : null;
   const _pX = tCenter.length > 0 ? _tx(tCenter[0])                 : null;
 
+  const _tickApart = _eX != null && _xX != null && (_xX - _eX) >= 34;
   const _bzone = (_eX && _xX) ? `
     <rect x="${_eX}" y="${_ly-9}" width="${_xX-_eX}" height="18" rx="2" fill="${tc}" opacity="0.12"/>
     <rect x="${_eX}" y="${_ly-9}" width="${_xX-_eX}" height="18" rx="2" fill="none" stroke="${tc}" stroke-width="0.8" opacity="0.3"/>` : '';
@@ -9322,7 +9564,7 @@ function calcHalo() {
     <text x="${_pX}" y="${_ly-12}" text-anchor="middle" font-size="6.5" font-weight="bold" fill="${tc}" font-family="monospace">CUT HERE</text>
     <text x="${_pX}" y="${_ly-6}" text-anchor="middle" font-size="6" fill="${tc}" font-family="monospace">${centerHUD} GM</text>` : '';
 
-  const _fl = from.name.split(' ')[0], _tl = to.name.split(' ')[0];
+  const _fl = shortOf(from), _tl = shortOf(to);
 
   const routeSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${_diagW} ${_diagH}" style="width:100%;display:block;border-radius:5px;margin-bottom:10px;background:rgba(0,10,25,0.55)">
     <line x1="${_pad}" y1="${_ly}" x2="${_diagW-_pad}" y2="${_ly}" stroke="rgba(180,210,255,0.18)" stroke-width="1.5" stroke-dasharray="5 3"/>
@@ -9331,8 +9573,8 @@ function calcHalo() {
     <text x="${_pad}" y="${_diagH-4}" text-anchor="middle" font-size="6.5" fill="rgba(255,153,0,0.8)" font-family="monospace" font-weight="bold">${_fl}</text>
     <polygon points="${_diagW-_pad-3.5},${_ly-3.5} ${_diagW-_pad+2},${_ly} ${_diagW-_pad-3.5},${_ly+3.5}" fill="var(--success)" opacity="0.9"/>
     <text x="${_diagW-_pad}" y="${_diagH-4}" text-anchor="middle" font-size="6.5" fill="rgba(0,204,102,0.8)" font-family="monospace" font-weight="bold">${_tl}</text>
-    ${_eX ? _tick(_eX, 'ENTRY', entryHUD ? entryHUD+' GM' : '', false) : ''}
-    ${_xX ? _tick(_xX, 'EXIT',  exitHUD  ? exitHUD +' GM' : '', true)  : ''}
+    ${_eX && _tickApart ? _tick(_eX, 'ENTRY', entryHUD ? entryHUD+' GM' : '', false) : ''}
+    ${_xX && _tickApart ? _tick(_xX, 'EXIT',  exitHUD  ? exitHUD +' GM' : '', true)  : ''}
     ${_drop}
     <text x="${_diagW/2}" y="10" text-anchor="middle" font-size="6" fill="rgba(180,210,255,0.3)" font-family="monospace" letter-spacing="2">QT ROUTE · ${band.name.toUpperCase()}</text>
   </svg>`;
@@ -9343,7 +9585,7 @@ function calcHalo() {
     result.innerHTML = `
       <div class="card" style="text-align:center;padding:16px">
         <div style="font-size:11px;color:var(--warn);font-weight:700;margin-bottom:6px">⚠ No Intersection</div>
-        <div style="font-size:11px;color:var(--text-dim)">This route vector does not cross Band ${bandN}.<br>Try a different departure/destination pair.</div>
+        <div style="font-size:11px;color:var(--text-dim)">This route vector does not cross ${band.name}.<br>${opts.noRouteHelp || 'Try a different departure/destination pair.'}</div>
       </div>`;
     return;
   }
@@ -9352,7 +9594,7 @@ function calcHalo() {
     <div class="card" style="text-align:center;margin-bottom:6px">
       <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">HUD Reticle — Cut Engines At</div>
       <div style="font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;color:${tc};letter-spacing:2px;line-height:1">${centerHUD} <span style="font-size:16px">GM</span></div>
-      <div style="font-size:10px;color:var(--text-dim);margin-top:4px">${from.name.split(' ')[0]} → ${to.name.split(' ')[0]} · ${band.name}${band.tag ? ' · '+band.tag : ''}</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:4px">${shortOf(from)} → ${shortOf(to)} · ${band.name}${band.tag ? ' · '+band.tag : ''}</div>
     </div>
 
     <div class="card" style="margin-bottom:6px">
@@ -9382,7 +9624,7 @@ function calcHalo() {
         <span style="font-variant-numeric:tabular-nums;color:var(--text-bright)">${totalGM.toFixed(3)} GM</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
-        <span style="color:var(--text-dim)">Band density</span>
+        <span style="color:var(--text-dim)">${opts.densityLabel || 'Band density'}</span>
         <span style="color:${tc};font-weight:700">${band.tier}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:11px">
@@ -9395,12 +9637,13 @@ function calcHalo() {
       <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:8px">How to Drop</div>
       ${routeSvg}
       <div style="display:flex;flex-direction:column;gap:5px;font-size:11px">
-        <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">1.</span><span>QT to <strong style="color:var(--text-bright)">${to.name.split(' ').slice(0,2).join(' ')}</strong> and watch the HUD reticle count down</span></div>
+        <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">1.</span><span>QT to <strong style="color:var(--text-bright)">${to.short ? to.name : to.name.split(' ').slice(0,2).join(' ')}</strong> and watch the HUD reticle count down</span></div>
         <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">2.</span><span>Press <strong style="color:var(--text-bright)">U</strong> or <strong style="color:var(--text-bright)">I</strong> to cut engines at <strong style="color:${tc}">${centerHUD} GM</strong></span></div>
         <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:var(--accent);font-weight:700;flex-shrink:0">3.</span><span>You'll drop into <strong style="color:var(--text-bright)">${band.name}</strong> — ${band.desc.toLowerCase()}</span></div>
       </div>
     </div>`;
 }
+
 </script>
 <div id="tip" style="
   position:fixed; z-index:9999; pointer-events:none;
