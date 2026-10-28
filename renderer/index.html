@@ -2102,7 +2102,7 @@ async function init() {
   jobHistory = (await api.getStore('jobHistory', [])) || [];
   miningLoadout = sanitizeLoadout(await api.getStore('miningLoadout', null));
   factionStanding = (await api.getStore('factionStanding', {})) || {};
-  { const h = (await api.getStore('wikeloHave', {})) || {}; wikeloHave = { favor: wkNum(h.favor), bit: wkNum(h.bit), raw: Object.fromEntries(Object.entries(h.raw || {}).map(([k, v]) => [k, wkNum(v)])) }; }
+  { const h = (await api.getStore('wikeloHave', {})) || {}; wikeloHave = { open: h.open !== false, favor: wkNum(h.favor), bit: wkNum(h.bit), raw: Object.fromEntries(Object.entries(h.raw || {}).map(([k, v]) => [k, wkNum(v)])) }; }
   ensureTerminals().then(() => { if (typeof refreshPriceViews === 'function') refreshPriceViews(); });
   loadContracts();
 
@@ -3521,7 +3521,7 @@ let _browse = { q: '', type: '', legal: '', sort: 'pay' };
 // read from his own conversion contracts in the SCMDB data, so they follow the game if it changes them.
 const WK_FAVOR = 'Wikelo Favor', WK_BIT = 'Polaris Bit';
 let _wk = { q: '', kind: 'all', trade: '', want: 10 };
-let wikeloHave = { favor: 0, bit: 0, raw: {} };
+let wikeloHave = { favor: 0, bit: 0, raw: {}, open: true };
 const wikeloContracts = () => (scmdbData ? scmdbData.contracts : []).filter(c => c.trade);
 const isCurrencyTrade = (c) => c.trade.get.length > 0 && c.trade.get.every(g => g.items.every(i => i.n === WK_FAVOR || i.n === WK_BIT));
 function wikeloRoutes() {
@@ -3537,6 +3537,14 @@ const wkSlug = (s) => String(s).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 function saveWikeloHave() { try { api.setStore('wikeloHave', wikeloHave); } catch { /* kept for this session */ } }
 function wkNum(v) { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? Math.min(n, 1e7) : 0; }
 
+function wkToggleCalc() {
+  wikeloHave.open = wikeloHave.open === false;
+  saveWikeloHave();
+  const body = document.getElementById('wk-calc-body'), chev = document.getElementById('wk-chev');
+  if (body) body.style.display = wikeloHave.open === false ? 'none' : '';
+  if (chev) chev.textContent = wikeloHave.open === false ? '\u25b8' : '\u25be';
+  wkCalc();
+}
 function wkSetTrade(name) { _wk.trade = name || ''; const sel = document.getElementById('wk-trade'); if (sel) sel.value = _wk.trade; wkCalc(); }
 function wkInput(kind, key, value) {
   const n = wkNum(value);
@@ -3555,7 +3563,7 @@ function wkCalc() {
   const routes = wikeloRoutes();
   const sel = _wk.trade ? wikeloContracts().find(c => c.names[0] === _wk.trade) : null;
   const needOf = (cur) => sel ? ((sel.trade.bring.find(b => b.n === cur) || {}).q || 0) : (cur === WK_FAVOR ? _wk.want : 0);
-  const rows = [];
+  const rows = [], sums = [];
   for (const cur of [WK_FAVOR, WK_BIT]) {
     const want = needOf(cur);
     const rs = routes[cur] || [];
@@ -3565,6 +3573,7 @@ function wkCalc() {
     const total = have + made;
     const short = Math.max(0, want - total);
     const color = short === 0 && want ? 'var(--success)' : 'var(--warn)';
+    sums.push(short ? `${short} ${cur}${short === 1 ? '' : 's'} short` : `${cur}s covered`);
     rows.push(`<div style="margin-top:8px">
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span style="color:var(--text-bright);font-weight:700">${cur}s${want ? ` needed: ${want}` : ''}</span><span style="color:${color};font-weight:700">${want ? (short ? `${short} short` : 'covered') : ''}</span></div>
       <div style="font-size:10px;color:var(--text-dim)">You have ${have}${made ? ` + ${made} you can make from your materials = ${total}` : ''}</div>
@@ -3572,6 +3581,8 @@ function wkCalc() {
     </div>`);
   }
   const others = sel ? sel.trade.bring.filter(b => b.n !== WK_FAVOR && b.n !== WK_BIT) : [];
+  const sum = document.getElementById('wk-sum');
+  if (sum) sum.textContent = wikeloHave.open === false ? (sel ? scTitle(sel.title) + ' \u00b7 ' : '') + (sums.join(', ') || 'nothing set') : '';
   el.innerHTML = `${rows.join('')}
     ${others.length ? `<div style="margin-top:8px;font-size:10px;line-height:1.5"><span style="color:var(--warn);font-weight:700">Also bring:</span> <span style="color:var(--text)">${esc(tradeText(others))}</span></div>` : ''}
     ${sel ? `<div style="margin-top:4px;font-size:10px;line-height:1.5"><span style="color:var(--success);font-weight:700">You get:</span> <span style="color:var(--text)">${esc(sel.trade.get.length === 1 ? tradeText(sel.trade.get[0].items) : sel.trade.get.map(g => tradeText(g.items)).join('  |  '))}</span></div>` : ''}`;
@@ -3591,7 +3602,11 @@ function renderWikelo(body) {
   body.innerHTML = profitModeBar() + `<div style="padding:10px 10px 12px">
     <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;line-height:1.5">Wikelo trades ships, armor and weapons for favors and other items. Favors are made by handing him materials. Pick a trade and say what you have, and this shows what is still missing.</div>
     <div class="card" style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:8px">Favor calculator</div>
+      <div id="wk-head" onclick="wkToggleCalc()" style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;user-select:none" data-tip="Show or hide the calculator">
+        <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase">Favor calculator</span>
+        <span style="display:flex;align-items:center;gap:8px;min-width:0"><span id="wk-sum" style="font-size:10px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span><span id="wk-chev" style="color:var(--accent);font-size:12px;flex-shrink:0">${wikeloHave.open === false ? '\u25b8' : '\u25be'}</span></span>
+      </div>
+      <div id="wk-calc-body" style="margin-top:8px;${wikeloHave.open === false ? 'display:none' : ''}">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
         <select id="wk-trade" onchange="wkSetTrade(this.value)" style="flex:1;min-width:0;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text-bright);font-size:11px;outline:none">
           <option value="">Just favors \u2014 how many do I want?</option>
@@ -3605,6 +3620,7 @@ function renderWikelo(body) {
       <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-top:10px">Materials you could turn in</div>
       ${routeRows.join('') || '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">The conversion trades are not in the data yet.</div>'}
       <div id="wk-calc" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"></div>
+      </div>
     </div>
     <div class="search-bar" style="margin-bottom:6px"><span class="ico">\ud83d\udd0d</span><input type="text" id="wk-q" placeholder="Search trades, items, rewards\u2026" value="${esc(_wk.q)}" oninput="_wk.q = this.value; wkList()"></div>
     <div class="filter-chips" style="margin:0 0 8px;padding:0">${[['all', 'All'], ['vehicles', 'Ships & vehicles'], ['items', 'Other items'], ['favors', 'Making favors']].map(([k, l]) => `<div class="chip${_wk.kind === k ? ' active' : ''}" onclick="_wk.kind = '${k}'; renderWikelo(document.getElementById('profit-body'))">${l}</div>`).join('')}</div>

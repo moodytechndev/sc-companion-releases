@@ -1,6 +1,6 @@
 {
   "name": "sc-companion",
-  "version": "1.5.15",
+  "version": "1.5.16",
   "description": "Star Citizen companion overlay — refinery timers & commodity prices",
   "author": "Moody Technical Development Solutions",
   "license": "MIT",
@@ -10,7 +10,8 @@
     "dev": "electron . --dev",
     "dist": "electron-builder --win",
     "check": "node scripts/check-renderer.js",
-    "help-images": "node scripts/capture-help.js"
+    "help-images": "node scripts/capture-help.js",
+    "site": "node scripts/update-site.js"
   },
   "dependencies": {
     "electron-store": "^8.2.0",
