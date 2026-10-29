@@ -25,7 +25,7 @@ const MAX_BLUEPRINTS = 500;
 const BLUEPRINT_LINK_MS = 15000;     // a blueprint reward arrives within seconds of the completion that earned it
 
 const RE_TS = /^<([^>]+)> /;
-const RE_NOTIFY = /Added notification "([^"]*)" \[\d+\] to queue\. New queue size: \d+, MissionId: \[([0-9a-f-]+)\](?:, ObjectiveId: \[([^\]]*)\])?/;
+const RE_NOTIFY = /Added notification "(.*?)" \[\d+\] to queue\. New queue size: \d+, MissionId: \[([0-9a-f-]+)\](?:, ObjectiveId: \[([^\]]*)\])?/;
 const RE_OBJ = /ObjectiveUpserted> Received ObjectiveUpserted push message for: mission_id ([0-9a-f-]+) - objective_id (\S+) - state MISSION_OBJECTIVE_STATE_([A-Z]+)/;
 const OBJ_STATE = { INPROGRESS: 'active', COMPLETED: 'done', FAILED: 'failed', WITHDRAWN: 'withdrawn' };
 const objKind = (oid) => (/^pickup/i.test(oid) ? 'pickup' : /^dropoff/i.test(oid) ? 'dropoff' : 'other');
