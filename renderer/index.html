@@ -2712,7 +2712,7 @@ function buildOreDropdown(input, dropdown) {
   const q = input.value.toLowerCase();
   // EXTRA_REFINABLE_MATERIALS is appended after ORE_DATA's keys, so without an
   // explicit sort it always lands at the bottom regardless of alphabetical order.
-  const all = [...Object.keys(ORE_DATA), ...EXTRA_REFINABLE_MATERIALS].sort((a, b) => a.localeCompare(b));
+  const all = [...Object.keys(ORE_DATA), ...EXTRA_REFINABLE_MATERIALS].filter(o => !isUnitOre(o)).sort((a, b) => a.localeCompare(b));
   const filtered = q ? all.filter(o => matchesAll(q, o)) : all;
   dropdown.innerHTML = filtered.map(o =>
     `<div class="ore-option">${esc(o)}</div>`
@@ -2871,6 +2871,16 @@ function addJob() {
   const cost     = costRaw === '' ? null : Math.max(0, parseFloat(costRaw) || 0);
 
   if (!ores.length) { document.querySelector('#ore-rows .ore-input')?.focus(); return; }
+  const unitOre = [...document.querySelectorAll('#ore-rows .ore-input')].find(i => isUnitOre(i.value));
+  let oreNote = document.getElementById('ore-note');
+  if (!oreNote) {
+    oreNote = document.createElement('div');
+    oreNote.id = 'ore-note';
+    oreNote.style.cssText = 'font-size:11px;color:var(--danger);margin-top:4px';
+    document.getElementById('ore-rows').insertAdjacentElement('afterend', oreNote);
+  }
+  oreNote.textContent = unitOre ? `${unitOre.value.trim()} is mined by hand and cannot be refined. Keep it in Inventory as units.` : '';
+  if (unitOre) { unitOre.focus(); return; }
   const dur = h * 3600 + m * 60 + s;
   if (dur <= 0) { document.getElementById('job-h').focus(); return; }
 
@@ -7299,8 +7309,8 @@ function bpIngHtml(bp, idx) {
   const status = bpStockStatus(bp, idx);
   return status.rows.map(r => {
     const cls = r.have + 0.004 >= r.need ? ' stocked' : (r.have > 0 ? ' partial' : '');
-    const extra = cls === ' partial' ? ` · have ${esc(fmtSCU(r.have))}` : '';
-    return `<span class="craft-ing${cls}"${oreTip(r.name) ? ` title="${esc(oreTip(r.name))}"` : ''}>${esc(r.name)} ${esc(fmtSCU(r.need))}${extra}</span>`;
+    const extra = cls === ' partial' ? ` · have ${esc(qtyText(r.name, r.have))}` : '';
+    return `<span class="craft-ing${cls}"${oreTip(r.name) ? ` title="${esc(oreTip(r.name))}"` : ''}>${esc(r.name)} ${esc(qtyText(r.name, r.need))}${extra}</span>`;
   }).join('');
 }
 
@@ -7425,13 +7435,19 @@ function bpStatLabel(bp, statName) {
   return statName === 'Impact Force' && /mininglaser/i.test(bp.category || '') ? 'Laser Power' : statName;
 }
 
-// Hand-mined ore (FPS multi-tool) is counted in units of the mineral itself, not in boxes or SCU.
-function isHandOnlyOre(name) {
-  const m = oreMethods(name);
-  return m.length === 1 && m[0] === 'hand';
+// Minerals you mine by hand (Sadaryx, Hadanite, ...) are single items the game counts in units, not boxes or SCU, and
+// no refinery takes them. The list comes from the game's own hand-carried mineral items (renderer/mining-data.js).
+function isUnitOre(name) {
+  return typeof HAND_CARRIED !== 'undefined' && !!HAND_CARRIED[String(name || '').trim().toLowerCase()];
+}
+// An amount in the unit the game uses for this material: units for hand-mined minerals, SCU for everything else.
+function fmtAmt(name, scu) {
+  if (!isUnitOre(name)) return fmtSCULabel(scu);
+  const n = Math.round(scu * 100) / 100;
+  return `${n} ${n === 1 ? 'unit' : 'units'}`;
 }
 function qtyText(name, scu) {
-  if (!isHandOnlyOre(name)) return fmtSCU(scu);
+  if (!isUnitOre(name)) return fmtSCU(scu);
   const n = Math.round(scu * 100) / 100;
   return `${n} ${n === 1 ? 'unit' : 'units'}`;
 }
@@ -7535,7 +7551,7 @@ function bpShoppingHtml(bp) {
     const price = pc?.buy || null;
     if (price) total += price * r.short; else priced = false;
     const below = r.haveAny > r.have + 0.004
-      ? `<div style="font-size:10px;color:var(--warn)">${esc(fmtSCU(round2(r.haveAny - r.have)))} you hold is below the minimum quality (${r.minQ}).</div>` : '';
+      ? `<div style="font-size:10px;color:var(--warn)">${esc(qtyText(r.name, round2(r.haveAny - r.have)))} you hold is below the minimum quality (${r.minQ}).</div>` : '';
     return `<div style="padding:6px 0;border-top:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
         <span><b>${esc(r.name)}</b> <span style="color:var(--text-dim)">need ${esc(qtyText(r.name, r.need))}, have ${esc(qtyText(r.name, r.have))}</span></span>
@@ -7772,7 +7788,7 @@ function bpSourceHtml(bp, i, a, chosen) {
     return `<div style="font-size:10px;color:var(--text-dim)">No ${esc(ing.name)} in inventory — adjust the quality slider by hand.</div>`;
   }
   const bid = esc(bp.blueprint_id);
-  const handOnly = isHandOnlyOre(ing.name);
+  const handOnly = isUnitOre(ing.name);
   const rowsHtml = srcRows.map((cur, r) => {
     const opts = eligible.filter(({ idx }) => idx === cur || !chosen.has(idx)).map(({ box, idx }) => {
       const q = `${box.location || '—'} · Q${box.quality !== '' && box.quality != null ? box.quality : '?'}`;
@@ -7851,13 +7867,29 @@ function bpRefreshAll(bp) {
     note.textContent = anyShort
       ? 'Not enough stock in the selected boxes — add another box or clear the short part.'
       : fromStock.length
-        ? `Crafting deducts ${fmtNum(fromStock.reduce((t, a) => t + a.taken, 0))} SCU from ${boxCount} box${boxCount === 1 ? '' : 'es'}${fromStock.length < allocs.length ? ` · ${allocs.length - fromStock.length} part(s) not taken from stock` : ''}.`
+        ? `Crafting deducts ${craftDeductText(bp, allocs)}${fromStock.length < allocs.length ? ` · ${allocs.length - fromStock.length} part(s) not taken from stock` : ''}.`
         : 'No inventory boxes selected — nothing will be deducted.';
   }
   if (btn) {
     btn.disabled = anyShort;
     if (!btn.textContent.startsWith('✓')) btn.textContent = fromStock.length ? '＋ Craft & add to assets' : '＋ Add as crafted asset';
   }
+}
+
+// "0.83 SCU from 2 boxes + 13 units": bulk ore leaves boxes, hand-mined minerals leave as single units.
+function craftDeductText(bp, allocs) {
+  let scu = 0, units = 0;
+  const boxes = new Set();
+  allocs.forEach((a, i) => {
+    if (!a.hasBox || a.taken <= 0) return;
+    if (isUnitOre(bp.ingredients[i].name)) { units += a.taken; return; }
+    scu += a.taken;
+    a.rows.filter(r => r.take > 0).forEach(r => boxes.add(r.idx));
+  });
+  const parts = [];
+  if (scu > 0) parts.push(`${fmtNum(scu)} SCU from ${boxes.size} box${boxes.size === 1 ? '' : 'es'}`);
+  if (units > 0) parts.push(`${fmtNum(units)} unit${units === 1 ? '' : 's'}`);
+  return parts.join(' + ');
 }
 
 function bpSourceState(bpId, ingIdx) {
@@ -8316,10 +8348,13 @@ function renderInventory() {
   }
 
   const yieldMod  = parseFloat(document.getElementById('inv-yield')?.value || '1');
-  const totalSCU  = items.reduce((s, { item }) => s + itemSCU(item), 0);
+  // hand-mined units are not SCU: they stay out of the SCU total, the yield estimate and the value
+  const unitCount = items.filter(({ item }) => isUnitOre(item.name)).reduce((s, { item }) => s + itemSCU(item), 0);
+  const totalSCU  = items.filter(({ item }) => !isUnitOre(item.name)).reduce((s, { item }) => s + itemSCU(item), 0);
   const yieldSCU  = totalSCU * yieldMod;
   totalEl.hidden  = false;
-  document.getElementById('inv-total-count').textContent = `${groups.length} ore type${groups.length !== 1 ? 's' : ''}`;
+  document.getElementById('inv-total-count').textContent = `${groups.length} ore type${groups.length !== 1 ? 's' : ''}` +
+    (unitCount > 0 ? ` · ${fmtNum(unitCount)} hand-mined unit${unitCount === 1 ? '' : 's'}` : '');
   const scuDisplay = yieldMod < 1
     ? `${totalSCU.toLocaleString(undefined,{maximumFractionDigits:2})} → ${yieldSCU.toLocaleString(undefined,{maximumFractionDigits:2})}`
     : yieldSCU.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -8329,6 +8364,7 @@ function renderInventory() {
   let totalValue = 0;
   groups.forEach(grp => {
     const allGrpItems = Object.values(grp.qualGroups).flatMap(qg => Object.values(qg.locs).flat());
+    if (isUnitOre(grp.name)) return;
     const scu = allGrpItems.reduce((s, { item }) => s + itemSCU(item), 0) * yieldMod;
     const price = invBestSellPrice(grp.name);
     if (price) totalValue += scu * price;
@@ -8350,12 +8386,13 @@ function renderInventory() {
     const chevron      = isOpen ? '▾' : '▸';
     const isGrpInTransit = allGrpItems.some(({ item }) => item.inTransit);
     const grpSellPrice = invBestSellPrice(grp.name);
-    const grpYieldSCU  = totalGrpSCU * yieldMod;
-    const grpValue     = grpSellPrice ? grpYieldSCU * grpSellPrice : null;
+    const grpUnits     = isUnitOre(grp.name);
+    const grpYieldSCU  = totalGrpSCU * (grpUnits ? 1 : yieldMod);
+    const grpValue     = grpSellPrice && !grpUnits ? grpYieldSCU * grpSellPrice : null;
     const grpSellAt    = invSellAt(grp.name);
-    const grpScuLabel  = yieldMod < 1
+    const grpScuLabel  = yieldMod < 1 && !grpUnits
       ? `<span style="color:var(--text-dim);font-size:11px">${fmtSCULabel(totalGrpSCU)} →</span> ${fmtSCULabel(grpYieldSCU)}`
-      : fmtSCULabel(totalGrpSCU);
+      : fmtAmt(grp.name, totalGrpSCU);
 
     // ── In-transit container (all qualities merged, grouped by location) ──────
     const transitEntries = allGrpItems.filter(({ item }) => item.inTransit);
@@ -8371,7 +8408,7 @@ function renderInventory() {
       <div style="border-top:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,180,0,0.06)">
           <span style="font-size:10px;color:var(--warn);font-weight:700">${getTransitIcon()} In Transit</span>
-          <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtSCULabel(transitTotalSCU)}</span>
+          <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtAmt(grp.name, transitTotalSCU)}</span>
         </div>
         <div class="inv-manifest">${Object.entries(transitByLoc).map(([loc, entries]) => {
           const locSCU = entries.reduce((s, { item }) => s + itemSCU(item), 0);
@@ -8400,7 +8437,7 @@ function renderInventory() {
                 <input type="checkbox" ${locAllSelected ? 'checked' : ''} onclick="selectAllTransitAtLoc(${locIndicesJSON})"
                   style="flex-shrink:0;cursor:pointer;accent-color:var(--warn,#e8ac3c);width:13px;height:13px">
                 <div class="inv-manifest-loc" style="color:var(--warn)">${esc(loc || '(no location)')}</div>
-                <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtSCULabel(locSCU)}</span>
+                <span style="margin-left:auto;font-size:10px;color:var(--warn)">${fmtAmt(grp.name, locSCU)}</span>
               </div>
               <div style="max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent">
               <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:3px 6px 4px;background:var(--bg-card);border-radius:0;position:sticky;top:0;z-index:5">
@@ -8439,9 +8476,9 @@ function renderInventory() {
         const qualIndices = qualAllEntries.map(({ i }) => i);
         const qualSCU     = qualAllEntries.reduce((s, { item }) => s + itemSCU(item), 0);
         const qualYieldSCU = qualSCU * yieldMod;
-        const qualScuLabel = yieldMod < 1
+        const qualScuLabel = yieldMod < 1 && !grpUnits
           ? `<span style="color:var(--text-dim);font-size:10px">${fmtSCULabel(qualSCU)} →</span> ${fmtSCULabel(qualYieldSCU)}`
-          : fmtSCULabel(qualSCU);
+          : fmtAmt(grp.name, qualSCU);
         const selCount    = qualIndices.filter(i => selectedInvBoxes.has(i)).length;
         const allSelected = qualIndices.length > 0 && qualIndices.every(i => selectedInvBoxes.has(i));
         const anySelected = selCount > 0;
@@ -8468,7 +8505,7 @@ function renderInventory() {
             <div class="inv-manifest-row" style="flex-direction:column;align-items:stretch;gap:4px">
               <div style="display:flex;align-items:center;gap:8px">
                 <div class="inv-manifest-loc">${esc(loc || '(no location)')}</div>
-                <span class="inv-manifest-scu" style="margin-left:auto">${fmtSCULabel(locSCU)}</span>
+                <span class="inv-manifest-scu" style="margin-left:auto">${fmtAmt(grp.name, locSCU)}</span>
               </div>
               <div style="padding-left:2px">${boxRows}</div>
             </div>`;
@@ -9019,7 +9056,8 @@ function populateOreSelect(currentVal) {
   const fromBlueprints = allBlueprints.length
     ? [...new Set(allBlueprints.flatMap(b => b.ingredients?.map(i => i.name) || []))].sort()
     : [];
-  const names = [...new Set([...fromBlueprints, ...RAW_ORES])].sort();
+  const handMined = typeof HAND_CARRIED !== 'undefined' ? Object.values(HAND_CARRIED).map(h => h.name) : [];
+  const names = [...new Set([...fromBlueprints, ...RAW_ORES, ...handMined])].sort();
   sel.innerHTML = names.map(n => `<option value="${esc(n)}"${n === currentVal ? ' selected' : ''}>${esc(n)}</option>`).join('');
   if (!currentVal) sel.selectedIndex = 0;
 }
@@ -9306,7 +9344,7 @@ function renderScannerRef() {
 function renderInvRows() {
   const container = document.getElementById('inv-rows-container');
   // Hand-mined ore comes as single units of the mineral: a count, with no box sizes.
-  const handOnly = isHandOnlyOre(document.getElementById('inv-name-input').value);
+  const handOnly = isUnitOre(document.getElementById('inv-name-input').value);
   const rowsLabel = document.getElementById('inv-rows-label');
   if (rowsLabel) rowsLabel.textContent = handOnly ? 'Units' : t('modal.inv.boxSizes');
   document.getElementById('inv-add-row-btn').hidden = handOnly || editingInvId !== null;

@@ -116,6 +116,22 @@ for (const c of compositions) {
   console.log(`\nmining methods: ${Object.keys(kinds).length} ores with a rock record` + (unknown.length ? `; none found for ${unknown.join(', ')}` : ''));
 }
 
+// hand-mined minerals are loose single items (entities/scitem/carryables/1h/harvestable_mineral_1h_*), not bulk
+// cargo: recipes count them as items, and none of them has a refined version, so no refinery takes them.
+const handCarried = {};
+for (const r of d.records) {
+  if (!/entities\/scitem\/carryables\/1h\/harvestable_mineral_1h_[a-z_]+\.xml$/.test(r.file) || /template|test|placeholder/.test(r.file)) continue;
+  const o = d.readInstance(r.struct, r.inst, 1);
+  const comps = (o.Components || []).filter(c => c.ptr && c.ptr[0] < d.structs.length);
+  const attach = comps.find(c => d.structs[c.ptr[0]].name === 'SAttachableComponentParams');
+  const def = attach && (d.resolve(attach, 3) || {}).AttachDef;
+  const name = L(def && def.Localization && def.Localization.Name) || path.basename(r.file, '.xml').replace(/^harvestable_mineral_1h_/, '');
+  const rc = comps.find(c => d.structs[c.ptr[0]].name === 'ResourceContainer');
+  const cap = rc && d.resolve(d.readInstance(rc.ptr[0], rc.ptr[1], 2).capacity, 2);
+  handCarried[name.toLowerCase()] = { name, microSCU: cap && cap.microSCU != null ? cap.microSCU : null };
+}
+console.log('\nhand-carried minerals: ' + Object.values(handCarried).map(h => `${h.name} (${h.microSCU} uSCU)`).join(', '));
+
 if (write) {
   const info = (() => { try { return JSON.parse(fs.readFileSync(path.join(install, 'build_manifest.id'), 'utf8')).Data; } catch { return {}; } })();
   const lines = Object.entries(ores).sort().map(([k, v]) => '  ' + JSON.stringify(k) + ': ' + JSON.stringify(v));
@@ -126,6 +142,11 @@ if (write) {
 const MINING_DATA_INFO = ${JSON.stringify({ game: info.Version || '', branch: info.Branch || '' })};
 const MINING_ORES = {
 ${lines.join(',\n')}
+};
+// Minerals you mine by hand are single items (one unit each; microSCU is how much cargo a unit holds). Recipes count
+// them in units, and the game gives none of them a refined version, so a refinery cannot take them.
+const HAND_CARRIED = {
+${Object.entries(handCarried).sort().map(([k, v]) => '  ' + JSON.stringify(k) + ': ' + JSON.stringify(v)).join(',\n')}
 };
 `;
   fs.writeFileSync(path.join(ROOT, 'renderer', 'mining-data.js'), out);

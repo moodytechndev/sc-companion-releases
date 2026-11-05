@@ -43,3 +43,17 @@ const MINING_ORES = {
   "torite": {"instability":550,"resistance":0.25,"window":[0.5,0.25,2.1],"explosion":100,"cluster":0.05,"tier":"uncommon","methods":["ship"]},
   "tungsten": {"instability":0,"resistance":-0.4,"window":[0.3,0.1,-0.7],"explosion":80,"cluster":0.4,"tier":"uncommon","methods":["ship"]}
 };
+// Minerals you mine by hand are single items (one unit each; microSCU is how much cargo a unit holds). Recipes count
+// them in units, and the game gives none of them a refined version, so a refinery cannot take them.
+const HAND_CARRIED = {
+  "aphorite": {"name":"Aphorite","microSCU":1000},
+  "beradom": {"name":"Beradom","microSCU":1000},
+  "carinite (pure)": {"name":"Carinite (Pure)","microSCU":1000},
+  "carinite": {"name":"Carinite","microSCU":1000},
+  "dolivine": {"name":"Dolivine","microSCU":1000},
+  "feynmaline": {"name":"Feynmaline","microSCU":1000},
+  "glacosite": {"name":"Glacosite","microSCU":1000},
+  "hadanite": {"name":"Hadanite","microSCU":1000},
+  "janalite": {"name":"Janalite","microSCU":1000},
+  "sadaryx": {"name":"Sadaryx","microSCU":1000}
+};
