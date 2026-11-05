@@ -6217,10 +6217,11 @@ async function rsiRefreshStatus(force) {
 }
 async function rsiConnect() {
   rsiBusy = true; rsiUi();
-  rsiSay('Log in to RSI in the window that opened (captcha and two-factor included), then close it.');
+  rsiSay('Log in to RSI in the window that opened (captcha and two-factor included). It closes by itself once you are in, and your hangar is read straight away.');
   try { rsiConnected = !!(await api.rsiConnect()).connected; } catch { rsiConnected = false; }
   rsiCheckedAt = Date.now(); rsiBusy = false;
-  rsiSay(rsiConnected ? 'Connected to your RSI account. Import hangar reads your pledges and adds the ships to My Ships.' : 'Not connected. If you logged in, close the RSI window after your hangar page has shown, then try again.');
+  if (rsiConnected) { rsiUi(); await rsiImport(); return; }
+  rsiSay('Not connected. If you logged in, wait for your hangar page to show and the window will close by itself, then try again.');
   rsiUi();
 }
 async function rsiDisconnect() {
@@ -6304,6 +6305,7 @@ async function rsiImport() {
   if (out.approx.length) bits.push(`Matched by the closest name (check these): ${out.approx.join(', ')}.`);
   if (out.unmatched.length) bits.push(`Could not match ${out.unmatched.length} to the ship list: ${out.unmatched.join(', ')} \u2014 add them with + Add in My Ships.`);
   if (out.missing.length) bits.push(`No longer in your RSI hangar (kept, marked): ${out.missing.join(', ')}.`);
+  if ((res.unmatchedPaints || []).length) bits.push(`Paints with no matching ship in your hangar: ${res.unmatchedPaints.join(', ')}.`);
   rsiSay(`Read ${res.pledgeCount} pledges across ${res.pages} page${res.pages === 1 ? '' : 's'}; ${res.ships.length} ship${res.ships.length === 1 ? '' : 's'} found.`, bits.join(' ') || 'Nothing changed.');
 }
 
@@ -6359,7 +6361,8 @@ const SLOT_KIND_LABEL = {
   quantum: 'Quantum Drives', radar: 'Radar', mining: 'Mining Lasers', salvage: 'Salvage Heads',
 };
 let openShipUid = null;
-const freshShipModalState = () => ({ loading: false, error: '', liveryOpen: false, liveryQuery: '', liveryPreview: '', liveryLoading: false, liveryError: '' });
+const freshShipModalState = () => ({ loading: false, error: '', liveryOpen: false, liveryQuery: '', liveryFilter: 'all', liveryPreview: '', liveryLoading: false, liveryError: '' });
+let ownedPaints = {}; // { [livery uuid]: true | false } what you marked by hand; unmarked paints follow your RSI hangar
 let shipModalState = freshShipModalState();
 const liveryCache = {}; // paint tag -> [{uuid, name, source, image, description}]
 
@@ -6566,6 +6569,32 @@ function renderShipModal() {
 // Paints are Wiki-API items tagged with the same tag as the ship's paint port
 // (e.g. "Paint_Avenger"), so the list is exactly what fits this ship. The tag is
 // captured with the stock loadout; the livery list itself is fetched on demand.
+// RSI names a paint "Starlite - Mojave Paint", the livery list "Starlite Mojave Livery": same words once the label
+// words and punctuation are gone. A paint in your imported hangar counts as owned unless you unmark it.
+const paintKey = (s) => String(s || '').toLowerCase().replace(/\b(paint|livery|skin)\b/g, '').replace(/[^a-z0-9]/g, '');
+function rsiPaintKeys() {
+  const keys = new Set();
+  (craftShips || []).forEach(sh => ((sh.rsi && sh.rsi.paints) || []).forEach(t => keys.add(paintKey(t))));
+  return keys;
+}
+function paintOwnedState(l, keys) {
+  const mark = ownedPaints[l.uuid];
+  const fromRsi = keys.has(paintKey(l.name));
+  return { owned: mark === true || (mark === undefined && fromRsi), fromRsi };
+}
+async function toggleOwnedPaint(uuid) {
+  const ship = shipByUid(openShipUid);
+  const l = ship && (liveryCache[ship.paintTag] || []).find(x => x.uuid === uuid);
+  if (!l) return;
+  ownedPaints[uuid] = !paintOwnedState(l, rsiPaintKeys()).owned;
+  await api.setStore('ownedPaints', ownedPaints);
+  refreshLiveryResults();
+}
+function setLiveryFilter(v) {
+  shipModalState.liveryFilter = v;
+  refreshLiveryResults();
+}
+
 function liveryResultsHtml(ship) {
   const st = shipModalState;
   const tag = ship.paintTag;
@@ -6575,12 +6604,19 @@ function liveryResultsHtml(ship) {
   if (!tag) return '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">No livery slot is listed for this ship.</div>';
   const all = liveryCache[tag] || [];
   const q = (st.liveryQuery || '').toLowerCase().trim();
-  const list = q ? all.filter(l => matchesAll(q, l.name, l.source)) : all;
+  const keys = rsiPaintKeys();
+  const stateOf = (l) => paintOwnedState(l, keys);
+  let list = q ? all.filter(l => matchesAll(q, l.name, l.source)) : all.slice();
+  if (st.liveryFilter === 'owned') list = list.filter(l => stateOf(l).owned);
+  else if (st.liveryFilter === 'missing') list = list.filter(l => !stateOf(l).owned);
+  list.sort((a, b) => (stateOf(b).owned - stateOf(a).owned) || a.name.localeCompare(b.name));
+  const ownedCount = all.filter(l => stateOf(l).owned).length;
   const cur = ship.livery?.uuid || '';
-  const row = (uuid, name, source, equipped, extra) => `
+  const row = (uuid, name, source, equipped, extra, own) => `
     <div style="padding:6px 0;border-top:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:6px">
-        <div style="flex:1;min-width:0;font-size:12px;${equipped ? 'color:var(--accent);font-weight:700' : ''}">${esc(name)}${source ? ` <span class="craft-ing" style="margin-left:4px">${esc(source)}</span>` : ''}</div>
+        <div style="flex:1;min-width:0;font-size:12px;${equipped ? 'color:var(--accent);font-weight:700' : ''}">${esc(name)}${source ? ` <span class="craft-ing" style="margin-left:4px">${esc(source)}</span>` : ''}${own && own.owned && own.fromRsi ? ' <span class="craft-ing stocked" style="margin-left:4px" title="Matches a paint in your RSI hangar">RSI</span>' : ''}</div>
+        ${own ? `<button class="craft-owned-btn${own.owned ? ' owned' : ''}" onclick="toggleOwnedPaint('${esc(uuid)}')" title="Mark whether you own this paint">${own.owned ? '\u2713 Owned' : 'Own'}</button>` : ''}
         ${uuid ? `<button class="craft-owned-btn" onclick="previewLivery('${esc(uuid)}')">${st.liveryPreview === uuid ? 'Hide' : 'Preview'}</button>` : ''}
         <button class="craft-owned-btn${equipped ? ' owned' : ''}" onclick="setShipLivery('${esc(uuid)}')">${equipped ? '✓ Equipped' : 'Use'}</button>
       </div>${extra || ''}
@@ -6590,10 +6626,10 @@ function liveryResultsHtml(ship) {
       ? `<div style="margin-top:6px">${l.image ? `<img src="${esc(l.image)}" alt="${esc(l.name)}" loading="lazy" style="width:100%;border-radius:var(--r);display:block">` : ''}
           ${l.description ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">${esc(l.description)}</div>` : ''}</div>`
       : '';
-    return row(l.uuid, l.name, l.source, l.uuid === cur, preview);
+    return row(l.uuid, l.name, l.source, l.uuid === cur, preview, stateOf(l));
   }).join('');
-  return row('', 'Stock livery', '', !cur, '') + (rows || `<div style="font-size:12px;color:var(--text-dim);padding:8px 0">${all.length ? 'No liveries match your search.' : 'No other liveries are listed for this ship.'}</div>`)
-    + `<div style="font-size:10px;color:var(--text-dim);padding-top:6px">${all.length} ${all.length === 1 ? 'livery fits' : 'liveries fit'} this ship</div>`;
+  return row('', 'Stock livery', '', !cur, '') + (rows || `<div style="font-size:12px;color:var(--text-dim);padding:8px 0">${all.length ? st.liveryFilter !== 'all' && all.length ? 'No paints in this view.' : 'No liveries match your search.' : 'No other liveries are listed for this ship.'}</div>`)
+    + `<div style="font-size:10px;color:var(--text-dim);padding-top:6px">${all.length} ${all.length === 1 ? 'livery fits' : 'liveries fit'} this ship \u00b7 ${ownedCount} owned</div>`;
 }
 
 function shipLiveryBlockHtml(ship) {
@@ -6607,8 +6643,13 @@ function shipLiveryBlockHtml(ship) {
       </div>
       <button class="craft-owned-btn" onclick="toggleLiveryPanel()">${open ? 'Close ▲' : 'Change ▼'}</button>
     </div>
-    ${open ? `<input id="livery-search" type="text" placeholder="Search liveries…" value="${esc(shipModalState.liveryQuery || '')}" oninput="setLiveryQuery(this.value)"
-        style="width:100%;margin-top:8px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+    ${open ? `<div style="display:flex;gap:6px;margin-top:8px">
+        <input id="livery-search" type="text" placeholder="Search liveries…" value="${esc(shipModalState.liveryQuery || '')}" oninput="setLiveryQuery(this.value)"
+          style="flex:1;min-width:0;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+        <select id="livery-filter" onchange="setLiveryFilter(this.value)" style="${SELECT_STYLE};width:auto;flex-shrink:0">
+          ${[['all', 'All paints'], ['owned', 'Owned'], ['missing', 'Not owned']].map(([k, l]) => `<option value="${k}"${shipModalState.liveryFilter === k ? ' selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </div>
       <div id="ship-livery-results" style="max-height:240px;overflow-y:auto;margin-top:6px">${liveryResultsHtml(ship)}</div>` : ''}
   </div>`;
 }
@@ -7212,6 +7253,7 @@ async function initCrafting() {
   craftInventory  = (await api.getStore('craftInventory', [])) || [];
   craftAssets     = (await api.getStore('craftAssets',    [])) || [];
   craftShips      = (await api.getStore('craftShips',     [])) || [];
+  ownedPaints     = (await api.getStore('ownedPaints',    {})) || {};
   if (craftShips.some(s => !s.uid)) {
     craftShips.forEach(s => { if (!s.uid) s.uid = newUid(); });
     await api.setStore('craftShips', craftShips);

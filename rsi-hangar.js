@@ -46,19 +46,41 @@ async function isConnected() {
 }
 
 let connectWin = null;
-// Opens the login window; resolves when it is closed, saying whether you ended up logged in.
+// Opens the login window and closes it by itself the moment the login is done (RSI sends you on to your account
+// pages). Resolves when the window is gone: { opened: true, loggedIn: true } if it closed because you got in,
+// { opened: true } if you closed it yourself.
 function connect(parent) {
   if (connectWin && !connectWin.isDestroyed()) { connectWin.focus(); return new Promise(r => connectWin.once('closed', () => r({ opened: true }))); }
   return new Promise((resolve) => {
-    connectWin = new BrowserWindow({
+    const win = connectWin = new BrowserWindow({
       width: 1000, height: 820, title: 'Connect your RSI account — SC Companion', parent: parent || undefined, modal: false,
       autoHideMenuBar: true, webPreferences: webPreferences(),
     });
-    lockDown(connectWin);
-    connectWin.on('closed', () => { connectWin = null; resolve({ opened: true }); });
-    connectWin.loadURL(CONNECT_URL).catch(() => { /* the window shows its own error page */ });
+    lockDown(win);
+    let loggedIn = false, checking = false;
+    const timer = setInterval(() => check(), 2000);
+    win.on('closed', () => { clearInterval(timer); connectWin = null; resolve(loggedIn ? { opened: true, loggedIn: true } : { opened: true }); });
+
+    // On one of your account pages with no login form and no "restricted area" notice you are logged in.
+    async function check() {
+      if (loggedIn || checking || win.isDestroyed()) return;
+      checking = true;
+      try {
+        if (!onAccountPage(win.webContents.getURL())) return;
+        const state = await win.webContents.executeJavaScript(`({
+          restricted: /restricted area|must be authenticated/i.test(document.body.innerText || ''),
+          loginForm: !!document.querySelector('input[type=password]'),
+        })`);
+        if (!state.restricted && !state.loginForm && !win.isDestroyed()) { loggedIn = true; win.destroy(); }
+      } catch { /* the page is still loading: the next check looks again */ }
+      finally { checking = false; }
+    }
+    for (const ev of ['did-navigate', 'did-navigate-in-page', 'did-finish-load']) win.webContents.on(ev, () => setTimeout(check, 800));
+
+    win.loadURL(CONNECT_URL).catch(() => { /* the window shows its own error page */ });
   });
 }
+const onAccountPage = (url) => /^https:\/\/robertsspaceindustries\.com\/(?:[a-z]{2}\/)?account(?:\/|$|\?)/i.test(url);
 
 async function disconnect() {
   if (connectWin && !connectWin.isDestroyed()) connectWin.destroy();
@@ -135,16 +157,34 @@ const insuranceLabel = (title) => {
   const m = t.match(/(\d+)\s*month/i);
   return m ? m[1] + ' months' : t.replace(/\s*insurance\s*/i, '').trim() || 'Insured';
 };
+// A paint is named for the ship family it fits: "Starlite - Mojave Paint", "Sabre - Ashcloud Paint", "100 Series - ...".
+// It fits a ship when that family name starts the ship's name ("Sabre" -> "Sabre Firebird") or sits in it.
+const familyKey = (s) => String(s || '').toLowerCase().replace(/\bseries\b/g, '').replace(/[^a-z0-9]/g, '');
+function skinFamily(title) {
+  const t = String(title || '');
+  return /\s-\s/.test(t) ? t.split(/\s-\s/)[0] : t.replace(/\b(paint|livery|skin)\b/ig, '');
+}
+function skinFits(skinTitle, shipTitle) {
+  const fam = familyKey(skinFamily(skinTitle)), ship = familyKey(shipTitle);
+  if (fam.length < 2 || ship.length < 2) return false;
+  return ship.startsWith(fam) || fam.startsWith(ship) || (fam.length >= 5 && ship.includes(fam));
+}
+
 function extractShips(pledges) {
   const ships = [];
   let otherKinds = {};
+  const looseSkins = [];   // paints bought on their own: a pledge with a paint and no ship
   for (const p of pledges || []) {
     const shipItems = (p.items || []).filter(i => i.kind === 'Ship');
     const insurance = (p.items || []).filter(i => i.kind === 'Insurance');
-    const paints = (p.items || []).filter(i => i.kind === 'Skin').map(i => i.title);
+    const allPaints = (p.items || []).filter(i => i.kind === 'Skin').map(i => i.title);
+    if (!shipItems.length) allPaints.forEach(t => looseSkins.push(t));
     const hangar = (p.items || []).filter(i => !i.kind && /hangar/i.test(i.title)).map(i => i.title);
     for (const i of p.items || []) if (i.kind && !['Ship', 'Insurance', 'Skin'].includes(i.kind)) otherKinds[i.kind] = (otherKinds[i.kind] || 0) + 1;
     shipItems.forEach((it, n) => {
+      // in a package with several ships, each paint goes to the ship it is named for (all of them if none fits)
+      const fitting = allPaints.filter(t => skinFits(t, it.title));
+      const paints = shipItems.length > 1 && allPaints.some(t => shipItems.some(s => skinFits(t, s.title))) ? fitting : allPaints.slice();
       const ins = insurance.length === shipItems.length ? insurance[n] : insurance[0];
       const maker = (it.maker || '').replace(/\s*\([A-Z0-9]+\)\s*$/, '').trim();
       const code = ((it.maker || '').match(/\(([A-Z0-9]+)\)\s*$/) || [])[1] || '';
@@ -155,7 +195,14 @@ function extractShips(pledges) {
       });
     });
   }
-  return { ships, otherKinds };
+  // paints bought separately join the ships of their family; ones with no ship in the hangar are reported
+  const unmatchedPaints = [];
+  for (const title of looseSkins) {
+    const hits = ships.filter(sh => skinFits(title, sh.title));
+    if (!hits.length) { unmatchedPaints.push(title); continue; }
+    hits.forEach(sh => { if (!sh.paints.includes(title)) sh.paints.push(title); });
+  }
+  return { ships, otherKinds, unmatchedPaints };
 }
 
-module.exports = { isConnected, connect, disconnect, readPage, readPledges, extractShips, insuranceLabel, PLEDGES_URL, PARTITION, sess };
+module.exports = { isConnected, connect, disconnect, readPage, readPledges, extractShips, skinFits, insuranceLabel, PLEDGES_URL, PARTITION, sess };
