@@ -20,7 +20,7 @@ let keyboardHold = false;      // Erkul on screen: the window stays focusable un
 // takes the button away again. Asking for the button after each of those keeps the app's icon in the taskbar.
 function ensureTaskbarButton() {
   const add = () => {
-    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
+    if (app.isQuitting || !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
     // off then on: a plain "on" is ignored when Electron thinks the button is already there
     try { mainWindow.setSkipTaskbar(true); mainWindow.setSkipTaskbar(false); } catch { /* the tray icon still works */ }
   };
@@ -416,7 +416,14 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => { app.isQuitting = true; });
+app.on('before-quit', () => {
+  app.isQuitting = true;
+  // The taskbar button is added by hand while the overlay cannot be activated (see ensureTaskbarButton), and Windows
+  // does not tidy such a button up when the window goes: take it away first, or its icon stays behind after quitting.
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.setSkipTaskbar(true); } catch { /* nothing to remove */ }
+  }
+});
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
