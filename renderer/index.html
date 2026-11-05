@@ -7427,6 +7427,9 @@ async function toggleOwned(id) {
 // instead of a fabricated absolute stat.
 let currentBpId = null;
 let bpSources = {}; // { [blueprint_id]: { [ingredientIndex]: [inventory box index | ''] } }
+// Hand-mined minerals are picked as stacks ("Everus Harbor, Q968") with a count, not one row per unit:
+// { [blueprint_id]: { [ingredientIndex]: [{ key: 'location|quality', n: units to use }] } }. bpSources is filled from it.
+let bpUnitPicks = {};
 let bpQualityState = {}; // { [blueprint_id]: { [ingredientIndex]: raw quality 0-999 } }
 
 function qualityModifierAt(qualityEffect, quality) {
@@ -7807,6 +7810,7 @@ function bpSourceHtml(bp, i, a, chosen) {
   if (!eligible.length && !a.hasBox) {
     return `<div style="font-size:10px;color:var(--text-dim)">No ${esc(ing.name)} in inventory — adjust the quality slider by hand.</div>`;
   }
+  if (isUnitOre(ing.name)) return bpUnitSourceHtml(bp, i, a);
   const bid = esc(bp.blueprint_id);
   const handOnly = isUnitOre(ing.name);
   const rowsHtml = srcRows.map((cur, r) => {
@@ -7855,6 +7859,7 @@ function bpPaintIngQuality(bp, i) {
 // Recomputes allocations after any change to the picked boxes, then repaints
 // each part's source picker, quality, the stat table and the craft button.
 function bpRefreshAll(bp) {
+  (bp.ingredients || []).forEach((ing, i) => { if (isUnitOre(ing.name)) bpSyncUnitSources(bp, i); });
   const allocs = bpComputeAllocations(bp);
   const state = bpQualityState[bp.blueprint_id];
   const chosen = new Set();
@@ -7910,6 +7915,118 @@ function craftDeductText(bp, allocs) {
   if (scu > 0) parts.push(`${fmtNum(scu)} SCU from ${boxes.size} box${boxes.size === 1 ? '' : 'es'}`);
   if (units > 0) parts.push(`${fmtNum(units)} unit${units === 1 ? '' : 's'}`);
   return parts.join(' + ');
+}
+
+// ── hand-mined minerals: stacks with a count ────────────────────────────────
+// A stack is every unit of one mineral held at one place with one quality.
+function bpUnitStacks(ing) {
+  const stacks = new Map();
+  bpEligibleBoxes(ing).forEach(({ box, idx }) => {
+    const key = `${box.location || ''}|${box.quality ?? ''}`;
+    if (!stacks.has(key)) stacks.set(key, { key, loc: box.location || '', quality: box.quality ?? '', idxs: [], total: 0 });
+    const st = stacks.get(key);
+    st.idxs.push(idx);
+    st.total += itemSCU(box);
+  });
+  stacks.forEach(st => { st.total = Math.round(st.total * 100) / 100; });
+  return stacks;
+}
+
+function bpUnitPickList(bpId, ingIdx) {
+  const byIng = (bpUnitPicks[bpId] ||= {});
+  return (byIng[ingIdx] ||= [{ key: '', n: 0 }]);
+}
+
+// Turns the picked stacks and counts into the inventory entries the craft draws from.
+function bpSyncUnitSources(bp, i) {
+  const stacks = bpUnitStacks(bp.ingredients[i]);
+  const out = [];
+  bpUnitPickList(bp.blueprint_id, i).forEach(pick => {
+    const st = stacks.get(pick.key);
+    if (!st) return;
+    const want = Number(pick.n) || 0;
+    let got = 0;
+    for (const idx of st.idxs) {
+      if (got >= want - BP_EPS) break;
+      out.push(idx);
+      got += itemSCU(craftInventory[idx]);
+    }
+  });
+  (bpSources[bp.blueprint_id] ||= {})[i] = out.length ? out : [''];
+}
+
+function bpUnitSourceHtml(bp, i, a) {
+  const ing = bp.ingredients[i];
+  const bid = esc(bp.blueprint_id);
+  const stacks = bpUnitStacks(ing);
+  const picks = bpUnitPickList(bp.blueprint_id, i);
+  const need = Math.round((ing.quantity_scu || 0) * 100) / 100;
+  const covered = a.short === 0 && a.hasBox;
+  const rows = picks.map((pick, r) => {
+    const opts = [...stacks.values()]
+      .filter(st => st.key === pick.key || !picks.some(q => q.key === st.key))
+      .map(st => `<option value="${esc(st.key)}"${st.key === pick.key ? ' selected' : ''}>${esc(`${st.loc || '—'} · Q${st.quality !== '' ? st.quality : '?'} · ${fmtNum(st.total)} held`)}</option>`).join('');
+    const st = stacks.get(pick.key);
+    return `<div style="display:flex;gap:4px;align-items:center;margin-bottom:3px">
+        <select onchange="setBpUnitStack('${bid}', ${i}, ${r}, this.value)" style="${SELECT_STYLE};flex:1;min-width:0">
+          <option value="">— pick units from inventory —</option>${opts}
+        </select>
+        <span style="color:var(--text-dim);font-size:12px">×</span>
+        <input type="number" min="0" ${st ? `max="${st.total}"` : 'disabled'} step="1" value="${st ? esc(String(pick.n)) : ''}"
+          onchange="setBpUnitCount('${bid}', ${i}, ${r}, this.value)"
+          style="width:48px;padding:5px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:${covered ? 'var(--success)' : 'var(--danger)'};font-size:12px;font-weight:700;text-align:center;outline:none">
+        ${picks.length > 1 ? `<button onclick="removeBpUnitRow('${bid}', ${i}, ${r})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;line-height:1" title="Remove this stack">×</button>` : ''}
+      </div>`;
+  }).join('');
+  const picked = picks.reduce((t, p) => t + (stacks.get(p.key) ? (Number(p.n) || 0) : 0), 0);
+  const status = covered
+    ? `<div style="font-size:10px;color:var(--success)">${esc(qtyText(ing.name, a.need))} covered · quality ${a.qualityRaw != null ? a.qualityRaw : '—'}${picks.filter(p => stacks.get(p.key)).length > 1 ? ' (weighted)' : ''}</div>`
+    : `<div style="font-size:10px;color:var(--danger)">${fmtNum(picked)} of ${esc(qtyText(ing.name, need))} picked${picked > 0 ? ` — short ${fmtNum(need - picked)}` : ''}.
+        ${[...stacks.values()].some(st => !picks.some(q => q.key === st.key)) ? `<a href="#" onclick="addBpUnitRow('${bid}', ${i});return false" style="color:var(--accent)">+ another stack</a>` : ''}</div>`;
+  return rows + status;
+}
+
+function setBpUnitStack(bpId, ingIdx, row, key) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  const ing = bp.ingredients[ingIdx];
+  const picks = bpUnitPickList(bpId, ingIdx);
+  const st = bpUnitStacks(ing).get(key);
+  if (!st) { picks[row] = { key: '', n: 0 }; }
+  else {
+    const others = picks.reduce((t, p, k) => (k === row ? t : t + (Number(p.n) || 0)), 0);
+    picks[row] = { key, n: Math.max(0, Math.min(st.total, Math.round(ing.quantity_scu || 0) - others)) };
+  }
+  bpRefreshAll(bp);
+}
+
+function setBpUnitCount(bpId, ingIdx, row, val) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  const ing = bp.ingredients[ingIdx];
+  const picks = bpUnitPickList(bpId, ingIdx);
+  const st = bpUnitStacks(ing).get(picks[row] && picks[row].key);
+  if (!st) return;
+  const others = picks.reduce((t, p, k) => (k === row ? t : t + (Number(p.n) || 0)), 0);
+  const cap = Math.max(0, Math.min(st.total, Math.round(ing.quantity_scu || 0) - others));
+  picks[row].n = Math.max(0, Math.min(cap, Math.floor(Number(val) || 0)));
+  bpRefreshAll(bp);
+}
+
+function addBpUnitRow(bpId, ingIdx) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  bpUnitPickList(bpId, ingIdx).push({ key: '', n: 0 });
+  bpRefreshAll(bp);
+}
+
+function removeBpUnitRow(bpId, ingIdx, row) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  const picks = bpUnitPickList(bpId, ingIdx);
+  picks.splice(row, 1);
+  if (!picks.length) picks.push({ key: '', n: 0 });
+  bpRefreshAll(bp);
 }
 
 function bpSourceState(bpId, ingIdx) {
