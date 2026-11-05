@@ -1190,14 +1190,14 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <h3 id="inv-modal-title" data-i18n="modal.inv.addTitle">📦 Add Item</h3>
     <div class="form-group">
       <label data-i18n="modal.inv.oreMaterial">Ore / Material</label>
-      <select id="inv-name-input"></select>
+      <select id="inv-name-input" onchange="syncInvRowQtys();renderInvRows()"></select>
     </div>
     <div class="form-group">
       <label data-i18n="modal.inv.quality">Quality %</label>
       <input type="number" id="inv-quality-input" min="0" max="100" step="0.1" placeholder="0.0">
     </div>
     <div class="form-group">
-      <label data-i18n="modal.inv.boxSizes">Box Sizes</label>
+      <label id="inv-rows-label" data-i18n="modal.inv.boxSizes">Box Sizes</label>
       <div id="inv-rows-container"></div>
       <button class="btn btn-sm" id="inv-add-row-btn" style="margin-top:6px;width:100%" onclick="addInvRow()" data-i18n="modal.inv.addRow">+ Add Row</button>
     </div>
@@ -7408,14 +7408,32 @@ function qualityModifierAt(qualityEffect, quality) {
   return b.modifier_at_min + t * (b.modifier_at_max - b.modifier_at_min);
 }
 
+// Parts that affect the same stat add their bonuses (not multiply): in game, a Hofstede-S2 with Sadaryx
+// +18.72% and Copper +18.32% on Laser Power shows +37.04%, and the best possible is +40% (2 x +20%).
 function bpCombinedModifier(bp, state, statName) {
-  let product = 1;
+  let total = 1;
   (bp.ingredients || []).forEach((ing, i) => {
     (ing.quality_effects || []).forEach(qe => {
-      if (qe.stat === statName) product *= qualityModifierAt(qe, state[i]);
+      if (qe.stat === statName) total += qualityModifierAt(qe, state[i]) - 1;
     });
   });
-  return product;
+  return total;
+}
+
+// The data calls this stat "Impact Force" on every item; mining lasers show it as "Laser Power" in game.
+function bpStatLabel(bp, statName) {
+  return statName === 'Impact Force' && /mininglaser/i.test(bp.category || '') ? 'Laser Power' : statName;
+}
+
+// Hand-mined ore (FPS multi-tool) is counted in units of the mineral itself, not in boxes or SCU.
+function isHandOnlyOre(name) {
+  const m = oreMethods(name);
+  return m.length === 1 && m[0] === 'hand';
+}
+function qtyText(name, scu) {
+  if (!isHandOnlyOre(name)) return fmtSCU(scu);
+  const n = Math.round(scu * 100) / 100;
+  return `${n} ${n === 1 ? 'unit' : 'units'}`;
 }
 
 // Signed percent deviation from the ×1 baseline — matches how sc-craft.tools
@@ -7461,7 +7479,7 @@ function bpStatRows(bp, state) {
     const modifier = bpCombinedModifier(bp, state, name);
     const base = bpStatBaseValue(bp.item_stats, name);
     return {
-      name,
+      name: bpStatLabel(bp, name),
       baseText: base != null ? fmtNum(base) : '—',
       craftedText: base != null ? fmtNum(base * modifier) : fmtModPct(modifier),
     };
@@ -7520,8 +7538,8 @@ function bpShoppingHtml(bp) {
       ? `<div style="font-size:10px;color:var(--warn)">${esc(fmtSCU(round2(r.haveAny - r.have)))} you hold is below the minimum quality (${r.minQ}).</div>` : '';
     return `<div style="padding:6px 0;border-top:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
-        <span><b>${esc(r.name)}</b> <span style="color:var(--text-dim)">need ${esc(fmtSCU(r.need))}, have ${esc(fmtSCU(r.have))}</span></span>
-        <span style="color:var(--danger);white-space:nowrap">short ${esc(fmtSCU(r.short))}</span>
+        <span><b>${esc(r.name)}</b> <span style="color:var(--text-dim)">need ${esc(qtyText(r.name, r.need))}, have ${esc(qtyText(r.name, r.have))}</span></span>
+        <span style="color:var(--danger);white-space:nowrap">short ${esc(qtyText(r.name, r.short))}</span>
       </div>${below}
       ${spots.length ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Mine at: ${spots.map(x => `${esc(x.location)} (${esc(x.share)})`).join(' · ')}</div>` : ''}
       ${price ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">Buy: ~${price.toLocaleString()} aUEC/SCU${pc.buyAt ? ` at ${esc(pc.buyAt)}` : ''} · ≈ ${fmtAuec(Math.round(price * r.short))} aUEC for the shortfall</div>`
@@ -7548,14 +7566,14 @@ function renderBpDetailsBody(bp) {
     const minQ = bpMinQ(ing);
     const qeHtml = (ing.quality_effects || []).map((qe, qi) => `
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim)">
-        <span>${esc(qe.stat)}</span>
+        <span>${esc(bpStatLabel(bp, qe.stat))}</span>
         <span id="bp-mod-${i}-${qi}">${fmtModPct(qualityModifierAt(qe, quality))}</span>
       </div>`).join('');
     return `
     <div class="bp-ing-row" style="padding:8px 0;border-top:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700">
         <span>${esc(ing.name)}${oreBadge(ing.name)}${minQ ? ` <span class="bp-special" style="margin-left:4px" data-tip="This part only accepts material of this quality or better">Min quality ${minQ}</span>` : ''}</span>
-        <span style="color:var(--text-dim);font-weight:400">${esc(fmtSCU(ing.quantity_scu))}</span>
+        <span style="color:var(--text-dim);font-weight:400">${esc(qtyText(ing.name, ing.quantity_scu))}</span>
       </div>
       ${qeHtml || '<div style="font-size:11px;color:var(--text-dim)">No quality effect on this material.</div>'}
       <div id="bp-src-${i}" style="margin-top:6px"></div>
@@ -7754,14 +7772,16 @@ function bpSourceHtml(bp, i, a, chosen) {
     return `<div style="font-size:10px;color:var(--text-dim)">No ${esc(ing.name)} in inventory — adjust the quality slider by hand.</div>`;
   }
   const bid = esc(bp.blueprint_id);
+  const handOnly = isHandOnlyOre(ing.name);
   const rowsHtml = srcRows.map((cur, r) => {
     const opts = eligible.filter(({ idx }) => idx === cur || !chosen.has(idx)).map(({ box, idx }) => {
-      const label = `${box.location || '—'} · Q${box.quality !== '' && box.quality != null ? box.quality : '?'} · ${fmtNum(itemSCU(box))} SCU (box ${box.unit})`;
+      const q = `${box.location || '—'} · Q${box.quality !== '' && box.quality != null ? box.quality : '?'}`;
+      const label = handOnly ? `${q} · ${qtyText(ing.name, itemSCU(box))}` : `${q} · ${fmtNum(itemSCU(box))} SCU (box ${box.unit})`;
       return `<option value="${idx}"${idx === cur ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('');
     const ar = a.rows[r];
     const detail = ar && ar.idx !== ''
-      ? `<div style="font-size:10px;color:var(--text-dim);margin:2px 0 4px">Uses ${fmtNum(ar.take)} SCU → ${fmtNum(ar.left)} SCU left in box</div>`
+      ? `<div style="font-size:10px;color:var(--text-dim);margin:2px 0 4px">${handOnly ? `Uses ${esc(qtyText(ing.name, ar.take))}${ar.left > BP_EPS ? ` → ${esc(qtyText(ing.name, ar.left))} left` : ''}` : `Uses ${fmtNum(ar.take)} SCU → ${fmtNum(ar.left)} SCU left in box`}</div>`
       : '';
     return `<div style="display:flex;gap:4px;align-items:center">
         <select onchange="setBpSource('${bid}', ${i}, ${r}, this.value)" style="${SELECT_STYLE};flex:1">
@@ -7772,10 +7792,14 @@ function bpSourceHtml(bp, i, a, chosen) {
   }).join('');
   let status = '';
   if (a.hasBox && a.short > 0) {
-    status = `<div style="font-size:10px;color:var(--danger)">Short ${fmtNum(a.short)} SCU of ${fmtNum(a.need)} needed — add another box.
-      ${eligible.some(({ idx }) => !chosen.has(idx)) ? `<a href="#" onclick="addBpSourceRow('${bid}', ${i});return false" style="color:var(--accent)">+ another box</a>` : ''}</div>`;
+    const lastRow = [...a.rows].reverse().find(r => r.idx !== '');
+    const sameQ = lastRow ? eligible.filter(({ box, idx }) => !chosen.has(idx) && String(box.quality) === String(lastRow.quality)) : [];
+    const fill = sameQ.length
+      ? ` <a href="#" onclick="fillBpSameQuality('${bid}', ${i});return false" style="color:var(--accent)">+ fill with Q${esc(String(lastRow.quality))} ${handOnly ? 'units' : 'boxes'} (${sameQ.length} available)</a>` : '';
+    status = `<div style="font-size:10px;color:var(--danger)">Short ${esc(qtyText(ing.name, a.short))} of ${esc(qtyText(ing.name, a.need))} needed — add another ${handOnly ? 'unit' : 'box'}.
+      ${eligible.some(({ idx }) => !chosen.has(idx)) ? `<a href="#" onclick="addBpSourceRow('${bid}', ${i});return false" style="color:var(--accent)">+ another ${handOnly ? 'unit' : 'box'}</a>` : ''}${fill}</div>`;
   } else if (a.hasBox) {
-    status = `<div style="font-size:10px;color:var(--success)">Covers the ${fmtNum(a.need)} SCU needed · quality set from box${a.rows.filter(r => r.idx !== '').length > 1 ? 'es (weighted)' : ''}</div>`;
+    status = `<div style="font-size:10px;color:var(--success)">Covers the ${esc(qtyText(ing.name, a.need))} needed · quality set from ${handOnly ? 'unit' : 'box'}${a.rows.filter(r => r.idx !== '').length > 1 ? (handOnly ? 's (weighted)' : 'es (weighted)') : ''}</div>`;
   }
   return rowsHtml + status;
 }
@@ -7852,6 +7876,28 @@ function addBpSourceRow(bpId, ingIdx) {
   const bp = allBlueprints.find(b => b.blueprint_id === bpId);
   if (!bp) return;
   bpSourceState(bpId, ingIdx).push('');
+  bpRefreshAll(bp);
+}
+
+// A part can need many units (13 Sadaryx) or many boxes of the same quality. Adds more of the same
+// quality as the last one picked, until the part is covered or none are left.
+function fillBpSameQuality(bpId, ingIdx) {
+  const bp = allBlueprints.find(b => b.blueprint_id === bpId);
+  if (!bp) return;
+  const a = bpComputeAllocations(bp)[ingIdx];
+  const lastRow = [...a.rows].reverse().find(r => r.idx !== '');
+  if (!lastRow) return;
+  const chosen = new Set();
+  Object.values(bpSources[bpId] || {}).forEach(arr => arr.forEach(idx => { if (idx !== '') chosen.add(idx); }));
+  const rows = bpSourceState(bpId, ingIdx);
+  while (rows.length && rows[rows.length - 1] === '') rows.pop();
+  let short = a.short;
+  for (const { box, idx } of bpEligibleBoxes(bp.ingredients[ingIdx])) {
+    if (short <= BP_EPS) break;
+    if (chosen.has(idx) || String(box.quality) !== String(lastRow.quality)) continue;
+    rows.push(idx);
+    short -= itemSCU(box);
+  }
   bpRefreshAll(bp);
 }
 
@@ -9259,7 +9305,21 @@ function renderScannerRef() {
 
 function renderInvRows() {
   const container = document.getElementById('inv-rows-container');
+  // Hand-mined ore comes as single units of the mineral: a count, with no box sizes.
+  const handOnly = isHandOnlyOre(document.getElementById('inv-name-input').value);
+  const rowsLabel = document.getElementById('inv-rows-label');
+  if (rowsLabel) rowsLabel.textContent = handOnly ? 'Units' : t('modal.inv.boxSizes');
+  document.getElementById('inv-add-row-btn').hidden = handOnly || editingInvId !== null;
   container.innerHTML = invRows.map((row, i) => {
+    if (handOnly) {
+      row.unit = '1';
+      return `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px" data-row="${i}">
+      <input type="number" placeholder="Units" min="1" step="1" class="inv-row-qty"
+        value="${esc(String(row.qty))}"
+        style="flex:1;min-width:0;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
+      <input type="hidden" class="inv-row-unit" value="1">
+    </div>`;
+    }
     const opts = SCU_SIZES.map(v =>
       `<option value="${v}" ${row.unit === v ? 'selected' : ''}>${v} SCU</option>`
     ).join('');
@@ -9305,7 +9365,6 @@ function openAddInventory() {
   document.getElementById('inv-quality-input').value = '';
   invRows = [{ qty: '', unit: '1' }];
   renderInvRows();
-  document.getElementById('inv-add-row-btn').hidden = false;
   populateLocSelect(lastLocations.inventory || '');
   document.getElementById('inv-modal-overlay').style.display = 'flex';
 }
@@ -9318,7 +9377,6 @@ function openEditInventory(i) {
   document.getElementById('inv-quality-input').value = item.quality ?? '';
   invRows = [{ qty: item.qty, unit: String(item.unit) }];
   renderInvRows();
-  document.getElementById('inv-add-row-btn').hidden = true;
   populateLocSelect(item.location || '');
   document.getElementById('inv-modal-overlay').style.display = 'flex';
 }

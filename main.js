@@ -34,15 +34,23 @@ function toggleWindow() {
   if (now - _lastToggle < 300) return;
   _lastToggle = now;
   if (!mainWindow) return;
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-  } else {
-    if (gameSafe) mainWindow.showInactive(); else mainWindow.show();
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
-    mainWindow.moveTop();
-    if (!gameSafe) mainWindow.focus();
-  }
+  if (mainWindow.isVisible()) mainWindow.hide(); else showWindow();
 }
+
+function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (gameSafe) mainWindow.showInactive(); else mainWindow.show();
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  mainWindow.moveTop();
+  if (!gameSafe) mainWindow.focus();
+}
+
+// Only one copy runs. Starting the exe again (for example while the first is hidden in the tray) brings the
+// running one back instead of opening a second overlay with its own hotkey, log watcher and tray icon.
+const gotInstanceLock = app.requestSingleInstanceLock();
+if (!gotInstanceLock) app.quit();
+app.on('second-instance', showWindow);
 
 function buildTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
@@ -340,6 +348,7 @@ app.on('web-contents-created', (_, contents) => {
 });
 
 app.whenReady().then(() => {
+  if (!gotInstanceLock) return;
   session.fromPartition(ERKUL_PARTITION).setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   createWindow();
   buildTray();
