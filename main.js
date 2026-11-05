@@ -282,7 +282,7 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
 
   // after typing (or any time the window is left), go back to not taking focus
-  mainWindow.on('blur', () => { if (gameSafe && !keyboardHold) applyFocusMode(); });
+  mainWindow.on('blur', () => { if (gameSafe && !keyboardHold && !grabbing) applyFocusMode(); });
 
   mainWindow.on('moved',   saveBounds);
   mainWindow.on('resized', saveBounds);
@@ -657,12 +657,36 @@ ipcMain.handle('overlay:setGameSafe', (_, v) => {
   return gameSafe;
 });
 // The renderer asks for the keyboard when the user clicks into a text box, and gives it back when they are done.
-ipcMain.handle('overlay:keyboard', (_, wants, hold) => {
-  if (!gameSafe || !mainWindow || mainWindow.isDestroyed()) return false;
+// Windows can refuse to hand the keyboard to a window while a game is in front, so a single focus() is not enough:
+// check that the overlay really has it, retry with stronger steps, and tell the renderer if it still does not.
+// Resolves true when the overlay has the keyboard (or never needed it), false when Windows would not give it.
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+let grabbing = null;
+async function grabKeyboard() {
+  const w = mainWindow;
+  // Already focused: leave it alone. Setting focusable again on a focused window makes Windows drop its focus,
+  // the blur handler then locks the window, and the next keystrokes are lost (typing broke on every second click).
+  if (w.isFocused() && w.isFocusable()) return true;
+  if (!w.isFocusable()) w.setFocusable(true);
+  w.focus(); w.webContents.focus();
+  if (w.isFocused()) return true;
+  for (const step of [1, 2, 3]) {
+    await sleep(120);
+    if (w.isDestroyed()) return false;
+    if (w.isFocused()) return true;
+    if (step === 1) { w.show(); w.moveTop(); w.focus(); w.webContents.focus(); }
+    else if (step === 2) { w.setAlwaysOnTop(false); w.focus(); w.setAlwaysOnTop(true, 'screen-saver'); w.webContents.focus(); }
+    else { w.minimize(); w.restore(); w.setAlwaysOnTop(true, 'screen-saver'); w.focus(); w.webContents.focus(); }
+  }
+  await sleep(120);
+  return !w.isDestroyed() && w.isFocused();
+}
+ipcMain.handle('overlay:keyboard', async (_, wants, hold) => {
+  if (!gameSafe || !mainWindow || mainWindow.isDestroyed()) return true;
   keyboardHold = !!(wants && hold);
-  if (wants) { mainWindow.setFocusable(true); mainWindow.focus(); }
-  else applyFocusMode();
-  return true;
+  if (!wants) { applyFocusMode(); return true; }
+  if (!grabbing) grabbing = grabKeyboard().finally(() => { grabbing = null; });
+  return grabbing;
 });
 ipcMain.handle('overlay:state', () => (mainWindow ? { gameSafe, focusable: mainWindow.isFocusable(), focused: mainWindow.isFocused() } : null));
 ipcMain.handle('window:setOpacity', (_, opacity) => mainWindow?.setOpacity(opacity));

@@ -4714,7 +4714,27 @@ async function saveGameSafe() {
 // keyboard (the user is choosing to type); leaving it gives control back to the game. Erkul is a whole web page
 // that needs the keyboard, so it keeps it for as long as it is on screen.
 const TEXT_FIELD = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=range]):not([type=color]):not([type=file]), textarea, [contenteditable=""], [contenteditable="true"]';
-document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest(TEXT_FIELD)) api.overlayKeyboard(true); }, true);
+// Asks for the keyboard, and says so on screen if Windows will not give it (typing would then go to the game).
+let _kbdHintTimer = null;
+function requestKeyboard() {
+  Promise.resolve(api.overlayKeyboard(true)).then(ok => {
+    if (ok !== false) return;
+    let el = document.getElementById('kbd-hint');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'kbd-hint';
+      el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:44px;z-index:300;padding:8px 10px;background:var(--bg-card);border:1px solid var(--warn);border-radius:var(--r);color:var(--text);font-size:11px;line-height:1.5;box-shadow:0 4px 16px rgba(0,0,0,0.5)';
+      el.textContent = 'Windows did not give the overlay the keyboard, so typing may go to the game. Click the box again, or in Settings set "Over the game" to "Normal window".';
+      document.body.appendChild(el);
+    }
+    el.hidden = false;
+    clearTimeout(_kbdHintTimer);
+    _kbdHintTimer = setTimeout(() => { el.hidden = true; }, 8000);
+  }).catch(() => {});
+}
+document.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest(TEXT_FIELD)) requestKeyboard(); }, true);
+// a box can also get the cursor without a click (a dialog that focuses its first box, Tab, "Custom…" locations)
+document.addEventListener('focusin', (e) => { if (e.target.matches && e.target.matches(TEXT_FIELD)) requestKeyboard(); });
 document.addEventListener('focusout', () => {
   setTimeout(() => {
     if (typeof erkulWidened !== 'undefined' && erkulWidened) return;
