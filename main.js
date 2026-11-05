@@ -16,9 +16,23 @@ let mainWindow;
 // like any other but leaves the game as the active window.
 let gameSafe = store.get('gameSafeOverlay', true) !== false;
 let keyboardHold = false;      // Erkul on screen: the window stays focusable until it is left
+// A window that cannot be activated gets no taskbar button from Windows, and every setFocusable(false) or hide()
+// takes the button away again. Asking for the button after each of those keeps the app's icon in the taskbar.
+function ensureTaskbarButton() {
+  const add = () => {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
+    // off then on: a plain "on" is ignored when Electron thinks the button is already there
+    try { mainWindow.setSkipTaskbar(true); mainWindow.setSkipTaskbar(false); } catch { /* the tray icon still works */ }
+  };
+  add();
+  // Windows drops the button a moment after a focused window becomes not-activatable, so ask again just after
+  setTimeout(add, 150);
+  setTimeout(add, 700);
+}
 function applyFocusMode() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try { mainWindow.setFocusable(!gameSafe); } catch { /* not supported: the window keeps behaving as before */ }
+  ensureTaskbarButton();
 }
 let tray = null;
 
@@ -44,6 +58,7 @@ function showWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.moveTop();
   if (!gameSafe) mainWindow.focus();
+  ensureTaskbarButton();
 }
 
 // Only one copy runs. Starting the exe again (for example while the first is hidden in the tray) brings the
@@ -268,6 +283,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: false,
+    icon: path.join(__dirname, 'icon.png'),
     resizable: true,
     focusable: !gameSafe,
     webPreferences: {
@@ -280,6 +296,8 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  mainWindow.once('ready-to-show', ensureTaskbarButton);
+  mainWindow.webContents.once('did-finish-load', ensureTaskbarButton);
 
   // after typing (or any time the window is left), go back to not taking focus
   mainWindow.on('blur', () => { if (gameSafe && !keyboardHold && !grabbing) applyFocusMode(); });
