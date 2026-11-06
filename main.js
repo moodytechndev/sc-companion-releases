@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Notification, nativeImage, Tray, Menu, dialog, shell, desktopCapturer, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, safeStorage, Notification, nativeImage, Tray, Menu, dialog, shell, desktopCapturer, screen, session } = require('electron');
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
@@ -405,6 +405,10 @@ app.whenReady().then(() => {
     } catch { /* the stored data stays */ }
   }, 20000);
 
+  // UEX marketplace watchlist: nothing is requested while the list is empty
+  setTimeout(() => { marketCheck(); dealsCheck(); }, 45000);
+  setInterval(() => { marketCheck(); dealsCheck(); }, MARKET_POLL_MS);
+
   const UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
   setTimeout(() => autoUpdater.checkForUpdates(), 5000);
   setInterval(() => {
@@ -494,6 +498,348 @@ ipcMain.handle('api:getVehicles', async () => {
     return { status: 'error', error: e.message };
   }
 });
+
+// ─── UEX account: app token + secret key ──────────────────────────────────────
+// UEX wants two things on a user's own marketplace calls: an app token (made on UEX's My Apps page, it names
+// the app) and the user's secret key (from their profile, it names the user). Both are pasted once and encrypted
+// with Windows' own key store (safeStorage, tied to this Windows user) before they reach the disk; nothing is
+// stored in plain text, and if encryption is unavailable they are refused. The window can only save, test or
+// remove them: no handler hands either back, and neither is in the export file.
+// The app never calls UEX's `user` endpoint, which returns the account's email address.
+const UEX_SECRETS = { key: 'uexKeyEnc', token: 'uexTokenEnc' };
+function uexSecretGet(which) {
+  try {
+    const enc = store.get(UEX_SECRETS[which]);
+    if (!enc || !safeStorage.isEncryptionAvailable()) return '';
+    return safeStorage.decryptString(Buffer.from(enc, 'base64'));
+  } catch { return ''; }
+}
+function uexRequest(pathAndQuery, token, key, opts = {}) {
+  return new Promise((resolve) => {
+    const body = opts.body ? JSON.stringify(opts.body) : null;
+    const headers = { 'User-Agent': 'SC-Companion/' + CURRENT_VERSION, Accept: 'application/json', Authorization: 'Bearer ' + token, secret_key: key };
+    if (body) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(body); }
+    const req = https.request('https://api.uexcorp.space/2.0/' + pathAndQuery, { method: body ? 'POST' : 'GET', headers }, (res) => {
+      let text = '';
+      res.on('data', c => { if (text.length < 400000) text += c; });
+      res.on('end', () => { let json = null; try { json = JSON.parse(text); } catch {} resolve({ http: res.statusCode, json }); });
+    });
+    req.setTimeout(15000, () => { req.destroy(); resolve({ http: 0, json: null }); });
+    req.on('error', () => resolve({ http: 0, json: null }));
+    if (body) req.write(body);
+    req.end();
+  });
+}
+function uexSecretSave(which, value) {
+  const clean = String(value || '').trim();
+  const name = which === 'token' ? 'app token' : 'secret key';
+  if (!/^\S{8,256}$/.test(clean)) return { ok: false, error: `That does not look like a ${name}. Copy only the ${name}, with no spaces or extra text.` };
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'Windows secure storage is not available here, so nothing was saved.' };
+  const other = uexSecretGet(which === 'token' ? 'key' : 'token');
+  if (other && other === clean) return { ok: false, error: 'The app token and the secret key are two different values. This one is the same as the other.' };
+  store.set(UEX_SECRETS[which], safeStorage.encryptString(clean).toString('base64'));
+  return { ok: true };
+}
+ipcMain.handle('uex:keyStatus', () => ({ keySaved: !!store.get(UEX_SECRETS.key), tokenSaved: !!store.get(UEX_SECRETS.token), canEncrypt: safeStorage.isEncryptionAvailable() }));
+ipcMain.handle('uex:keySave', (_, key) => uexSecretSave('key', key));
+ipcMain.handle('uex:tokenSave', (_, token) => uexSecretSave('token', token));
+ipcMain.handle('uex:keyClear', () => { store.delete(UEX_SECRETS.key); store.delete(UEX_SECRETS.token); store.delete('dealSeen'); store.delete('dealNew'); store.delete('uexMe'); return { ok: true }; });
+ipcMain.handle('uex:keyTest', async () => {
+  const key = uexSecretGet('key'), token = uexSecretGet('token');
+  if (!key && !token) return { state: 'none' };
+  if (!token) return { state: 'needtoken' };
+  if (!key) return { state: 'needkey' };
+  const r = await uexRequest('marketplace_favorites', token, key);      // a small private list; only the answer's status is read
+  const status = r.json && r.json.status;
+  if (!r.http) return { state: 'offline' };
+  if (status === 'ok' || r.http === 204) return { state: 'valid' };
+  if (status === 'access_denied') return { state: 'badtoken' };
+  if (status === 'invalid_secret_key' || status === 'missing_secret_key') return { state: 'invalid' };
+  if (status === 'user_not_allowed') return { state: 'banned' };
+  return { state: 'unknown', status: String(status || r.http).slice(0, 60) };
+});
+
+// ─── UEX marketplace: listings, watchlist and alerts ──────────────────────────
+// uex-market.js turns UEX's rows into one listing shape. The watchlist is checked here, in the main process,
+// so alerts still arrive while the window is hidden in the tray. Public reads only: no UEX key is used.
+const uexMarket = require('./uex-market');
+let marketSvc = null;
+const getMarket = () => marketSvc || (marketSvc = new uexMarket.MarketService({ fetchJson }));
+const MARKET_POLL_MS = 3 * 60 * 1000;
+const MARKET_MAX_WATCHES = 30;
+const marketWatches = () => (Array.isArray(store.get('marketWatches')) ? store.get('marketWatches') : [])
+  .filter(w => w && typeof w.id === 'string' && (w.op === 'sell' || w.op === 'buy'));   // an imported file is not trusted
+
+ipcMain.handle('market:listings', async (_, { op, force } = {}) => {
+  try {
+    const r = await getMarket().listings(op, !!force);
+    return { status: 'ok', rows: r.rows, at: r.at, stale: !!r.stale };
+  } catch (e) { return { status: 'error', error: e.message }; }
+});
+ipcMain.handle('market:categories', async () => {
+  try { return { status: 'ok', categories: await getMarket().categories() }; }
+  catch (e) { return { status: 'error', error: e.message }; }
+});
+ipcMain.handle('market:getWatches', () => marketWatches());
+
+ipcMain.handle('market:watchAdd', async (_, w) => {
+  const list = marketWatches();
+  if (list.length >= MARKET_MAX_WATCHES) return { ok: false, error: `You can keep up to ${MARKET_MAX_WATCHES} watches.` };
+  const clean = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    op: w && w.op === 'buy' ? 'buy' : 'sell',
+    text: String((w && w.text) || '').trim().slice(0, 80),
+    price: Math.max(0, Math.floor(Number(w && w.price) || 0)),
+    minQuality: Math.min(1000, Math.max(0, Math.floor(Number(w && w.minQuality) || 0))),
+    category: Math.max(0, Math.floor(Number(w && w.category) || 0)),
+    name: String((w && w.name) || '').trim().slice(0, 60),
+  };
+  if (!clean.text && !clean.category) return { ok: false, error: 'Type what to watch for, or pick a category.' };
+  list.push(clean);
+  store.set('marketWatches', list);
+  await marketCheck();          // the listings that exist right now are noted quietly, so only later ones alert
+  return { ok: true, watches: list };
+});
+ipcMain.handle('market:watchRemove', (_, id) => {
+  const list = marketWatches().filter(w => w.id !== id);
+  store.set('marketWatches', list);
+  const seen = store.get('marketSeen') || {};
+  delete seen[id];
+  store.set('marketSeen', seen);
+  return list;
+});
+ipcMain.handle('market:getNew', () => store.get('marketNew') || []);
+ipcMain.handle('market:clearNew', () => { store.set('marketNew', []); return []; });
+
+// ── your own deals: needs the app token and the secret key, and nothing is requested without both ──
+let dealsCache = null;
+async function uexDeals(force) {
+  const token = uexSecretGet('token'), key = uexSecretGet('key');
+  if (!token || !key) return { state: 'needkeys' };
+  if (!force && dealsCache && Date.now() - dealsCache.at < 60 * 1000) return dealsCache.res;
+  const r = await uexRequest('marketplace_negotiations', token, key);
+  const st = r.json && r.json.status;
+  let res;
+  if (!r.http) res = { state: 'offline' };
+  else if (st === 'access_denied') res = { state: 'badtoken' };
+  else if (st === 'invalid_secret_key' || st === 'missing_secret_key') res = { state: 'invalid' };
+  else if (st === 'not_allowed' || st === 'user_not_allowed') res = { state: 'denied' };
+  else if (r.http === 204 || (typeof st === 'string' && /^no_/.test(st))) res = { state: 'ok', deals: [] };
+  else if (st !== 'ok' || !Array.isArray(r.json.data)) res = { state: 'error', status: String(st || r.http).slice(0, 60) };
+  else res = { state: 'ok', deals: r.json.data.map(uexMarket.normalizeDeal).filter(Boolean).sort((a, b) => b.modified - a.modified) };
+  if (res.state === 'ok') dealsCache = { at: Date.now(), res };
+  return res;
+}
+ipcMain.handle('market:deals', (_, { force } = {}) => uexDeals(!!force));
+ipcMain.handle('market:getDealNew', () => store.get('dealNew') || []);
+ipcMain.handle('market:dealsSeen', () => { store.set('dealNew', []); return []; });
+
+// An alert when a deal has new activity or a new one opens. The first look only records what is there.
+// UEX gives no "who wrote last", so an open deal you just wrote in yourself can also raise one.
+let dealsChecking = false;
+async function dealsCheck() {
+  if (dealsChecking || !uexSecretGet('token') || !uexSecretGet('key')) return;
+  dealsChecking = true;
+  try {
+    const res = await uexDeals(true);
+    if (res.state !== 'ok') return;
+    const prev = store.get('dealSeen');
+    const baseline = !prev || typeof prev !== 'object' || Array.isArray(prev);
+    const next = {}, fresh = [];
+    for (const d of res.deals) {
+      if (!baseline && !d.closed) {
+        if (prev[d.hash] === undefined) fresh.push({ d, why: 'new' });
+        else if (d.modified > prev[d.hash]) fresh.push({ d, why: 'activity' });
+      }
+      next[d.hash] = d.modified;
+    }
+    store.set('dealSeen', next);
+    if (!fresh.length) return;
+    store.set('dealNew', [...new Set((store.get('dealNew') || []).concat(fresh.map(f => f.d.hash)))].slice(-100));
+    sendToWindow('market:new', null);
+    if (Notification.isSupported()) {
+      const one = fresh.length === 1 ? fresh[0] : null;
+      const n = new Notification({
+        title: 'UEX Market deal',
+        body: one ? (one.why === 'new' ? 'New deal: ' : 'New activity: ') + one.d.title : `${fresh.length} of your UEX deals have news`,
+        silent: false,
+      });
+      n.on('click', () => { showWindow(); sendToWindow('market:open', 'deals'); });
+      n.show();
+    }
+  } catch (e) { console.error('[Market] deals check failed:', e.message); }
+  finally { dealsChecking = false; }
+}
+
+// ── UEX website session: starting a deal ──
+// UEX has no API call to start a deal, only the "Start Deal" button on a listing, and UEX only allows verified
+// accounts to use it. The person signs in once, on UEX's own page in a window of this app (Discord or any other
+// way: the app never sees a password). The login is kept in its own store, apart from the rest of the app, and
+// Sign out wipes it. It is a full UEX login, so it is only ever sent to uexcorp.space and only when Message seller is pressed.
+const UEX_PARTITION = 'persist:uex';
+const UEX_SLUG = /^[A-Za-z0-9._~-]{5,200}$/;
+const UEX_HASH = /^[A-Za-z0-9-]{6,64}$/;      // a deal's hash is a dashed id, e.g. 893516ca-e2c0-4118-b71a-2d8ac8333ce8
+let uexSesReady = false;
+function uexSes() {
+  const s = session.fromPartition(UEX_PARTITION);
+  if (!uexSesReady) { uexSesReady = true; s.setPermissionRequestHandler((_wc, _p, cb) => cb(false)); }
+  return s;
+}
+async function uexWebGet(url) {
+  try { const r = await uexSes().fetch(url, { credentials: 'include' }); return { ok: r.ok, url: r.url, text: await r.text() }; }
+  catch (e) { return { ok: false, url: '', text: '', error: e.message }; }
+}
+async function uexWebWho() {
+  const r = await uexWebGet('https://uexcorp.space/account');       // signed out, UEX answers with its login page
+  return r.ok ? uexMarket.parseSession(r.text) : { signedIn: false, username: '' };
+}
+async function uexWebSignedIn() { return (await uexWebWho()).signedIn; }
+function uexWindow(url, title) {
+  const prefs = () => ({ partition: UEX_PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true });
+  const win = new BrowserWindow({ width: 520, height: 780, title, parent: mainWindow || undefined, autoHideMenuBar: true, webPreferences: prefs() });
+  win.webContents.setWindowOpenHandler(({ url: u }) => /^https:/i.test(u) ? { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, webPreferences: prefs() } } : { action: 'deny' });
+  win.webContents.on('will-navigate', (e, u) => { if (!/^https:/i.test(u)) e.preventDefault(); });
+  win.loadURL(url);
+  return win;
+}
+ipcMain.handle('uex:webStatus', () => uexWebWho());
+ipcMain.handle('uex:webSignOut', async () => {
+  const s = uexSes();
+  await s.clearStorageData(); await s.clearCache();
+  dealsCache = null;
+  return { signedIn: false };
+});
+ipcMain.handle('uex:webConnect', async () => {
+  if (await uexWebSignedIn()) return { signedIn: true };
+  return new Promise((resolve) => {
+    let done = false;
+    const win = uexWindow('https://uexcorp.space/login', 'Sign in to UEX Corp \u2014 SC Companion');
+    const check = async () => {
+      if (done || win.isDestroyed()) return;
+      let host = '';
+      try { host = new URL(win.webContents.getURL()).hostname; } catch {}
+      if (host !== 'uexcorp.space') return;             // still on Discord or another login page
+      if (await uexWebSignedIn()) { done = true; win.close(); resolve({ signedIn: true }); }
+    };
+    win.webContents.on('did-navigate', check);
+    win.webContents.on('did-navigate-in-page', check);
+    win.on('closed', () => { if (!done) { done = true; resolve({ signedIn: false }); } });
+  });
+});
+
+async function uexDealFor(listingUrl) {
+  const res = await uexDeals(true);
+  if (res.state !== 'ok') return { state: res.state, hash: '' };
+  const hit = res.deals.filter(d => d.url === listingUrl).sort((a, b) => b.modified - a.modified)[0];
+  return { state: 'ok', hash: hit ? hit.hash : '' };
+}
+ipcMain.handle('market:startDeal', async (_, { slug } = {}) => {
+  if (!UEX_SLUG.test(String(slug || ''))) return { state: 'error', error: 'That listing could not be read.' };
+  const listingUrl = uexMarket.LISTING_URL + encodeURIComponent(slug);
+  const page = await uexWebGet(listingUrl);
+  if (!page.ok) return { state: 'offline' };
+  const st = uexMarket.parseListingPage(page.text);
+  if (st === 'needsignin' || st === 'unverified') return { state: st };
+  if (st !== 'ready') {
+    // UEX's terms step, or a page this app does not recognise: the person finishes it on UEX itself, in a window of this app
+    await new Promise((res) => { const w = uexWindow(listingUrl, 'UEX listing \u2014 SC Companion'); w.on('closed', res); });
+    dealsCache = null;
+    const f = await uexDealFor(listingUrl);
+    return { state: 'window', hash: f.hash, needkeys: f.state === 'needkeys' };
+  }
+  try {
+    await uexSes().fetch('https://uexcorp.space/marketplace/negotiate/task/initiate/slug/' + encodeURIComponent(slug) + '/', {
+      method: 'POST', credentials: 'include', body: '',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'https://uexcorp.space', Referer: listingUrl },
+    });
+  } catch { return { state: 'offline' }; }
+  dealsCache = null;
+  const f = await uexDealFor(listingUrl);
+  if (f.state === 'needkeys') return { state: 'started', hash: '', needkeys: true };
+  return f.hash ? { state: 'started', hash: f.hash } : { state: 'unconfirmed' };
+});
+
+// ── chat inside a deal (app token and secret key) ──
+ipcMain.handle('market:messages', async (_, { hash } = {}) => {
+  if (!UEX_HASH.test(String(hash || ''))) return { state: 'error', status: 'bad deal' };
+  const token = uexSecretGet('token'), key = uexSecretGet('key');
+  if (!token || !key) return { state: 'needkeys' };
+  const r = await uexRequest('marketplace_negotiations_messages?hash=' + encodeURIComponent(hash), token, key);
+  const st = r.json && r.json.status;
+  if (!r.http) return { state: 'offline' };
+  const me = store.get('uexMe') || '';
+  if (st === 'no_messages_found') return { state: 'ok', messages: [], me };
+  if (st === 'access_denied') return { state: 'badtoken' };
+  if (st !== 'ok' || !Array.isArray(r.json.data)) return { state: 'error', status: String(st || r.http).slice(0, 60) };
+  return { state: 'ok', messages: r.json.data.map(uexMarket.normalizeMessage).filter(Boolean).sort((a, b) => (a.at - b.at) || (a.id - b.id)), me };
+});
+let lastSendAt = 0;
+ipcMain.handle('market:send', async (_, { hash, text } = {}) => {
+  const msg = String(text || '').trim().slice(0, 2000);
+  if (!UEX_HASH.test(String(hash || '')) || !msg) return { state: 'error', status: 'empty message' };
+  if (Date.now() - lastSendAt < 1000) return { state: 'error', status: 'too fast' };
+  const token = uexSecretGet('token'), key = uexSecretGet('key');
+  if (!token || !key) return { state: 'needkeys' };
+  lastSendAt = Date.now();
+  const r = await uexRequest('marketplace_negotiations_messages', token, key, { body: { hash, message: msg, is_production: 1 } });
+  const st = r.json && r.json.status;
+  if (!r.http) return { state: 'offline' };
+  if (st !== 'ok') return { state: 'error', status: String(st || r.http).slice(0, 60) };
+  const id = (r.json.data && r.json.data.id_message) || r.json.id_message || null;
+  // your own message must not raise a "new activity" alert, and its author is who you are in this chat
+  const seen = store.get('dealSeen');
+  if (seen && typeof seen === 'object') { seen[hash] = Math.max(seen[hash] || 0, Date.now() + 30000); store.set('dealSeen', seen); }
+  dealsCache = null;
+  if (id && !store.get('uexMe')) {
+    const back = await uexRequest('marketplace_negotiations_messages?hash=' + encodeURIComponent(hash), token, key);
+    const mine = back.json && Array.isArray(back.json.data) && back.json.data.find(m => Number(m.id) === Number(id));
+    if (mine && mine.user_username) store.set('uexMe', String(mine.user_username).slice(0, 60));
+  }
+  return { state: 'ok', id };
+});
+
+let marketChecking = false;
+async function marketCheck() {
+  if (marketChecking) return;
+  const watches = marketWatches();
+  if (!watches.length) return;
+  marketChecking = true;
+  try {
+    const seen = store.get('marketSeen') || {};
+    const fresh = new Map();      // listing id -> { l, w }
+    for (const op of new Set(watches.map(w => w.op))) {
+      let data;
+      try { data = await getMarket().listings(op, true); } catch { continue; }
+      for (const w of watches.filter(x => x.op === op)) {
+        const quiet = seen[w.id] === undefined;          // a watch's first look only records what is already there
+        const have = new Set(seen[w.id] || []);
+        for (const l of data.rows) {
+          if (have.has(l.id) || !uexMarket.matches(l, w)) continue;
+          have.add(l.id);
+          if (!quiet && !fresh.has(l.id)) fresh.set(l.id, { l, w });
+        }
+        seen[w.id] = [...have].slice(-1500);
+      }
+    }
+    store.set('marketSeen', seen);
+    if (!fresh.size) return;
+    const hits = [...fresh.values()];
+    const ids = (store.get('marketNew') || []).concat(hits.map(h => h.l.id));
+    store.set('marketNew', [...new Set(ids)].slice(-300));
+    sendToWindow('market:new', null);
+    if (Notification.isSupported()) {
+      const one = hits.length === 1 ? hits[0] : null;
+      const n = new Notification({
+        title: one ? 'UEX Market: ' + (one.w.name || one.w.text || 'watch') : 'UEX Market',
+        body: one ? `${one.l.title} \u2014 ${one.l.price != null ? one.l.price.toLocaleString('en-US') + ' aUEC' : 'no price'}` : `${hits.length} new listings match your watchlist`,
+        silent: false,
+      });
+      n.on('click', () => { showWindow(); sendToWindow('market:open', null); });
+      n.show();
+    }
+  } catch (e) { console.error('[Market] check failed:', e.message); }
+  finally { marketChecking = false; }
+}
 
 // ─── IPC: ship stock loadouts (Star Citizen Wiki API) ─────────────────────────
 // UEX's vehicle slug/uuid match the Wiki API's, so a ship picked from UEX can be
@@ -1228,7 +1574,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['gameSafeOverlay', 'wikeloHave', 'jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['gameSafeOverlay', 'wikeloHave', 'jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -1241,6 +1587,7 @@ function validateImport(data) {
   if (data.craftAssets !== undefined && !Array.isArray(data.craftAssets)) return 'craftAssets must be an array';
   if (data.craftShips !== undefined && !Array.isArray(data.craftShips)) return 'craftShips must be an array';
   if (data.craftingOwned !== undefined && (typeof data.craftingOwned !== 'object' || Array.isArray(data.craftingOwned))) return 'craftingOwned must be an object';
+  if (data.marketWatches !== undefined && !Array.isArray(data.marketWatches)) return 'marketWatches must be a list';
   if (data.ownedPaints !== undefined && (typeof data.ownedPaints !== 'object' || data.ownedPaints === null || Array.isArray(data.ownedPaints))) return 'ownedPaints must be an object';
   if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
   if (data.factionStanding !== undefined && (typeof data.factionStanding !== 'object' || data.factionStanding === null || Array.isArray(data.factionStanding))) return 'factionStanding must be an object';

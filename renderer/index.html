@@ -231,6 +231,32 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .commodity-item { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:var(--r); cursor:pointer; transition:background .1s; }
 .commodity-item:hover { background:var(--bg-hover); }
 .commodity-item.selected { background:var(--accent-dim); }
+
+/* ── Prices → Market (UEX marketplace) ─────────────────────────────── */
+.mk-in, .mk-sel { padding:5px 7px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--r); color:var(--text); font-size:11px; outline:none; min-width:0; }
+.mk-in:focus, .mk-sel:focus { border-color:var(--accent); }
+.mk-card { display:flex; gap:8px; padding:8px 6px; border-top:1px solid var(--border); }
+.mk-card:first-child { border-top:none; }
+.mk-card.mk-new { background:var(--accent-dim); border-radius:var(--r); }
+.mk-thumb { width:56px; height:56px; flex-shrink:0; border-radius:var(--r); background:var(--bg-input); border:1px solid var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:18px; }
+.mk-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.mk-main { flex:1; min-width:0; }
+.mk-title { font-size:12px; color:var(--text-bright); font-weight:600; line-height:1.35; cursor:pointer; overflow-wrap:anywhere; }
+.mk-meta { font-size:10px; color:var(--text-dim); margin-top:2px; line-height:1.5; overflow-wrap:anywhere; }
+.mk-meta .q { color:var(--accent); font-weight:700; }
+.mk-desc { font-size:11px; color:var(--text); margin-top:4px; white-space:pre-wrap; overflow-wrap:anywhere; max-height:160px; overflow-y:auto; }
+.mk-row { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-top:4px; flex-wrap:wrap; }
+.mk-price { font-size:12px; font-weight:700; color:var(--success); font-variant-numeric:tabular-nums; }
+.mk-btns { display:flex; gap:4px; }
+.mk-tag { font-size:9px; font-weight:800; letter-spacing:.5px; color:#fff; background:var(--accent); border-radius:3px; padding:1px 4px; margin-right:5px; vertical-align:1px; }
+.mk-badge { display:inline-block; min-width:14px; margin-left:5px; padding:0 4px; border-radius:7px; background:var(--accent); color:#fff; font-size:9px; font-weight:800; line-height:14px; text-align:center; }
+.mk-badge[hidden] { display:none; }
+.mk-bub { padding:6px 8px; border-radius:8px; background:var(--bg-hover); font-size:12px; color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; }
+.mk-bub.mine { background:var(--accent-dim); color:var(--text-bright); }
+.mk-bub-meta { font-size:9px; color:var(--text-dim); margin-top:2px; }
+.mk-sys { align-self:center; font-size:10px; color:var(--text-dim); text-align:center; }
+.mk-watch { display:flex; align-items:center; gap:6px; padding:4px 0; border-top:1px solid var(--border); font-size:11px; }
+.mk-watch:first-child { border-top:none; }
 .com-code { font-size:10px; font-weight:700; color:var(--text-dim); background:rgba(255,255,255,0.05); padding:2px 5px; border-radius:3px; min-width:40px; text-align:center; }
 .com-name { flex:1; color:var(--text); }
 .com-kind { font-size:10px; color:var(--text-dim); }
@@ -631,6 +657,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;min-height:26px">
           <div class="filter-chips" id="prices-view-chips" style="margin:0">
             <div class="chip active" onclick="switchPricesView('commodity',this)">Commodity</div>
+            <div class="chip" id="market-chip" onclick="switchPricesView('market',this)" title="Player-to-player listings from the UEX Corp marketplace">Market<span id="market-badge" class="mk-badge" hidden></span></div>
             <div class="chip" onclick="switchPricesView('station',this)">Station</div>
           </div>
           <a id="price-source-logo" href="#" onclick="openPriceSourceSite();return false" style="display:flex;align-items:center;flex-shrink:0;text-decoration:none"></a>
@@ -654,9 +681,50 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <option value="">Select a station…</option>
           </select>
         </div>
+        <div id="market-controls" style="display:none">
+          <div class="search-bar">
+            <span class="ico">🔍</span>
+            <input type="text" id="market-search" placeholder="Search listings..." oninput="marketFilterChanged()">
+          </div>
+          <div class="filter-chips" id="market-op-chips" style="margin-top:6px">
+            <div class="chip active" onclick="setMarketOp('sell',this)">For sale</div>
+            <div class="chip" onclick="setMarketOp('buy',this)">Wanted</div>
+            <div class="chip" id="market-deals-chip" onclick="setMarketDeals(this)" title="Your UEX negotiations">My deals<span id="market-deals-badge" class="mk-badge" hidden></span></div>
+            <div class="chip" id="market-watch-chip" onclick="toggleMarketWatchPanel()" title="Get an alert when a listing you are after appears">🔔 Watchlist</div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <select id="market-cat" class="mk-sel" onchange="marketFilterChanged()" style="flex:1"><option value="0">All categories</option></select>
+            <select id="market-sort" class="mk-sel" onchange="marketFilterChanged()">
+              <option value="new">Newest</option>
+              <option value="low">Price: low to high</option>
+              <option value="high">Price: high to low</option>
+              <option value="quality">Quality</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="scroll-area" id="com-list">
         <div class="loading" id="com-loading"><div class="spinner"></div><span data-i18n="prices.loading">Loading commodities…</span></div>
+      </div>
+      <div class="scroll-area" id="market-list" style="display:none">
+        <div id="market-watch-panel" style="display:none;margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-input)">
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;line-height:1.5">Get a Windows notification when a matching listing appears. It is checked every 3 minutes, also while SC Companion sits in the tray.</div>
+          <div id="market-watch-items"></div>
+          <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px">New watch</div>
+          <input id="mw-text" class="mk-in" type="text" maxlength="80" placeholder="What to watch for, e.g. Parallax rifle" style="width:100%;margin-bottom:5px">
+          <div style="display:flex;gap:5px;margin-bottom:5px">
+            <select id="mw-op" class="mk-sel" onchange="mwOpChanged()" style="flex:1"><option value="sell">Someone is selling</option><option value="buy">Someone wants to buy</option></select>
+            <select id="mw-cat" class="mk-sel" style="flex:1"><option value="0">All categories</option></select>
+          </div>
+          <div style="display:flex;gap:5px;margin-bottom:6px">
+            <input id="mw-price" class="mk-in" type="number" min="0" step="1" placeholder="Max price (aUEC)" style="flex:1">
+            <input id="mw-q" class="mk-in" type="number" min="0" max="1000" step="1" placeholder="Min quality" style="flex:1">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px"><button class="btn btn-sm" onclick="addMarketWatch()">Add watch</button><span id="mw-msg" style="font-size:11px;color:var(--danger)"></span></div>
+        </div>
+        <div id="market-note" style="display:none;margin-bottom:8px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:11px;line-height:1.5;color:var(--text)"></div>
+        <div id="market-status" style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:var(--text-dim);margin-bottom:6px"></div>
+        <div id="market-cards"></div>
       </div>
       <div id="prices-detail" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -961,6 +1029,45 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <button class="btn btn-sm" id="rsi-connect-btn" onclick="rsiConnect()">Connect…</button>
             <button class="btn btn-sm" id="rsi-import-btn" onclick="rsiImport()" style="display:none">Import hangar</button>
             <button class="btn btn-sm btn-danger" id="rsi-disconnect-btn" onclick="rsiDisconnect()" style="display:none">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="setting-row" style="margin-top:12px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div class="setting-label">UEX account</div>
+            <div class="setting-desc" id="uex-key-status"></div>
+            <div id="uex-key-form" style="margin-top:8px">
+              <div id="uex-token-wrap" style="margin-bottom:6px">
+                <input type="password" id="uex-token-input" autocomplete="off" spellcheck="false" placeholder="Paste your UEX app token"
+                  style="width:100%;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+              </div>
+              <div id="uex-secret-wrap">
+                <input type="password" id="uex-key-input" autocomplete="off" spellcheck="false" placeholder="Paste your UEX secret key"
+                  style="width:100%;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                <button class="btn btn-sm" id="uex-key-save-btn" onclick="uexKeySave()">Save</button>
+                <button class="btn btn-sm" onclick="api.openExternal('https://uexcorp.space/api/apps')">Open My Apps</button>
+                <button class="btn btn-sm" onclick="api.openExternal('https://uexcorp.space/account')">Open UEX profile</button>
+              </div>
+            </div>
+            <div id="uex-key-saved" style="display:none;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <button class="btn btn-sm" id="uex-key-test-btn" onclick="uexKeyTest()">Test</button>
+              <button class="btn btn-sm btn-danger" onclick="uexKeyRemove()">Remove</button>
+            </div>
+            <div class="setting-desc" style="margin-top:6px;line-height:1.5;font-size:10px">Both are encrypted with Windows' own key store on this PC. They are never shown again, never put in exports or bug reports, and only ever sent to UEX. You can remove them any time.</div>
+          </div>
+        </div>
+
+        <div class="setting-row" style="margin-top:12px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div class="setting-label">UEX website sign-in</div>
+            <div class="setting-desc" id="uex-web-status">Lets Message seller start a deal for you on UEX. You sign in on UEX's own page (Discord or any other way); this app never sees your password.</div>
+            <div class="setting-desc" style="margin-top:6px;line-height:1.5;font-size:10px">UEX only lets verified accounts start deals. The login is kept in this app only, never in exports or bug reports, and Sign out wipes it.</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;max-width:170px">
+            <button class="btn btn-sm" id="uex-web-connect-btn" onclick="uexWebConnect()">Sign in…</button>
+            <button class="btn btn-sm btn-danger" id="uex-web-out-btn" onclick="uexWebSignOut()" style="display:none">Sign out</button>
           </div>
         </div>
 
@@ -2144,6 +2251,108 @@ async function init() {
 // The switch itself waits for that snapshot — taken after the panel changed it would
 // just be a picture of Settings.
 let _bugSnapBusy = false;
+// ── UEX account: app token + secret key (Settings) ──
+const UEX_HELP = 'Message UEX Market sellers from this app. It needs two things from UEX Corp, which you sign in to in your browser (Discord or any other way): 1) on My Apps, create an app called SC Companion and copy its access token; 2) on your profile, copy your secret key. Paste both here.';
+let uexKeySaved = false, uexTokenSaved = false, uexKeyBusy = false;
+function uexSay(text, kind) {
+  const el = document.getElementById('uex-key-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = kind === 'ok' ? 'var(--success)' : kind === 'bad' ? 'var(--danger)' : '';
+}
+function uexUi() {
+  const form = document.getElementById('uex-key-form'), saved = document.getElementById('uex-key-saved');
+  if (!form || !saved) return;
+  const both = uexKeySaved && uexTokenSaved;
+  form.style.display = both ? 'none' : '';
+  document.getElementById('uex-token-wrap').style.display = uexTokenSaved ? 'none' : '';
+  document.getElementById('uex-secret-wrap').style.display = uexKeySaved ? 'none' : '';
+  saved.style.display = (uexKeySaved || uexTokenSaved) ? 'flex' : 'none';
+  ['uex-key-save-btn', 'uex-key-test-btn'].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = uexKeyBusy; });
+}
+async function uexKeyRefresh() {
+  let st = { keySaved: false, tokenSaved: false, canEncrypt: true };
+  try { st = await api.uexKeyStatus(); } catch {}
+  uexKeySaved = !!st.keySaved; uexTokenSaved = !!st.tokenSaved;
+  if (!st.canEncrypt) uexSay('Windows secure storage is not available on this PC, so these cannot be saved safely here.', 'bad');
+  else if (uexKeySaved && uexTokenSaved) uexSay('Your UEX app token and secret key are saved on this PC (encrypted). Press Test to check that UEX accepts them.');
+  else if (uexKeySaved) uexSay('Your secret key is saved. Still needed: the app token. On UEX, open My Apps, create an app called SC Companion and copy its access token.');
+  else if (uexTokenSaved) uexSay('Your app token is saved. Still needed: your secret key, from your UEX profile.');
+  else uexSay(UEX_HELP);
+  uexUi();
+  uexWebRefresh();
+}
+async function uexKeySave() {
+  const tokenEl = document.getElementById('uex-token-input'), keyEl = document.getElementById('uex-key-input');
+  const token = tokenEl.value.trim(), key = keyEl.value.trim();
+  if (!token && !key) { uexSay('Paste the app token and the secret key into the boxes first.', 'bad'); return; }
+  uexKeyBusy = true; uexUi();
+  let err = '';
+  try {
+    if (token) { const r = await api.uexTokenSave(token); if (!r.ok) err = r.error; }
+    if (!err && key) { const r = await api.uexKeySave(key); if (!r.ok) err = r.error; }
+  } catch { err = 'Could not save.'; }
+  tokenEl.value = ''; keyEl.value = '';              // the boxes never keep them
+  uexKeyBusy = false;
+  await uexKeyRefresh();
+  if (err) { uexSay(err, 'bad'); return; }
+  if (uexKeySaved && uexTokenSaved) await uexKeyTest();
+}
+async function uexKeyTest() {
+  uexKeyBusy = true; uexUi(); uexSay('Checking with UEX\u2026');
+  let r;
+  try { r = await api.uexKeyTest(); } catch { r = { state: 'offline' }; }
+  uexKeyBusy = false; uexUi();
+  if (r.state === 'valid') uexSay('Connected to UEX. Your app token and secret key work.', 'ok');
+  else if (r.state === 'badtoken') uexSay('UEX does not accept the app token. Remove both, copy the access token again from My Apps (not the secret key from your profile) and save again.', 'bad');
+  else if (r.state === 'invalid') uexSay('UEX does not accept the secret key. Remove both and copy the key again from your UEX profile.', 'bad');
+  else if (r.state === 'banned') uexSay('UEX says this account cannot use the API.', 'bad');
+  else if (r.state === 'needtoken') uexSay('The app token is still missing. Paste it above and save.', 'bad');
+  else if (r.state === 'needkey') uexSay('The secret key is still missing. Paste it above and save.', 'bad');
+  else if (r.state === 'offline') uexSay('Could not reach UEX. Check your connection and press Test.', 'bad');
+  else if (r.state === 'none') { await uexKeyRefresh(); }
+  else uexSay(`Saved, but UEX answered "${r.status}", so it could not be confirmed yet.`);
+}
+async function uexKeyRemove() {
+  try { await api.uexKeyClear(); } catch {}
+  await uexKeyRefresh();
+  uexSay('The app token and secret key were removed from this PC.');
+}
+
+// ── UEX website sign-in (Settings) ──
+let uexWebIn = null, uexWebBusy = false, uexWebName = '';
+function uexWebUi() {
+  const c = document.getElementById('uex-web-connect-btn'), o = document.getElementById('uex-web-out-btn');
+  if (!c || !o) return;
+  c.style.display = uexWebIn ? 'none' : ''; o.style.display = uexWebIn ? '' : 'none';
+  c.disabled = o.disabled = uexWebBusy;
+}
+function uexWebSay(t, kind) {
+  const el = document.getElementById('uex-web-status');
+  if (!el) return;
+  el.textContent = t;
+  el.style.color = kind === 'ok' ? 'var(--success)' : kind === 'bad' ? 'var(--danger)' : '';
+}
+async function uexWebRefresh() {
+  try { const s = await api.uexWebStatus(); uexWebIn = !!s.signedIn; uexWebName = s.username || ''; } catch { uexWebIn = false; uexWebName = ''; }
+  uexWebSay(uexWebIn ? 'Signed in to UEX' + (uexWebName ? ' as ' + uexWebName : '') + '. Message seller can start deals for you.' : 'Lets Message seller start a deal for you on UEX. You sign in on UEX\'s own page (Discord or any other way); this app never sees your password.', uexWebIn ? 'ok' : '');
+  uexWebUi();
+}
+async function uexWebConnect() {
+  uexWebBusy = true; uexWebUi();
+  uexWebSay('Sign in to UEX in the window that opened. It closes by itself once you are in.');
+  try { uexWebIn = !!(await api.uexWebConnect()).signedIn; } catch { uexWebIn = false; }
+  uexWebBusy = false;
+  await uexWebRefresh();
+}
+async function uexWebSignOut() {
+  uexWebBusy = true; uexWebUi();
+  try { await api.uexWebSignOut(); } catch {}
+  uexWebBusy = false;
+  await uexWebRefresh();
+  uexWebSay('Signed out of UEX. The saved login was wiped from this app.');
+}
+
 function switchTab(name, done) {
   if (name === 'settings' && !_bugSnapBusy) {
     const prev = ((document.querySelector('.panel.active') || {}).id || '').replace(/^panel-/, '');
@@ -2154,13 +2363,14 @@ function switchTab(name, done) {
         switchTabNow(name);
         refreshBugAttachables();
         rsiRefreshStatus();
+        uexKeyRefresh();
         if (done) done();
       });
       return;
     }
   }
   switchTabNow(name);
-  if (name === 'settings') { refreshBugAttachables(); rsiRefreshStatus(); }
+  if (name === 'settings') { refreshBugAttachables(); rsiRefreshStatus(); uexKeyRefresh(); }
   if (done) done();
 }
 
@@ -4134,14 +4344,454 @@ function switchPricesView(view, el) {
   pricesView = view;
   document.querySelectorAll('#prices-view-chips .chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
+  const market = view === 'market';
   document.getElementById('price-type-filters').style.display = view === 'commodity' ? '' : 'none';
   document.getElementById('com-search-bar').style.display     = view === 'commodity' ? '' : 'none';
   document.getElementById('station-select-row').style.display = view === 'station'   ? '' : 'none';
+  document.getElementById('market-controls').style.display    = market ? '' : 'none';
+  document.getElementById('market-list').style.display        = market ? '' : 'none';
+  document.getElementById('com-list').style.display           = market ? 'none' : '';
+  document.getElementById('price-source-logo').style.display  = market ? 'none' : 'flex';
   closePriceDetail();
   // the territory banner belongs to the station view; renderStations() puts it back for the selected station
   document.querySelectorAll('#com-list .terr-banner').forEach(e => e.remove());
+  if (market) { openMarketView(); return; }
   if (view === 'station') renderStations(); else renderComs();
 }
+
+// ════════════════════════════════════════════════════════════════════
+// Market — UEX marketplace listings, watchlist and alerts (Prices → Market)
+// The listings are read and tidied in uex-market.js; players write them, so every text goes through esc().
+// ════════════════════════════════════════════════════════════════════
+const MARKET_PAGE = 40;
+let marketOp = 'sell', marketRows = [], marketAt = 0, marketBusy = false, marketAgain = false;
+let marketErr = '', marketStale = false, marketShown = MARKET_PAGE;
+let marketCats = [], marketWatchList = [], marketWatchOpen = false;
+let marketNewIds = new Set(), marketOpenIds = new Set(), marketUnread = 0;
+
+const marketVisible = () => pricesView === 'market' && document.getElementById('panel-prices').classList.contains('active');
+
+function marketAgo(ms) {
+  const m = Math.max(0, (Date.now() - ms) / 60000);
+  if (m < 2) return 'just now';
+  if (m < 60) return Math.round(m) + 'm ago';
+  const h = m / 60;
+  return h < 48 ? Math.round(h) + 'h ago' : Math.round(h / 24) + 'd ago';
+}
+function marketPrice(l) {
+  if (!(l.price > 0)) return 'Make an offer';
+  return l.price.toLocaleString('en-US') + ' aUEC' + (l.unit && l.unit !== 'unit' ? ' / ' + l.unit : '');
+}
+
+async function openMarketView() {
+  if (!marketCats.length) loadMarketCats();
+  refreshMarketWatches();
+  applyMarketMode();
+  if (marketDealsMode) { await loadDeals(false); return; }
+  await loadMarket(false);
+  refreshMarketNew();
+}
+
+async function loadMarketCats() {
+  try {
+    const r = await api.getMarketCategories();
+    if (r.status === 'ok') { marketCats = r.categories; fillMarketCats(); }
+  } catch {}
+}
+function fillMarketCats() {
+  const by = {};
+  marketCats.forEach(c => (by[c.section] = by[c.section] || []).push(c));
+  const opts = '<option value="0">All categories</option>' + Object.keys(by).sort().map(s =>
+    `<optgroup label="${esc(s)}">${by[s].sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
+  ['market-cat', 'mw-cat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = el.value;
+    el.innerHTML = opts;
+    el.value = v || '0';
+  });
+}
+
+async function loadMarket(force) {
+  if (marketBusy) { marketAgain = true; return; }
+  marketBusy = true;
+  renderMarket();
+  const op = marketOp;
+  try {
+    const r = await api.getMarketListings(op, force);
+    if (op === marketOp) {
+      if (r.status === 'ok') { marketRows = r.rows; marketAt = r.at; marketStale = r.stale; marketErr = ''; }
+      else { marketErr = r.error || 'UEX did not answer.'; }
+    }
+  } catch (e) { marketErr = e.message || 'UEX did not answer.'; }
+  marketBusy = false;
+  renderMarket();
+  if (marketAgain) { marketAgain = false; loadMarket(false); }
+}
+
+function setMarketOp(op, el) {
+  marketOp = op;
+  closeChat(true);
+  marketDealsMode = false;
+  applyMarketMode();
+  document.querySelectorAll('#market-op-chips .chip:not(#market-watch-chip)').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  marketRows = [];
+  marketShown = MARKET_PAGE;
+  loadMarket(false);
+}
+function marketFilterChanged() { marketShown = MARKET_PAGE; renderMarket(); }
+function marketMore() { marketShown += MARKET_PAGE; renderMarket(); }
+function marketToggle(id) { marketOpenIds.has(id) ? marketOpenIds.delete(id) : marketOpenIds.add(id); renderMarket(); }
+function marketOpenListing(id) { const l = marketRows.find(x => x.id === id); if (l) api.openExternal(l.url); }
+
+function renderMarket() {
+  const box = document.getElementById('market-cards');
+  const status = document.getElementById('market-status');
+  if (!box || !status) return;
+  if (marketDealsMode) { renderDeals(); return; }
+  const q = (document.getElementById('market-search').value || '').toLowerCase().trim();
+  const cat = Number(document.getElementById('market-cat').value) || 0;
+  const sort = document.getElementById('market-sort').value;
+  const rows = marketRows.filter(l => !l.soldOut && (!cat || l.categoryId === cat) && matchesAll(q, l.title, l.desc, l.seller));
+  const price = (l) => (l.price > 0 ? l.price : null);
+  rows.sort((a, b) => {
+    const na = marketNewIds.has(a.id), nb = marketNewIds.has(b.id);
+    if (na !== nb) return na ? -1 : 1;                 // listings your watchlist just found come first, whatever the sort
+    if (sort === 'low' || sort === 'high') {
+      const pa = price(a), pb = price(b);
+      if (pa == null || pb == null) return (pa == null) - (pb == null) || b.added - a.added;
+      return (sort === 'low' ? pa - pb : pb - pa) || b.added - a.added;
+    }
+    if (sort === 'quality') return ((b.quality || 0) - (a.quality || 0)) || b.added - a.added;
+    return b.added - a.added;
+  });
+
+  status.innerHTML = `<span style="min-width:0">${marketBusy ? 'Loading…' : `${rows.length} listing${rows.length === 1 ? '' : 's'}${marketAt ? ' · updated ' + esc(marketAgo(marketAt)) : ''}${marketStale ? ' · UEX did not answer, showing the last list' : ''}`} · <a href="#" onclick="api.openExternal('https://uexcorp.space/marketplace');return false" style="color:var(--accent)">UEX Corp marketplace</a></span>
+    <button class="craft-owned-btn" onclick="loadMarket(true)"${marketBusy ? ' disabled' : ''}>Refresh</button>`;
+
+  if (marketBusy && !marketRows.length) { box.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading listings…</span></div>'; return; }
+  if (marketErr && !marketRows.length) {
+    box.innerHTML = `<div class="empty-state"><div class="lbl">Could not load the listings.<br><span style="font-size:10px">${esc(marketErr)}. Check your connection and press Refresh.</span></div></div>`;
+    return;
+  }
+  if (!rows.length) { box.innerHTML = '<div class="empty-state"><div class="ico">🔍</div><div class="lbl">No listings match.</div></div>'; return; }
+
+  const pretty = (s) => String(s).replace(/_/g, ' ');
+  box.innerHTML = rows.slice(0, marketShown).map(l => {
+    const isNew = marketNewIds.has(l.id);
+    const meta = [
+      l.quality ? `<span class="q">Q ${l.quality}</span>` : '',
+      l.source ? esc(pretty(l.source)) : '',
+      l.location ? esc(l.location) : '',
+      l.seller ? 'by ' + esc(l.seller) : '',
+      l.added ? esc(marketAgo(l.added)) : '',
+    ].filter(Boolean).join(' · ');
+    return `<div class="mk-card${isNew ? ' mk-new' : ''}">
+      <div class="mk-thumb">${l.photos[0] ? `<img src="${esc(l.photos[0])}" loading="lazy" alt="" onerror="this.remove()">` : '◇'}</div>
+      <div class="mk-main">
+        <div class="mk-title" onclick="marketToggle(${l.id})" title="Show or hide the description">${isNew ? '<span class="mk-tag">NEW</span>' : ''}${esc(l.title)}</div>
+        <div class="mk-meta">${meta}</div>
+        ${marketOpenIds.has(l.id) ? `<div class="mk-desc">${esc(l.desc.slice(0, 900)) || 'No description.'}</div>` : ''}
+        <div class="mk-row">
+          <span class="mk-price">${esc(marketPrice(l))}</span>
+          <span class="mk-btns">
+            <button class="craft-owned-btn" style="color:var(--accent);border-color:var(--accent)" onclick="marketMessage(${l.id})" title="Start a deal with the seller on UEX and chat here">Message seller</button>
+            <button class="craft-owned-btn" onclick="marketWatchFrom(${l.id})" title="Alert me about listings like this">🔔 Watch</button>
+            <button class="craft-owned-btn" onclick="marketOpenListing(${l.id})" title="Open this listing on UEX to message the seller">Open on UEX</button>
+          </span>
+        </div>
+      </div>
+    </div>`;
+  }).join('') + (rows.length > marketShown ? `<div style="text-align:center;padding:8px"><button class="craft-owned-btn" onclick="marketMore()">Show more (${rows.length - marketShown})</button></div>` : '');
+}
+
+// ── watchlist ──
+function toggleMarketWatchPanel(force) {
+  marketWatchOpen = force !== undefined ? force : !marketWatchOpen;
+  document.getElementById('market-watch-panel').style.display = marketWatchOpen ? '' : 'none';
+  document.getElementById('market-watch-chip').classList.toggle('active', marketWatchOpen);
+  if (marketWatchOpen) renderMarketWatches();
+}
+function mwOpChanged() {
+  document.getElementById('mw-price').placeholder = document.getElementById('mw-op').value === 'buy' ? 'Least offer (aUEC)' : 'Max price (aUEC)';
+}
+async function refreshMarketWatches() {
+  try { marketWatchList = (await api.getMarketWatches()) || []; } catch { marketWatchList = []; }
+  renderMarketWatches();
+}
+function marketCatName(id) { const c = marketCats.find(x => x.id === Number(id)); return c ? c.name : ''; }
+function renderMarketWatches() {
+  const chip = document.getElementById('market-watch-chip');
+  if (chip) chip.textContent = '🔔 Watchlist' + (marketWatchList.length ? ` (${marketWatchList.length})` : '');
+  const el = document.getElementById('market-watch-items');
+  if (!el) return;
+  el.innerHTML = marketWatchList.length ? marketWatchList.map(w => {
+    const bits = [w.op === 'buy' ? 'Wanted' : 'For sale', w.text ? `“${esc(w.text)}”` : '', w.category ? esc(marketCatName(w.category)) : '',
+      w.price ? (w.op === 'buy' ? '≥ ' : '≤ ') + Number(w.price).toLocaleString('en-US') : '', w.minQuality ? 'Q ≥ ' + w.minQuality : ''].filter(Boolean);
+    return `<div class="mk-watch"><span style="flex:1;min-width:0;overflow-wrap:anywhere">${bits.join(' · ')}</span>
+      <button class="craft-owned-btn" onclick="removeMarketWatch('${esc(w.id)}')" title="Stop watching">Remove</button></div>`;
+  }).join('') : '<div style="font-size:11px;color:var(--text-dim)">No watches yet.</div>';
+}
+async function addMarketWatch() {
+  const msg = document.getElementById('mw-msg');
+  msg.textContent = '';
+  const cat = Number(document.getElementById('mw-cat').value) || 0;
+  const text = document.getElementById('mw-text').value.trim();
+  const r = await api.addMarketWatch({
+    op: document.getElementById('mw-op').value,
+    text, category: cat,
+    price: document.getElementById('mw-price').value,
+    minQuality: document.getElementById('mw-q').value,
+    name: text || marketCatName(cat),
+  });
+  if (!r || !r.ok) { msg.textContent = (r && r.error) || 'Could not add the watch.'; return; }
+  marketWatchList = r.watches;
+  ['mw-text', 'mw-price', 'mw-q'].forEach(id => { document.getElementById(id).value = ''; });
+  renderMarketWatches();
+}
+async function removeMarketWatch(id) {
+  marketWatchList = (await api.removeMarketWatch(id)) || [];
+  renderMarketWatches();
+}
+function marketWatchFrom(id) {
+  const l = marketRows.find(x => x.id === id);
+  if (!l) return;
+  toggleMarketWatchPanel(true);
+  document.getElementById('mw-text').value = l.title.slice(0, 80);
+  document.getElementById('mw-op').value = l.op;
+  document.getElementById('mw-cat').value = String(l.categoryId || 0);
+  mwOpChanged();
+  document.getElementById('market-list').scrollTop = 0;
+  document.getElementById('mw-text').focus();
+}
+
+// ── My deals (your UEX negotiations; needs the app token and secret key from Settings) ──
+let marketDealsMode = false, marketDeals = null, dealsUnread = 0, dealNewHashes = new Set(), dealsBusy = false;
+
+function applyMarketMode() {
+  const c = document.getElementById('market-controls');
+  c.querySelector('.search-bar').style.display = marketDealsMode ? 'none' : '';
+  c.lastElementChild.style.display = marketDealsMode ? 'none' : 'flex';
+}
+async function setMarketDeals(el) {
+  closeChat(true);
+  marketDealsMode = true;
+  document.querySelectorAll('#market-op-chips .chip:not(#market-watch-chip)').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  applyMarketMode();
+  await loadDeals(true);
+}
+async function loadDeals(force) {
+  if (dealsBusy) return;
+  dealsBusy = true; renderMarket();
+  try { marketDeals = await api.getMarketDeals(force); } catch { marketDeals = { state: 'offline' }; }
+  dealsBusy = false;
+  try { dealNewHashes = new Set((await api.getDealNew()) || []); await api.dealsSeen(); } catch {}
+  dealsUnread = 0; updateMarketBadge();
+  renderMarket();
+}
+function openDealListing(hash) {
+  const d = marketDeals && marketDeals.deals && marketDeals.deals.find(x => x.hash === hash);
+  if (d && d.url) api.openExternal(d.url);
+}
+function dealPrice(d) {
+  if (!(d.price > 0)) return '';
+  return d.price.toLocaleString('en-US') + ' aUEC' + (d.unit && d.unit !== 'unit' ? ' / ' + d.unit : '');
+}
+function renderDeals() {
+  if (marketChat) { renderChat(); return; }
+  const box = document.getElementById('market-cards'), status = document.getElementById('market-status');
+  const d = marketDeals;
+  const toSettings = '<div style="margin-top:8px"><button class="btn btn-sm" onclick="switchTab(\'settings\')">Open Settings</button></div>';
+  const say = (msg) => { box.innerHTML = `<div class="empty-state"><div class="lbl">${msg}${toSettings}</div></div>`; };
+  status.innerHTML = `<span>${dealsBusy ? 'Loading…' : 'Your UEX deals'}</span><button class="craft-owned-btn" onclick="loadDeals(true)"${dealsBusy ? ' disabled' : ''}>Refresh</button>`;
+  if (!d) { box.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading your deals…</span></div>'; return; }
+  if (d.state === 'needkeys') return say('Add your UEX app token and secret key to see your deals.<br><span style="font-size:10px">Settings → UEX account</span>');
+  if (d.state === 'badtoken') return say('UEX does not accept your app token.<br><span style="font-size:10px">Check it in Settings → UEX account.</span>');
+  if (d.state === 'invalid') return say('UEX does not accept your secret key.<br><span style="font-size:10px">Check it in Settings → UEX account.</span>');
+  if (d.state === 'denied') return say('UEX refused the request for this account.');
+  if (d.state === 'offline') return say('Could not reach UEX. Check your connection and press Refresh.');
+  if (d.state !== 'ok') return say(`UEX answered "${esc(d.status || 'an error')}". Try Refresh in a minute.`);
+  if (!d.deals.length) { box.innerHTML = '<div class="empty-state"><div class="lbl">You have no deals yet.<br><span style="font-size:10px">Open a listing on UEX and message the seller; the deal shows up here.</span></div></div>'; return; }
+  box.innerHTML = d.deals.map(x => {
+    const isNew = dealNewHashes.has(x.hash);
+    const bits = [x.advertiser ? 'Listing by ' + esc(x.advertiser) : '', x.client ? 'contacted by ' + esc(x.client) : '', x.modified ? 'last activity ' + esc(marketAgo(x.modified)) : ''].filter(Boolean).join(' · ');
+    return `<div class="mk-card${isNew ? ' mk-new' : ''}">
+      <div class="mk-main">
+        <div class="mk-title" style="cursor:default">${isNew ? '<span class="mk-tag">NEW</span>' : ''}${esc(x.title || 'Listing')}</div>
+        <div class="mk-meta">${bits}</div>
+        <div class="mk-row">
+          <span class="mk-price">${esc(x.closed ? (x.dealValue > 0 ? 'Closed at ' + x.dealValue.toLocaleString('en-US') + ' aUEC' : 'Closed') : (dealPrice(x) || 'Open'))}</span>
+          <span class="mk-btns"><button class="craft-owned-btn" style="color:var(--accent);border-color:var(--accent)" onclick="openChat('${esc(x.hash)}')">Chat</button><button class="craft-owned-btn" onclick="openDealListing('${esc(x.hash)}')" title="Open the listing on UEX to read and write messages">Open on UEX</button></span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Message seller and the chat ──
+let marketChat = null, marketChatTimer = null, marketNoteTimer = null, marketStarting = false;
+function marketNote(html, kind) {
+  const el = document.getElementById('market-note');
+  if (!el) return;
+  clearTimeout(marketNoteTimer);
+  if (!html) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.style.borderColor = kind === 'bad' ? 'var(--danger)' : kind === 'ok' ? 'var(--success)' : 'var(--border)';
+  el.innerHTML = html;
+  marketNoteTimer = setTimeout(() => { el.style.display = 'none'; }, 20000);
+}
+async function marketMessage(id, confirmed) {
+  const l = marketRows.find(x => x.id === id);
+  if (!l || marketStarting) return;
+  if (!confirmed) {      // opening a deal is visible to the seller, so it takes a second press
+    marketNote(`This opens a deal with <b>${esc(l.seller || 'the seller')}</b> on UEX. You write the first message yourself in the chat that opens.
+      <div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-sm" onclick="marketMessage(${l.id}, true)">Start deal</button><button class="btn btn-sm" onclick="marketNote('')">Cancel</button></div>`);
+    document.getElementById('market-list').scrollTop = 0;
+    return;
+  }
+  marketStarting = true;
+  marketNote('Starting a deal on UEX…');
+  document.getElementById('market-list').scrollTop = 0;
+  try {
+    let r = await api.startDeal(l.slug);
+    if (r.state === 'needsignin') {
+      marketNote('Sign in to UEX in the window that opened. It closes by itself once you are in.');
+      const c = await api.uexWebConnect();
+      uexWebRefresh();
+      if (!c.signedIn) { marketNote('You are not signed in to UEX, so no deal was started.', 'bad'); marketStarting = false; return; }
+      marketNote('Starting a deal on UEX…');
+      r = await api.startDeal(l.slug);
+    }
+    if (r.state === 'unverified') marketNote('UEX only lets verified accounts start deals. <a href="#" style="color:var(--accent)" onclick="api.openExternal(\'https://uexcorp.space/account/verify\');return false">Verify your account on UEX</a>, then try again.', 'bad');
+    else if (r.state === 'needsignin') marketNote('UEX still shows you as signed out. Sign in from Settings → UEX website sign-in and try again.', 'bad');
+    else if (r.state === 'offline') marketNote('Could not reach UEX. Check your connection and try again.', 'bad');
+    else if (r.state === 'started' || r.state === 'window') {
+      if (r.hash) { marketNote('Deal started. Chat with the seller below.', 'ok'); openChat(r.hash, l.title); }
+      else if (r.needkeys) marketNote('Deal started on UEX. Add your app token and secret key in Settings → UEX account to chat here.', 'ok');
+      else marketNote('If you started the deal, it shows up under My deals shortly.');
+    }
+    else if (r.state === 'unconfirmed') marketNote('The request went to UEX, but the deal is not listed yet. Check My deals in a minute.');
+    else marketNote(esc(r.error || 'Could not start the deal.'), 'bad');
+  } catch { marketNote('Could not start the deal.', 'bad'); }
+  marketStarting = false;
+}
+
+async function openChat(hash, title) {
+  if (!title) { const d = marketDeals && marketDeals.deals && marketDeals.deals.find(x => x.hash === hash); title = d ? d.title : 'Deal'; }
+  marketChat = { hash, title, messages: null, me: '', state: 'loading', sending: false };
+  if (!marketDealsMode) {
+    marketDealsMode = true;
+    document.querySelectorAll('#market-op-chips .chip:not(#market-watch-chip)').forEach(c => c.classList.remove('active'));
+    document.getElementById('market-deals-chip').classList.add('active');
+    applyMarketMode();
+  }
+  renderMarket();
+  await loadChat();
+  clearInterval(marketChatTimer);
+  marketChatTimer = setInterval(() => { if (!marketChat) clearInterval(marketChatTimer); else if (marketVisible()) loadChat(); }, 15000);
+}
+function closeChat(silent) {
+  marketChat = null; clearInterval(marketChatTimer);
+  if (!silent) { renderMarket(); loadDeals(true); }
+}
+async function loadChat() {
+  const c = marketChat;
+  if (!c) return;
+  let r;
+  try { r = await api.getMarketMessages(c.hash); } catch { r = { state: 'offline' }; }
+  if (marketChat !== c) return;
+  c.state = r.state; c.status = r.status;
+  if (r.state === 'ok') { c.messages = r.messages; c.me = r.me || ''; }
+  renderMarket();
+}
+function openChatOnUex() {
+  const d = marketChat && marketDeals && marketDeals.deals && marketDeals.deals.find(x => x.hash === marketChat.hash);
+  api.openExternal(d && d.url ? d.url : 'https://uexcorp.space/marketplace');
+}
+function renderChat() {
+  const c = marketChat, box = document.getElementById('market-cards'), status = document.getElementById('market-status');
+  status.innerHTML = '<button class="craft-owned-btn" onclick="closeChat()">‹ My deals</button><button class="craft-owned-btn" onclick="openChatOnUex()">Open on UEX</button>';
+  if (!document.getElementById('mk-chat-msgs')) {
+    box.innerHTML = `<div id="mk-chat-title" style="font-size:12px;font-weight:700;color:var(--text-bright);margin-bottom:6px;overflow-wrap:anywhere"></div>
+      <div id="mk-chat-msgs" style="max-height:300px;min-height:120px;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-input)"></div>
+      <div id="mk-chat-err" style="font-size:11px;color:var(--danger);min-height:14px;margin-top:4px"></div>
+      <div style="display:flex;gap:6px;align-items:flex-end">
+        <textarea id="mk-chat-input" class="mk-in" rows="2" maxlength="2000" placeholder="Write a message…" style="flex:1;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+        <button class="btn btn-sm" id="mk-chat-send" onclick="sendChat()">Send</button>
+      </div>`;
+  }
+  document.getElementById('mk-chat-title').textContent = c.title;
+  const msgs = document.getElementById('mk-chat-msgs');
+  const nearEnd = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 40;
+  const note = (t) => `<div class="mk-sys">${t}</div>`;
+  if (c.state === 'loading') msgs.innerHTML = note('Loading…');
+  else if (c.state === 'needkeys') msgs.innerHTML = note('Add your UEX app token and secret key in Settings → UEX account to read and send messages.');
+  else if (c.state === 'badtoken') msgs.innerHTML = note('UEX does not accept your app token. Check it in Settings → UEX account.');
+  else if (c.state === 'offline') msgs.innerHTML = note('Could not reach UEX. Retrying…');
+  else if (c.state !== 'ok') msgs.innerHTML = note(`UEX answered "${esc(c.status || 'an error')}". Retrying…`);
+  else if (!c.messages.length) msgs.innerHTML = note('No messages yet. Say hello.');
+  else msgs.innerHTML = c.messages.map(m => {
+    if (!m.text) return note(esc((m.event || 'update').replace(/_/g, ' ')));
+    const mine = !!c.me && m.user === c.me;
+    return `<div style="align-self:${mine ? 'flex-end' : 'flex-start'};max-width:85%"><div class="mk-bub${mine ? ' mine' : ''}">${esc(m.text)}</div>
+      <div class="mk-bub-meta" style="text-align:${mine ? 'right' : 'left'}">${mine ? 'You' : esc(m.user || '?')} · ${esc(marketAgo(m.at))}</div></div>`;
+  }).join('');
+  if (nearEnd) msgs.scrollTop = msgs.scrollHeight;
+}
+async function sendChat() {
+  const c = marketChat;
+  if (!c || c.sending || c.state !== 'ok') return;
+  const input = document.getElementById('mk-chat-input'), err = document.getElementById('mk-chat-err'), btn = document.getElementById('mk-chat-send');
+  const text = input.value.trim();
+  if (!text) return;
+  c.sending = true; err.textContent = ''; btn.disabled = true;
+  let r;
+  try { r = await api.sendMarketMessage(c.hash, text); } catch { r = { state: 'offline' }; }
+  c.sending = false; btn.disabled = false;
+  if (r.state === 'ok') { input.value = ''; await loadChat(); const m = document.getElementById('mk-chat-msgs'); if (m) m.scrollTop = m.scrollHeight; }
+  else if (r.state === 'needkeys') err.textContent = 'Add your app token and secret key in Settings first.';
+  else if (r.state === 'offline') err.textContent = 'Could not reach UEX. Your text is still in the box.';
+  else err.textContent = `UEX did not take the message (${r.status || 'error'}). Your text is still in the box.`;
+}
+
+// ── alerts from the main process ──
+function updateMarketBadge() {
+  const set = (id, n) => { const b = document.getElementById(id); if (!b) return; b.hidden = n <= 0; b.textContent = n > 99 ? '99+' : String(n); };
+  set('market-badge', marketUnread + dealsUnread);
+  set('market-deals-badge', dealsUnread);
+}
+async function refreshMarketNew() {
+  let ids = [];
+  try { ids = (await api.getMarketNew()) || []; } catch {}
+  try {
+    const dn = (await api.getDealNew()) || [];
+    if (marketVisible() && marketDealsMode) { if (dn.length) loadDeals(true); dealsUnread = 0; }
+    else dealsUnread = dn.length;
+  } catch {}
+  if (marketVisible() && marketDealsMode) { updateMarketBadge(); return; }   // listing alerts wait until the listings are shown
+  if (marketVisible()) {
+    if (ids.length) {
+      ids.forEach(i => marketNewIds.add(i));
+      try { await api.clearMarketNew(); } catch {}
+      marketUnread = 0;
+      loadMarket(false);
+    }
+  } else {
+    marketUnread = ids.length;
+  }
+  updateMarketBadge();
+}
+try {
+  api.onMarketNew(() => refreshMarketNew());
+  api.onMarketOpen((where) => {
+    switchTab('prices');
+    switchPricesView('market', document.getElementById('market-chip'));
+    if (where === 'deals') setMarketDeals(document.getElementById('market-deals-chip'));
+  });
+  refreshMarketNew();
+} catch {}
 
 function clearStationContent() {
   document.getElementById('com-list')

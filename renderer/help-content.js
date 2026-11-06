@@ -82,17 +82,27 @@ const HELP_SECTIONS = [
   },
   {
     id: 'prices', icon: '📈', title: 'Prices',
-    intro: ['Live buy and sell prices from UEX Corp, browsable by commodity or by station.'],
+    intro: [
+      'Live buy and sell prices from UEX Corp, browsable by commodity or by station.',
+      "The Market chip lists player-to-player listings from the UEX Corp marketplace: browse what players are selling or want to buy, set alerts for things you are after, and message sellers without leaving the overlay.",
+    ],
     shots: ['prices-commodity', 'prices-station'],
     howto: [
       '**Where does this sell best?** Commodity → search or filter → click the commodity.',
       '**What does this station trade?** Station → choose the station from the dropdown.',
       '**Buy here:** Buy opens Add Inventory pre-filled and marks the cargo as in transit.',
       '**Sell here:** Sell finds your in-transit stock of that commodity, shows the payout, and removes it from inventory when you confirm.',
+      "**Browse the market:** Market → For sale shows what players are selling, Wanted what they want to buy. Search, pick a category, and sort by newest, price or quality. Click a listing's title to read its description.",
+      "**Get an alert:** Market → 🔔 Watchlist, describe what you want (words, category, a price limit, a minimum quality) and press Add watch. You get a Windows notification when a new matching listing appears. It is checked every 3 minutes, also while the overlay sits in the tray. The 🔔 Watch button on a listing fills the form in for you.",
+      "**Message a seller:** press Message seller on a listing, then Start deal. The first time, you sign in to UEX in a window of the app; UEX only lets verified accounts start deals. You write the first message yourself in the chat that opens.",
+      "**Follow your deals:** Market → My deals lists your UEX negotiations. Chat opens the conversation, and you get an alert when a deal has news. Chat and alerts need your UEX app token and secret key (Settings → UEX account).",
     ],
     tips: [
       'A greyed-out Buy or Sell means that station does not trade that commodity in that direction.',
       'The numbers next to each commodity in the list are the best sell price and the margin over the cheapest buy price.',
+      "Listings are written by other players and shown as they are. Check what you are buying before you pay, and never share a password or account details.",
+      "A new watch only notes the listings that already exist, so you are alerted about new ones only.",
+      "Open on UEX opens the listing on uexcorp.space in your browser, where you can also end a deal.",
     ],
   },
   {
@@ -173,6 +183,8 @@ const HELP_SECTIONS = [
       '**Price Data Source:** UEX Corp (default) or SC Trade Tools, a community-reported feed. SC Trade Tools covers fewer stations and refreshes about hourly, so a quiet station can show no prices; the logo at the top right of the Prices tab shows which source you are on (click it to open that site).',
       '**Game Log Path:** points the app at Star Citizen\'s Game.log so it can notice where you are. It is found automatically in the default install location.',
       '**Report a Bug:** sends your text, the app version and your OS to the developer. You can also attach a screenshot of the screen you were on, the last refinery capture, a fresh grab of the game window, or your own images — each one is previewed first, and nothing is attached unless you tick or add it.',
+      "**UEX account:** to chat with sellers, paste your UEX app token (made on UEX's My Apps page) and your secret key (from your UEX profile). They are encrypted with Windows' own key store, never shown again, and never put in exports or bug reports. Remove deletes both.",
+      "**UEX website sign-in:** lets Message seller start a deal for you. Sign in on UEX's own page in the window that opens (Discord or any other way); the app never sees your password. Sign out wipes the saved login.",
     ],
   },
   {
@@ -185,6 +197,9 @@ const HELP_SECTIONS = [
       ['A part will not fit a slot', 'The slot shows the size it accepts. Make the asset\'s size match, or choose a part of the right size.'],
       ['A stock part is missing from Assets', 'Open the ship and click ↻ Refresh stock data — it restores any stock parts that were deleted.'],
       ['Where is my data stored?', 'Locally, in the app\'s own data folder. Use Settings → Export to keep a copy.'],
+      ["How do I get my UEX app token and secret key?", "Sign in to UEX Corp in your browser. On the My Apps page create an app (any name, such as SC Companion) and copy its access token. Your secret key is on your UEX profile. Paste both into Settings → UEX account; they are two different values."],
+      ["Message seller says my account is not verified", "UEX only lets verified accounts start deals. Verify your account on UEX (it checks through your public profile that your RSI name is yours), then try again."],
+      ["I got no alert for a listing", "Alerts are checked every 3 minutes while the app is running, in the tray too. A listing UEX is still reviewing is not shown yet. The first look at a new watch only records what already exists. Check that Windows notifications are allowed for SC Companion."],
     ],
   },
 ];
