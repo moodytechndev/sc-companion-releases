@@ -927,7 +927,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <div class="setting-label" data-i18n="settings.opacity">Window Opacity</div>
             <div class="setting-desc" data-i18n="settings.opacity.desc">How transparent the overlay is</div>
           </div>
-          <input type="range" id="opacity-range" min="30" max="100" value="96" oninput="api.setOpacity(this.value/100)">
+          <input type="range" id="opacity-range" min="30" max="100" value="100" oninput="api.setOpacity(this.value/100)">
         </div>
         <div class="setting-row">
           <div>
@@ -939,6 +939,13 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <span id="zoom-value" style="min-width:38px;text-align:right;color:var(--accent);font-weight:700">100%</span>
             <button class="btn btn-sm" id="zoom-reset" onclick="saveZoom(100)">Reset</button>
           </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">What's New</div>
+            <div class="setting-desc">The latest changes. This also appears once after each update.</div>
+          </div>
+          <button class="btn btn-sm" id="whatsnew-btn" onclick="openWhatsNew(WHATS_NEW.slice(0, 3))">Show</button>
         </div>
         <div class="setting-row">
           <div>
@@ -1206,6 +1213,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
     <button id="lock-btn" onclick="toggleSizeLock()" title="Lock window size" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;line-height:1;padding:2px 4px;border-radius:3px;transition:color .15s">🔓</button>
     <button id="help-btn" onclick="switchTab('help')" title="Open the illustrated user guide">?</button>
     <button id="settings-btn" onclick="switchTab('settings')" title="Settings">⚙</button>
+  </div>
+</div>
+
+<!-- ── What's new ── -->
+<div id="whatsnew-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;align-items:center;justify-content:center" onclick="if(event.target===this)closeWhatsNew()">
+  <div class="modal" style="width:400px">
+    <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px">
+      <h3 id="whatsnew-title" style="margin:0;flex:1">What's new</h3>
+      <button class="btn btn-sm" onclick="closeWhatsNew()" title="Close" style="padding:2px 8px">✕</button>
+    </div>
+    <div id="whatsnew-body" style="display:flex;flex-direction:column;gap:14px;font-size:13px;line-height:1.45"></div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeWhatsNew()" style="flex:1">Got it</button></div>
   </div>
 </div>
 
@@ -1579,6 +1598,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <script src="mining-data.js"></script>
 <script src="mining-gear.js"></script>
 <script src="special-blueprints.js"></script>
+<script src="whats-new.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
 // State
@@ -5376,10 +5396,36 @@ async function saveZoom(v) {
   document.getElementById('zoom-range').value = pct;
   onZoomInput(pct);
 }
+async function initOpacity() {
+  const el = document.getElementById('opacity-range');
+  if (el) el.value = Math.round((await api.getOpacity()) * 100);
+}
 async function initZoom() {
   const pct = Math.round((await api.getZoom()) * 100);
   const el = document.getElementById('zoom-range');
   if (el) { el.value = pct; onZoomInput(pct); }
+}
+// What's new: shown once after an update, never again until the next one. It is marked as seen the moment
+// it is shown, so quitting without closing it does not bring it back.
+const verParts = (v) => String(v).split('.').map(n => parseInt(n, 10) || 0);
+function cmpVer(a, b) { const x = verParts(a), y = verParts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
+function openWhatsNew(entries) {
+  if (!entries || !entries.length) return;
+  document.getElementById('whatsnew-title').textContent = entries.length === 1 ? `What's new in v${entries[0].version}` : "What's new";
+  document.getElementById('whatsnew-body').innerHTML = entries.map(e => `<div>
+    ${entries.length > 1 ? `<div style="font-weight:700;color:var(--accent);margin-bottom:4px">v${esc(e.version)}</div>` : ''}
+    <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">${e.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+  </div>`).join('');
+  document.getElementById('whatsnew-overlay').style.display = 'flex';
+}
+function closeWhatsNew() { document.getElementById('whatsnew-overlay').style.display = 'none'; }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWhatsNew(); });
+async function initWhatsNew() {
+  const cur = await api.getVersion();
+  const since = await api.whatsNewSince();
+  const fresh = WHATS_NEW.filter(e => cmpVer(e.version, since) > 0 && cmpVer(e.version, cur) <= 0).slice(0, 4);
+  await api.setStore('lastSeenVersion', cur);
+  openWhatsNew(fresh);
 }
 async function saveGameSafe() {
   await api.setGameSafe(document.getElementById('game-safe-select').value === 'on');
@@ -6445,6 +6491,7 @@ const HINTS_BY_ID = {
   'lock-btn': 'Lock or unlock resizing the window',
   'opacity-range': 'How see-through the overlay is',
   'zoom-range': 'Make the whole app bigger or smaller',
+  'whatsnew-btn': 'Show the latest changes',
   'capture-job-btn': 'Screenshot the in-game refinery screen and try to pre-fill a job (you review it before starting)',
   'owned-filter': 'Show all blueprints, only ones you own, only ones you don\'t, or only ones you can craft from your current stock',
   'owned-cat-filter': 'Only show blueprints in this category',
@@ -6616,6 +6663,8 @@ initLogWatcher();
 initCloseBehavior();
 initGameSafe();
 initZoom();
+initOpacity();
+initWhatsNew();
 initPriceSource();
 loadLastLocations();
 loadHomeUndo();

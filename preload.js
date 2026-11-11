@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('api', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),
   setOpacity: (v) => ipcRenderer.invoke('window:setOpacity', v),
+  getOpacity: () => ipcRenderer.invoke('window:getOpacity'),
   setAlwaysOnTop: (v) => ipcRenderer.invoke('window:setAlwaysOnTop', v),
   getZoom: () => ipcRenderer.invoke('ui:getZoom'),
   setZoom: (v) => ipcRenderer.invoke('ui:setZoom', v),
@@ -103,6 +104,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // App version / updates
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  whatsNewSince: () => ipcRenderer.invoke('whatsnew:since'),
   onUpdateAvailable: (cb) => ipcRenderer.on('updater:available', (_, info) => cb(info)),
   onUpdateProgress: (cb) => ipcRenderer.on('updater:progress', (_, info) => cb(info)),
   onUpdateDownloaded: (cb) => ipcRenderer.on('updater:downloaded', cb),

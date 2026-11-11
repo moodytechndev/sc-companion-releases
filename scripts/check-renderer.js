@@ -38,6 +38,7 @@ const sources = {
   'renderer/mining-data.js': read('renderer/mining-data.js'),
   'renderer/mining-gear.js': read('renderer/mining-gear.js'),
   'renderer/special-blueprints.js': read('renderer/special-blueprints.js'),
+  'renderer/whats-new.js': read('renderer/whats-new.js'),
   'renderer/index.html (inline script)': inline.join('\n;\n'),
 };
 for (const [name, src] of Object.entries(sources)) {

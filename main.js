@@ -9,6 +9,8 @@ const Store = require('electron-store');
 const { createWorker } = require('tesseract.js');
 
 const store = new Store();
+// An empty store means a fresh install: it has no "what's new" to show. Read before anything is saved.
+const storeWasEmpty = store.size === 0;
 let mainWindow;
 // "Keep the game in control": the overlay never takes keyboard focus unless the user clicks into a text box.
 // Clicking it (or moving the mouse over it and firing) used to make Windows activate it, which took the keyboard
@@ -306,6 +308,7 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  { const o = store.get('windowOpacity'); if (typeof o === 'number') mainWindow.setOpacity(clampOpacity(o)); }
   mainWindow.once('ready-to-show', ensureTaskbarButton);
   mainWindow.webContents.once('did-finish-load', ensureTaskbarButton);
   mainWindow.webContents.on('did-finish-load', applyUiZoom);
@@ -433,6 +436,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  if (pendingOpacity !== null) { store.set('windowOpacity', pendingOpacity); pendingOpacity = null; }   // a slider move just before quitting
   // The taskbar button is added by hand while the overlay cannot be activated (see ensureTaskbarButton), and Windows
   // does not tidy such a button up when the window goes: take it away first, or its icon stays behind after quitting.
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1071,7 +1075,17 @@ ipcMain.handle('overlay:keyboard', async (_, wants, hold) => {
   return grabbing;
 });
 ipcMain.handle('overlay:state', () => (mainWindow ? { gameSafe, focusable: mainWindow.isFocusable(), focused: mainWindow.isFocused() } : null));
-ipcMain.handle('window:setOpacity', (_, opacity) => mainWindow?.setOpacity(opacity));
+// Window Opacity: applied live while the slider moves, saved shortly after it stops (every step would write the file).
+const clampOpacity = (o) => Math.min(1, Math.max(0.3, Number(o) || 1));
+let opacitySaveTimer = null, pendingOpacity = null;
+ipcMain.handle('window:setOpacity', (_, opacity) => {
+  const o = clampOpacity(opacity);
+  mainWindow?.setOpacity(o);
+  pendingOpacity = o;
+  clearTimeout(opacitySaveTimer);
+  opacitySaveTimer = setTimeout(() => { store.set('windowOpacity', o); pendingOpacity = null; }, 400);
+});
+ipcMain.handle('window:getOpacity', () => { const o = store.get('windowOpacity'); return typeof o === 'number' ? clampOpacity(o) : 1; });
 ipcMain.handle('window:setAlwaysOnTop', (_, v) => mainWindow?.setAlwaysOnTop(v));
 
 // Erkul's calculator refuses to render below ~1000px wide (it redirects to its
@@ -1458,6 +1472,9 @@ autoUpdater.on('error', (err) => {
 });
 
 ipcMain.handle('app:getVersion', () => CURRENT_VERSION);
+// The version whose notes the user has already seen. Installs from before this existed have saved data but no
+// record, so they count as coming from 1.6.9; a fresh install has nothing to catch up on.
+ipcMain.handle('whatsnew:since', () => store.get('lastSeenVersion') || (storeWasEmpty ? CURRENT_VERSION : '1.6.9'));
 ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate());
 // The main window's close handler hides to tray instead of closing (unless
 // app.isQuitting), which would cancel the quit that quitAndInstall relies on and
