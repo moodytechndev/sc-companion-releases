@@ -694,10 +694,21 @@ async function dealsCheck() {
 const UEX_PARTITION = 'persist:uex';
 const UEX_SLUG = /^[A-Za-z0-9._~-]{5,200}$/;
 const UEX_HASH = /^[A-Za-z0-9-]{6,64}$/;      // a deal's hash is a dashed id, e.g. 893516ca-e2c0-4118-b71a-2d8ac8333ce8
+// Every permission is refused except one: UEX's sign-in page embeds Google's reCAPTCHA, which asks for storage access
+// (document.requestStorageAccess) to keep its own cookies. Refusing that makes the captcha fail and the sign-in ends in
+// "Error #1". It is granted only to the captcha's own hosts, and only while a UEX or Discord page is the one open.
+const UEX_STORAGE_FRAMES = /(^|\.)(google\.com|gstatic\.com|recaptcha\.net|challenges\.cloudflare\.com|uexcorp\.space)$/i;
+const UEX_STORAGE_PAGES = new Set(['uexcorp.space', 'www.uexcorp.space', 'discord.com']);
+function uexAllowsPermission(wc, permission, details) {
+  if (permission !== 'storage-access') return false;
+  try {
+    return UEX_STORAGE_FRAMES.test(new URL(details.requestingUrl).hostname) && UEX_STORAGE_PAGES.has(new URL(wc.getURL()).hostname);
+  } catch { return false; }
+}
 let uexSesReady = false;
 function uexSes() {
   const s = session.fromPartition(UEX_PARTITION);
-  if (!uexSesReady) { uexSesReady = true; s.setPermissionRequestHandler((_wc, _p, cb) => cb(false)); }
+  if (!uexSesReady) { uexSesReady = true; s.setPermissionRequestHandler((wc, permission, cb, details) => cb(uexAllowsPermission(wc, permission, details || {}))); }
   return s;
 }
 async function uexWebGet(url) {

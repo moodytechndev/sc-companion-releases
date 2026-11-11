@@ -3,6 +3,9 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '1.6.12', items: [
+    "Fixed: signing in to UEX (Settings > UEX account) failed with \"Error #1\". The sign-in window was blocking the captcha on the UEX login page, and now lets it work.",
+  ] },
   { version: '1.6.11', items: [
     "New: this What's New window. It appears once after each update, and Settings > What's New shows it again any time.",
     'Fixed: Window Opacity is now remembered. It used to go back to fully solid every time the app started.',
