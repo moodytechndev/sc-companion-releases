@@ -195,6 +195,7 @@ const HELP_SECTIONS = [
       ['The overlay is not visible over the game', 'Run Star Citizen in borderless / windowed mode — exclusive fullscreen can cover any overlay. Press Insert to confirm it has not been hidden.'],
       ['Capture filled in nothing', 'Make sure the refinery job screen is fully visible and not covered by another window, then try again. Capture is experimental; you can always type the job in manually.'],
       ['Capture says the game screen came back black', 'Windows does not let apps take a picture of a game in exclusive fullscreen. Set Star Citizen to Fullscreen Borderless (Options → Graphics) and capture again. In borderless the overlay hides for a moment while the screen is taken, then comes back.'],
+      ['OBS Window Capture shows a frozen picture', 'In OBS, open the properties of the window capture source and set Capture Method to Windows 10 (1903 and up). The older Legacy (BitBlt) method cannot follow this kind of window. If you need the old method, turn on Settings → OBS Window Capture → Compatibility: the window becomes solid with square corners and the app restarts.'],
       ['A part will not fit a slot', 'The slot shows the size it accepts. Make the asset\'s size match, or choose a part of the right size.'],
       ['A stock part is missing from Assets', 'Open the ship and click ↻ Refresh stock data — it restores any stock parts that were deleted.'],
       ['Where is my data stored?', 'Locally, in the app\'s own data folder. Use Settings → Export to keep a copy.'],

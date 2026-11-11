@@ -3,6 +3,9 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '1.6.13', items: [
+    "New: Settings > OBS Window Capture. If OBS shows a frozen picture of the app, set the source's Capture Method to Windows 10 (1903 and up). If you need OBS's older method, turn on Compatibility here: the window becomes solid with square corners, and the app restarts.",
+  ] },
   { version: '1.6.12', items: [
     "Fixed: signing in to UEX (Settings > UEX account) failed with \"Error #1\". The sign-in window was blocking the captcha on the UEX login page, and now lets it work.",
   ] },

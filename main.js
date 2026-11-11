@@ -11,6 +11,12 @@ const { createWorker } = require('tesseract.js');
 const store = new Store();
 // An empty store means a fresh install: it has no "what's new" to show. Read before anything is saved.
 const storeWasEmpty = store.size === 0;
+// OBS compatibility: OBS's older "Legacy (BitBlt)" window capture reads a window through GDI. A transparent,
+// GPU-drawn window never updates that way, so the capture freezes on the first picture. An opaque window drawn by
+// the CPU does update, so this opt-in mode gives up the transparent rounded corners and GPU drawing. It has to be
+// chosen before the app is ready, so changing it restarts the app.
+const obsMode = store.get('obsMode') === true;
+if (obsMode) app.disableHardwareAcceleration();
 let mainWindow;
 // "Keep the game in control": the overlay never takes keyboard focus unless the user clicks into a text box.
 // Clicking it (or moving the mouse over it and firing) used to make Windows activate it, which took the keyboard
@@ -292,7 +298,8 @@ function createWindow() {
     minWidth: minSize()[0],
     minHeight: minSize()[1],
     frame: false,
-    transparent: true,
+    transparent: !obsMode,
+    ...(obsMode ? { backgroundColor: '#080c14' } : {}),
     alwaysOnTop: true,
     skipTaskbar: false,
     icon: path.join(__dirname, 'icon.png'),
@@ -1134,6 +1141,13 @@ ipcMain.handle('window:setResizable', (_, v) => {
 
 // Text size slider. The window is resized by the same ratio so the layout keeps the room it had, kept on the
 // screen the window is on. While the window is widened for Erkul, its remembered normal size is scaled too.
+ipcMain.handle('obs:get', () => obsMode);
+ipcMain.handle('obs:set', (_, v) => {
+  store.set('obsMode', v === true);
+  app.isQuitting = true;
+  app.relaunch();
+  app.quit();
+});
 ipcMain.handle('ui:getZoom', () => uiZoom);
 ipcMain.handle('ui:setZoom', (_, z) => {
   const next = clampZoom(z);
