@@ -16,6 +16,16 @@ let mainWindow;
 // like any other but leaves the game as the active window.
 let gameSafe = store.get('gameSafeOverlay', true) !== false;
 let keyboardHold = false;      // Erkul on screen: the window stays focusable until it is left
+// Text size: the whole interface is scaled with the page zoom (every size in the app is in px, so one factor
+// grows text, buttons and spacing together). The window grows with it, so the layout keeps the room it had.
+const ZOOM_MIN = 0.85, ZOOM_MAX = 1.6;
+const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((Number(z) || 1) * 20) / 20));
+let uiZoom = clampZoom(store.get('uiZoom', 1));
+const minSize = () => [Math.round(380 * uiZoom), Math.round(400 * uiZoom)];
+function applyUiZoom() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try { mainWindow.webContents.setZoomFactor(uiZoom); } catch { /* keep the old size */ }
+}
 // A window that cannot be activated gets no taskbar button from Windows, and every setFocusable(false) or hide()
 // takes the button away again. Asking for the button after each of those keeps the app's icon in the taskbar.
 function ensureTaskbarButton() {
@@ -277,8 +287,8 @@ function createWindow() {
     height: savedBounds.height || 620,
     x:      savedBounds.x,
     y:      savedBounds.y,
-    minWidth: 380,
-    minHeight: 400,
+    minWidth: minSize()[0],
+    minHeight: minSize()[1],
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -298,6 +308,7 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.once('ready-to-show', ensureTaskbarButton);
   mainWindow.webContents.once('did-finish-load', ensureTaskbarButton);
+  mainWindow.webContents.on('did-finish-load', applyUiZoom);
 
   // after typing (or any time the window is left), go back to not taking focus
   mainWindow.on('blur', () => { if (gameSafe && !keyboardHold && !grabbing) applyFocusMode(); });
@@ -1091,9 +1102,33 @@ ipcMain.handle('window:setResizable', (_, v) => {
     mainWindow.setMinimumSize(w, h);
     mainWindow.setMaximumSize(w, h);
   } else {
-    mainWindow.setMinimumSize(380, 400);
+    mainWindow.setMinimumSize(...minSize());
     mainWindow.setMaximumSize(0, 0);
   }
+});
+
+// Text size slider. The window is resized by the same ratio so the layout keeps the room it had, kept on the
+// screen the window is on. While the window is widened for Erkul, its remembered normal size is scaled too.
+ipcMain.handle('ui:getZoom', () => uiZoom);
+ipcMain.handle('ui:setZoom', (_, z) => {
+  const next = clampZoom(z);
+  if (!mainWindow || mainWindow.isDestroyed() || next === uiZoom) return uiZoom;
+  const ratio = next / uiZoom;
+  uiZoom = next;
+  store.set('uiZoom', uiZoom);
+  applyUiZoom();
+  const locked = !mainWindow.isResizable();
+  if (!locked) mainWindow.setMinimumSize(...minSize());
+  const b = mainWindow.getBounds();
+  const area = screen.getDisplayMatching(b).workArea;
+  const w = Math.min(Math.round(b.width * ratio), area.width), h = Math.min(Math.round(b.height * ratio), area.height);
+  const x = Math.min(Math.max(b.x, area.x), area.x + area.width - w), y = Math.min(Math.max(b.y, area.y), area.y + area.height - h);
+  if (locked) { mainWindow.setMinimumSize(0, 0); mainWindow.setMaximumSize(0, 0); }
+  mainWindow.setBounds({ x, y, width: w, height: h });
+  if (locked) { mainWindow.setMinimumSize(w, h); mainWindow.setMaximumSize(w, h); }
+  if (preErkulBounds) preErkulBounds = { ...preErkulBounds, width: Math.round(preErkulBounds.width * ratio), height: Math.round(preErkulBounds.height * ratio) };
+  else saveBounds();
+  return uiZoom;
 });
 
 // ─── IPC: Notifications ───────────────────────────────────────────────────────
@@ -1179,34 +1214,64 @@ ipcMain.handle('game:isRunning', () => isGameRunning());
 
 // Prefer capturing just the game's own window — keeps other monitors/apps out of the
 // screenshot (privacy + less OCR noise) and out of any raw text we keep around for
-// debugging. Exclusive-fullscreen games sometimes aren't enumerable as a window by
-// the OS compositor, so this can come back empty; the caller falls back to full-screen.
+// debugging. A game in fullscreen is often not listed as a window, or its window comes back black,
+// so the caller falls back to the whole display.
 async function getGameWindowSource(thumbnailSize) {
   const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize });
   return sources.find(s => s.name.toLowerCase().includes('star citizen')) || null;
 }
 
-// Grabs the screen (or just the game window) and returns the image — no OCR here,
-// so a burst of grabs can run back-to-back and the slow reading happens afterwards.
+// A grab of the whole display would include the overlay itself, sitting over the game screen. It is made
+// invisible for the grab (opacity 0, no flicker of layout) and put back by restoreOverlay(), which the
+// callers run when they are done with their grabs, so a burst of shots hides it once.
+let _hiddenOpacity = null;
+async function hideOverlayForGrab() {
+  if (_hiddenOpacity !== null || !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return;
+  _hiddenOpacity = mainWindow.getOpacity();
+  mainWindow.setOpacity(0);
+  await delay(160);                      // let the compositor drop it from the screen
+}
+function restoreOverlay() {
+  if (_hiddenOpacity === null) return;
+  const o = _hiddenOpacity;
+  _hiddenOpacity = null;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setOpacity(o);
+}
+
+// Which way worked last time, so the next capture goes straight to it.
+let lastGrabMode = null;
+const BLANK_FRAME_MSG = 'The game screen came back black. Windows blocks screen capture of a game in exclusive fullscreen: set Star Citizen to Fullscreen Borderless (Options > Graphics) and try again.';
+
+// Grabs the game window, or the whole display when the window can't be had (not listed, or a black picture —
+// what a fullscreen game gives), and returns the image — no OCR here, so a burst of grabs can run
+// back-to-back and the slow reading happens afterwards. Callers run restoreOverlay() when done.
 async function grabFrame() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.size;
   const scale = primaryDisplay.scaleFactor || 1;
   const thumbnailSize = { width: Math.round(width * scale), height: Math.round(height * scale) };
+  const usable = (img) => !!img && !img.isEmpty() && !refineryOcr.frameLooksBlank(img);
 
-  let source = await getGameWindowSource(thumbnailSize);
-  let capturedWindow = true;
-  if (!source) {
-    // Fallback: game window wasn't enumerable (likely exclusive fullscreen) —
-    // capture the whole primary display instead.
-    capturedWindow = false;
+  const fromWindow = async () => {
+    const source = await getGameWindowSource(thumbnailSize);
+    return source && usable(source.thumbnail) ? source.thumbnail : null;
+  };
+  // the primary display first, then any other (the game may be on a second monitor)
+  const fromScreen = async () => {
+    await hideOverlayForGrab();
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize });
     if (!sources.length) throw new Error('No screen source available to capture');
-    source = sources.find(s => s.display_id === String(primaryDisplay.id)) || sources[0];
-  }
+    sources.sort((a, b) => (b.display_id === String(primaryDisplay.id)) - (a.display_id === String(primaryDisplay.id)));
+    const hit = sources.find(s => usable(s.thumbnail));
+    return hit ? hit.thumbnail : null;
+  };
 
-  if (!source.thumbnail || source.thumbnail.isEmpty()) throw new Error('Captured image was empty');
-  return { capturedWindow, image: source.thumbnail };
+  const order = lastGrabMode === 'screen' ? ['screen', 'window'] : ['window', 'screen'];
+  for (const mode of order) {
+    const image = mode === 'window' ? await fromWindow() : await fromScreen();
+    if (image) { lastGrabMode = mode; return { capturedWindow: mode === 'window', image }; }
+  }
+  throw new Error(BLANK_FRAME_MSG);
 }
 
 // True when two frames are visually the same screen (the user didn't scroll between
@@ -1333,6 +1398,7 @@ ipcMain.handle('refinery:captureAndParse', async () => {
       progress({ phase: 'capture', current: i + 1, total: BURST_SHOTS });
       if (i < BURST_SHOTS - 1) await delay(BURST_INTERVAL_MS);
     }
+    restoreOverlay();                    // the grabs are done; reading the shots does not need the screen
     rememberCapture(frames[0]);
     const distinct = frames.filter((img, i) => !frames.slice(0, i).some(prev => framesAlike(prev, img)));
     for (let i = 0; i < distinct.length; i++) {
@@ -1343,7 +1409,7 @@ ipcMain.handle('refinery:captureAndParse', async () => {
   } catch (e) {
     if (bugLastCapture) bugLastCapture.text = `Capture failed while reading: ${e.message}`;
     return { status: 'error', error: e.message };
-  }
+  } finally { restoreOverlay(); }
 });
 
 // Scroll capture, for a materials list longer than the terminal: the user presses Capture, scrolls
@@ -1356,13 +1422,14 @@ ipcMain.handle('refinery:scrollShot', async (_, opts) => {
     if (!scrollSession || (opts && opts.first)) scrollSession = newCaptureSession(true);
     const session = scrollSession;
     const grabbed = await grabFrame();
+    restoreOverlay();
     session.capturedWindow = grabbed.capturedWindow;
     if (session.shots === 0) rememberCapture(grabbed.image);
     const added = await readIntoSession(session, grabbed.image);
     return { status: 'ok', shots: session.shots, rows: session.materials.length, added };
   } catch (e) {
     return { status: 'error', error: e.message };
-  }
+  } finally { restoreOverlay(); }
 });
 ipcMain.handle('refinery:scrollFinish', async () => {
   const session = scrollSession;
@@ -1496,11 +1563,12 @@ ipcMain.handle('bug:pickImage', async () => {
 ipcMain.handle('bug:grabGame', async () => {
   try {
     const { capturedWindow, image } = await grabFrame();
+    restoreOverlay();
     const jpeg = encodeShot(image);
     return { ok: true, capturedWindow, name: 'game-screen.jpg', dataUrl: jpegDataUrl(jpeg), thumb: thumbDataUrl(image) };
   } catch (e) {
     return { ok: false, error: e.message };
-  }
+  } finally { restoreOverlay(); }
 });
 
 function buildMultipart(json, files) {

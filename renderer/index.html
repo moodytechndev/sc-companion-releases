@@ -931,6 +931,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
         </div>
         <div class="setting-row">
           <div>
+            <div class="setting-label">Text Size</div>
+            <div class="setting-desc">Makes the whole app bigger or smaller. The window grows with it.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="range" id="zoom-range" min="85" max="160" step="5" value="100" oninput="onZoomInput(this.value)" onchange="saveZoom(this.value)">
+            <span id="zoom-value" style="min-width:38px;text-align:right;color:var(--accent);font-weight:700">100%</span>
+            <button class="btn btn-sm" id="zoom-reset" onclick="saveZoom(100)">Reset</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div>
             <div class="setting-label" data-i18n="settings.hotkey">Show / Hide Key</div>
             <div class="setting-desc" data-i18n="settings.hotkey.desc">Works even when Star Citizen has focus</div>
           </div>
@@ -5357,6 +5368,19 @@ async function initGameSafe() {
   const el = document.getElementById('game-safe-select');
   if (el) el.value = on === false ? 'off' : 'on';
 }
+// Text size: the label follows the slider while it is dragged; the window is only resized when it is let go.
+function onZoomInput(v) { document.getElementById('zoom-value').textContent = v + '%'; }
+async function saveZoom(v) {
+  const z = await api.setZoom(Number(v) / 100);
+  const pct = Math.round(z * 100);
+  document.getElementById('zoom-range').value = pct;
+  onZoomInput(pct);
+}
+async function initZoom() {
+  const pct = Math.round((await api.getZoom()) * 100);
+  const el = document.getElementById('zoom-range');
+  if (el) { el.value = pct; onZoomInput(pct); }
+}
 async function saveGameSafe() {
   await api.setGameSafe(document.getElementById('game-safe-select').value === 'on');
 }
@@ -6420,6 +6444,7 @@ const HINTS_BY_ID = {
   'settings-btn': 'App settings, backup and restore',
   'lock-btn': 'Lock or unlock resizing the window',
   'opacity-range': 'How see-through the overlay is',
+  'zoom-range': 'Make the whole app bigger or smaller',
   'capture-job-btn': 'Screenshot the in-game refinery screen and try to pre-fill a job (you review it before starting)',
   'owned-filter': 'Show all blueprints, only ones you own, only ones you don\'t, or only ones you can craft from your current stock',
   'owned-cat-filter': 'Only show blueprints in this category',
@@ -6590,6 +6615,7 @@ initShortcut();
 initLogWatcher();
 initCloseBehavior();
 initGameSafe();
+initZoom();
 initPriceSource();
 loadLastLocations();
 loadHomeUndo();

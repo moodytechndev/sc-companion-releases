@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('api', {
   close: () => ipcRenderer.invoke('window:close'),
   setOpacity: (v) => ipcRenderer.invoke('window:setOpacity', v),
   setAlwaysOnTop: (v) => ipcRenderer.invoke('window:setAlwaysOnTop', v),
+  getZoom: () => ipcRenderer.invoke('ui:getZoom'),
+  setZoom: (v) => ipcRenderer.invoke('ui:setZoom', v),
   getGameSafe: () => ipcRenderer.invoke('overlay:getGameSafe'),
   setGameSafe: (v) => ipcRenderer.invoke('overlay:setGameSafe', v),
   overlayKeyboard: (wants, hold) => ipcRenderer.invoke('overlay:keyboard', wants, hold),

@@ -1662,8 +1662,25 @@ async function readFrame(image, worker, opts) {
   return { kind: 'setup', method, duration, location, cost, materials, usedRegions, anchor: t, rawText: debug };
 }
 
+// True when a captured frame is essentially black: Windows hands a black picture (or nothing) for a game in
+// exclusive fullscreen, and reading it would only report "nothing found". A real game screen, even a dark
+// terminal, has lit text and UI; this needs both a near-black average and almost no bright pixels.
+function frameLooksBlank(image) {
+  const { width, height } = image.getSize();
+  if (!width || !height) return true;
+  const px = image.resize({ width: 96, height: 54, quality: 'good' }).toBitmap();    // BGRA
+  const n = px.length / 4;
+  let sum = 0, bright = 0;
+  for (let i = 0; i < n; i++) {
+    const l = (px[i * 4 + 2] * 299 + px[i * 4 + 1] * 587 + px[i * 4] * 114) / 1000;
+    sum += l;
+    if (l > 40) bright++;
+  }
+  return sum / n < 6 && bright / n < 0.002;
+}
+
 module.exports = {
-  REFINERY_METHODS, KNOWN_MATERIALS, parseRefineryOcrText, readFrame, mergeRows,
+  REFINERY_METHODS, frameLooksBlank, KNOWN_MATERIALS, parseRefineryOcrText, readFrame, mergeRows,
   // exposed for tests
   parseTableText, finalizeTableRows, readSetupTableCells, snapStation, voteRows, extractTotalCost, methodFromRegion,
   findProcessingPanels, findProcessingPanelsByLabels, findHeadingGeometry, allProcessingPanels, parseProcessingRows, parseRemaining, parseFooterYield, closestMaterialName, voteProcessingRows, mergeWorkOrders,
