@@ -82,6 +82,15 @@ class P4K {
     return entries.find(e => e.name.toLowerCase() === want);
   }
 
+  // The game's own English text (Data\Localization\english\global.ini) as it ships in this build of Data.p4k.
+  // A loose copy in the install folder can be left over from an earlier patch (or edited), so the copy inside
+  // the archive wins; the loose file is only a fallback if the archive has none.
+  englishIni(entries, install) {
+    const e = entries.find(x => /^data.localization.english.global\.ini$/i.test(x.name));
+    if (e) return this.extract(e).toString('utf8');
+    return require('fs').readFileSync(require('path').join(install, 'Data', 'Localization', 'english', 'global.ini'), 'utf8');
+  }
+
   // bytes of one entry, decrypted and decompressed
   extract(entry) {
     const lh = this.read(entry.offset, 30);

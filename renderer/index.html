@@ -5630,7 +5630,7 @@ function onRefineryCaptureProgressTick(info) {
 let importCands = [];
 
 // "Iron (Ore)" / "Iron" / "IRON" → "iron"; Construction Rubble etc. → "constructionmaterials"
-const normOreKey = (n) => refinedOutputName(String(n || '')).toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z]/g, '');
+const normOreKey = (n) => refinedOutputName(String(n || '')).toLowerCase().replace(/^\s*raw\s+(?=\S)/, '').replace(/\(.*?\)/g, '').replace(/[^a-z]/g, '');
 const closeNum = (a, b, abs, rel) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
 // quality is raw 0–1000 on the terminal, but a hand-entered job may hold a percentage
 const qualityClose = (a, b) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= 1 || Math.abs(a * 10 - b) <= 5 || Math.abs(a - b * 10) <= 5;

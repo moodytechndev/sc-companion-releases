@@ -23,8 +23,7 @@ const p4k = new P4K(path.join(install, 'Data.p4k'));
 const { entries } = p4k.listEntries();
 const d = new DCB(p4k.extract(p4k.find(entries, 'Data\\Game2.dcb')));
 const loc = new Map();
-const iniPath = path.join(install, 'Data', 'Localization', 'english', 'global.ini');
-for (const line of fs.readFileSync(iniPath, 'utf8').split(/\r?\n/)) {
+for (const line of p4k.englishIni(entries, install).split(/\r?\n/)) {
   const i = line.indexOf('=');
   if (i > 0) loc.set(line.slice(0, i).replace(/,P$/, '').toLowerCase(), line.slice(i + 1).trim());
 }
@@ -82,7 +81,9 @@ for (const c of compositions.sort((a, b) => a.where.localeCompare(b.where) || a.
 // consistent ("sileron_ore" for Stileron, "aluminium_ore" for Aluminum). Ship-mining elements win
 // over the hand-mining (FPS) and ground-vehicle variants of the same name.
 const SPECIAL = { heph: 'hephaestanite' };
-const oreKey = (e) => { const k = e.name.replace(/\s*\((raw|ore|pure)\)\s*$/i, '').trim().toLowerCase(); return SPECIAL[k] || k; };
+// Patch 4.10.200 renamed some ores in the game's text ("Raw Ice", "Raw Silicon", "Raw Ouratite", "Hephaestanite (R)"),
+// so a leading "Raw " and a "(R)" suffix are dropped too.
+const oreKey = (e) => { const k = e.name.replace(/^raw\s+/i, '').replace(/\s*\((raw|ore|pure|r)\)\s*$/i, '').trim().toLowerCase(); return SPECIAL[k] || k; };
 const rank = (e) => (/minableelement_fps/.test(e.id) ? 4 : /groundvehicle/.test(e.id) ? 3 : /_raw$/.test(e.id) ? 0 : /_ore$/.test(e.id) ? 1 : /_pure$/.test(e.id) ? 5 : 2);
 const ores = {};
 const keyOfId = {};

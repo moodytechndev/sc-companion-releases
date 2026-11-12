@@ -39,7 +39,7 @@ if (!install) { console.error('Pass the StarCitizen\\LIVE folder as the first ar
   const { entries } = p4k.listEntries();
   const d = new DCB(p4k.extract(p4k.find(entries, 'Data\\Game2.dcb')));
   const loc = new Map();
-  for (const line of fs.readFileSync(path.join(install, 'Data', 'Localization', 'english', 'global.ini'), 'utf8').split(/\r?\n/)) {
+  for (const line of p4k.englishIni(entries, install).split(/\r?\n/)) {
     const i = line.indexOf('=');
     if (i > 0) loc.set(line.slice(0, i).replace(/,P$/, '').toLowerCase(), line.slice(i + 1).trim());
   }

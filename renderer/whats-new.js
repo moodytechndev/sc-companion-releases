@@ -3,6 +3,10 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '1.6.14', items: [
+    "Updated for the new game patch (4.10.200): the item list now has the new items and their new names, and Special blueprints include the new Raider Camo armor and weapons that are not on sc-craft.tools yet.",
+    "Fixed: refinery capture now reads the ores the game renamed (Raw Ice, Raw Silicon, Raw Ouratite and Hephaestanite (R)) as Ice, Silicon, Ouratite and Hephaestanite.",
+  ] },
   { version: '1.6.13', items: [
     "New: Settings > OBS Window Capture. If OBS shows a frozen picture of the app, set the source's Capture Method to Windows 10 (1903 and up). If you need OBS's older method, turn on Compatibility here: the window becomes solid with square corners, and the app restarts.",
   ] },

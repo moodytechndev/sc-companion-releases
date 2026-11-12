@@ -42,10 +42,7 @@ console.log(`opened ${path.join(install, 'Data.p4k')} (${entries.length} entries
 
 // ── English names ──────────────────────────────────────────────────────────────
 const loc = new Map();
-let iniText;
-const looseIni = path.join(install, 'Data', 'Localization', 'english', 'global.ini');
-if (fs.existsSync(looseIni)) iniText = fs.readFileSync(looseIni, 'utf8');
-else { const e = p4k.find(entries, 'Data\\Localization\\english\\global.ini'); iniText = e ? p4k.extract(e).toString('utf8') : ''; }
+const iniText = p4k.englishIni(entries, install);
 for (const line of iniText.split(/\r?\n/)) {
   const i = line.indexOf('=');
   if (i > 0) loc.set(line.slice(0, i).replace(/,P$/, '').toLowerCase(), line.slice(i + 1).trim());

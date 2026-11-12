@@ -1002,6 +1002,9 @@ function levenshtein(a, b) {
 
 // "RON" → "Iron", "CONSTRUCTION MATERIALS" → "Construction Materials"
 function closestMaterialName(raw) {
+  // Patch 4.10.200 renamed some raw ores in the game ("Raw Ice", "Raw Silicon", "Raw Ouratite", "Hephaestanite (R)"; they were
+  // "Ice (Raw)", "Silicon (Raw)", "Ouratite (Raw)", "Heph (Raw)"): read all of them as the plain ore name.
+  raw = String(raw || '').replace(/^\s*raw\s+(?=\S)/i, '').replace(/\s*\((raw|ore|r)\)\s*$/i, '').replace(/^\s*heph\s*$/i, 'Hephaestanite');
   const key = lettersOf(raw);
   if (!key) return '';
   let best = null, bestD = Infinity;

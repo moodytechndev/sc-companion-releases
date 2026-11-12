@@ -3,7 +3,7 @@
 // resistance -30 = the rock's resistance is reduced by 30%; instability +10 = 10% less stable;
 // window = size of the optimal charge window; windowRate = how fast it fills; inert = share of
 // inert material filtered out. "power" on a module multiplies the laser's beam power.
-const MINING_GEAR_INFO = {"game":"4.10.197.2878","branch":"sc-alpha-4.10.2"};
+const MINING_GEAR_INFO = {"game":"4.10.200.58746","branch":"sc-alpha-4.10.0"};
 const MINING_LASERS = [
  {"id":"Mining_Laser_GRIN_Arbor_S0","name":"Arbor MHV","mfr":"Greycat Industrial","instability":-40},
  {"id":"Mining_Laser_SHIN_Klein_S0","name":"Lawson","mfr":"Shubin Interstellar","instability":30,"window":40,"resistance":-40},

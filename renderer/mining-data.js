@@ -2,7 +2,7 @@
 // Per ore, as the game stores it: instability, resistance (0–1), the optimal charge window
 // [midpoint, per-rock randomness, thinness], explosion multiplier, cluster factor, the rarity tier, and how it is
 // mined ("methods": ship / vehicle = ground vehicle / hand).
-const MINING_DATA_INFO = {"game":"4.10.197.2878","branch":"sc-alpha-4.10.2"};
+const MINING_DATA_INFO = {"game":"4.10.200.58746","branch":"sc-alpha-4.10.0"};
 const MINING_ORES = {
   "agricium": {"instability":350,"resistance":0.5,"window":[0.5,0.15,2],"explosion":4,"cluster":0.2,"tier":"uncommon","methods":["ship"]},
   "aluminum": {"instability":0,"resistance":-0.4,"window":[0.6,0.15,-0.5],"explosion":-36,"cluster":0.7,"tier":"common","methods":["ship"]},
