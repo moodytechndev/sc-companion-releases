@@ -61,14 +61,15 @@ const HELP_SECTIONS = [
     intro: [
       'Track every refinery job with a live countdown, get a desktop notification when it finishes, and record exactly what you collected so it lands in your inventory.',
     ],
-    shots: ['refinery-jobs', 'refinery-add', 'refinery-import', 'refinery-deliver', 'refinery-bonuses', 'refinery-profit'],
+    shots: ['refinery-jobs', 'refinery-add', 'refinery-import', 'refinery-deliver', 'refinery-bonuses', 'refinery-profit', 'profit-sold'],
     howto: [
       '**Start a job:** + Add Refinery Job → add the ore(s), pick the method, enter the duration shown on the in-game terminal, set the location, then Start Timer.',
       '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. When asked, answer No unless the list scrolls. It takes four shots in quick succession, reads them, and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
       '**Bring in jobs that are already running:** open the terminal\'s PROCESSING screen (the one with a panel per work order) and click 📷 Capture. A dialog lists each work order with its materials, quality, yield and time left. Jobs the app already tracks are recognised and left unticked; tick or untick the rest, fix any highlighted number, then Import.',
-      '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory.',
+      '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory. Tick **Keep** on any ore you are not selling (for crafting or missions): it still goes into your inventory, but is left out of the profit estimate.',
       '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material.',
-      '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison.',
+      '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison. These are estimates; what you really sold is under Profit → Sold.',
+      '**Keep a record of what you sold:** in Crafting → Inventory tick the boxes marked in transit and press 💰 Sell (or use Sell on a commodity in Prices). The game sells one box size at a time, so each size has its own line: set how many boxes you sold and what that sale paid. Boxes you do not sell stay in your inventory, and you can sell them later at their own price. Each sale is kept in Profit → Sold with totals by material. Amounts you leave as the suggested guess are marked ≈.',
       '**Capture a long list:** if the materials list is longer than the terminal window, click 📷 Capture and answer Yes when asked. Press Capture this view, scroll the list down in the game, and press Capture this view again; repeat until you have seen the whole list, then click Finish. A row that appears in two views is counted once.',
       '**See your contracts:** Profit → My contracts lists every contract the game log shows you accepted, completed, failed or abandoned, with totals, listed pay and pay per hour by contract and organisation (pay and requirements come from SCMDB). Press Import from old logs once to bring in your earlier logs. Browse searches every contract SCMDB lists.',
       '**Trade with Wikelo:** Profit → Wikelo lists his trades (what to bring and what you get) and has a favor calculator. Pick a trade, enter the favors and materials you have, and it shows what is still missing. Favors come from handing him Carinite, scrip or irradiated pearls; Polaris Bits come from Quantainium.',
@@ -83,13 +84,14 @@ const HELP_SECTIONS = [
   {
     id: 'prices', icon: '📈', title: 'Prices',
     intro: [
-      'Live buy and sell prices from UEX Corp, browsable by commodity or by station.',
+      'Live buy and sell prices from UEX Corp, browsable by commodity or by station. The Buy chip looks up where to buy a ship or an item.',
       "The Market chip lists player-to-player listings from the UEX Corp marketplace: browse what players are selling or want to buy, set alerts for things you are after, and message sellers without leaving the overlay.",
     ],
-    shots: ['prices-commodity', 'prices-station'],
+    shots: ['prices-commodity', 'prices-station', 'prices-buy'],
     howto: [
       '**Where does this sell best?** Commodity → search or filter → click the commodity.',
       '**What does this station trade?** Station → choose the station from the dropdown.',
+      '**Where do I buy this ship or item?** Buy → Ships or Items → type the name (or part of it). Each match lists the shops that sell it, where they are and the price, cheapest first; Items also shows who pays you for it. Prices are reported by players to UEX Corp, so one marked with an older date may have changed. A ship with no shop listed is probably pledge-only or limited-time.',
       '**Buy here:** Buy opens Add Inventory pre-filled and marks the cargo as in transit.',
       '**Sell here:** Sell finds your in-transit stock of that commodity, shows the payout, and removes it from inventory when you confirm.',
       "**Browse the market:** Market → For sale shows what players are selling, Wanted what they want to buy. Search, pick a category, and sort by newest, price or quality. Click a listing's title to read its description.",
@@ -179,6 +181,7 @@ const HELP_SECTIONS = [
     shots: ['settings-top', 'settings-bottom'],
     tips: [
       '**Bring everything home:** after a game update returns your gear to your home base, click Bring home… and pick the place (the four landing zones are at the top; any station or a custom name works). Tick what to move — inventory boxes, assets, ships, and optionally cargo in transit — check the count, then Move everything. Ship stock parts follow their ship. Undo puts every location back as it was.',
+      "**Launcher button:** Settings → Launcher button → On puts a small round button with the logo on your screen whenever the overlay is hidden. Click it to bring the overlay back, drag it anywhere (it snaps to the nearest side and remembers the spot), and right-click it to open the app or hide the button. A green number on it counts refinery jobs that are ready. It can only be clicked while the game shows a mouse cursor, such as mobiGlas, menus and kiosks; the hotkey still works everywhere. It shows over the game in borderless or windowed mode, like the rest of the app.",
       '**Backup & Restore:** Export saves jobs, inventory, assets, ships, blueprint ownership and settings to one file; Import loads it back (overwriting what is there).',
       '**Price Data Source:** UEX Corp (default) or SC Trade Tools, a community-reported feed. SC Trade Tools covers fewer stations and refreshes about hourly, so a quiet station can show no prices; the logo at the top right of the Prices tab shows which source you are on (click it to open that site).',
       '**Game Log Path:** points the app at Star Citizen\'s Game.log so it can notice where you are. It is found automatically in the default install location.',
@@ -314,9 +317,21 @@ const HELP_SHOTS = {
     after: "closeDeliverModal();",
     points: [
       { sel: '#deliver-ore-list .deliver-ore-row', text: '**One block per ore.** Construction salvage shows the refined name it becomes.' },
+      { sel: '#deliver-ore-list label', text: '**Keep** — tick it for an ore you are not selling (crafting, missions). It still goes into your inventory but is left out of the profit estimate.' },
       { sel: '.deliver-quality', text: '**Quality** of what came out — pre-filled from the job.' },
       { sel: '.deliver-box-rows', text: '**Boxes.** Enter how many boxes of each size you pulled. If you entered an expected yield it is already split into boxes.' },
       { sel: '#deliver-modal-overlay .modal-actions .btn', text: '**Add to Inventory** — saves the boxes (marked in transit, at the job\'s location) and removes the job.' },
+    ],
+  },
+
+  'profit-sold': {
+    file: 'profit-sold.webp', title: 'Sold', viewport: { w: 440, h: 700 },
+    setup: "switchTab('profit'); setProfitMode('sales');",
+    after: "setProfitMode('refining');",
+    points: [
+      { sel: '#profit-body .chip.active', text: '**Sold** — what you really sold, kept apart from the estimates for delivered jobs.' },
+      { sel: '#profit-body > div:nth-child(2)', text: '**Totals** of the amounts you entered. A ≈ means you left the suggested guess.' },
+      { sel: '#profit-body > div:nth-child(3) > div:nth-child(6)', at: 'tr', text: '**One line per box size and sale**, with the price per SCU it worked out to. ✕ removes an entry.' },
     ],
   },
 
@@ -337,10 +352,10 @@ const HELP_SHOTS = {
     wait: 1500,
     points: [
       { sel: '.tab[data-tab="profit"]', text: '**Profit** — estimates for your jobs.' },
-      { sel: '#profit-body > div:first-child', text: '**Totals** for delivered jobs: how many, net profit after fees, aUEC per refinery hour, and the best method so far.' },
+      { sel: '#profit-body > div:first-child', text: '**Totals:** delivered jobs, their estimated value after fees, what you really sold (from the Sold tab) and aUEC per refinery hour.' },
       { sel: '[data-profit="live"]', at: 'tr', text: '**In progress or waiting** — what your running jobs are worth right now.' },
       { sel: '[data-profit="methods"]', at: 'tr', text: '**By refining method** — average net per job and per hour, to see which method pays best for you.' },
-      { sel: '[data-profit="history"]', at: 'tr', text: '**History** — each delivered job with its sold value and fee. Estimates are recorded at the moment you deliver.' },
+      { sel: '[data-profit="history"]', at: 'tr', text: '**History** — each delivered job with its estimated value, fee and any ore you kept. Estimates are recorded at the moment you deliver.' },
     ],
   },
 
@@ -367,6 +382,19 @@ const HELP_SHOTS = {
       { sel: '#prices-station-select', text: '**Pick a station** (or terminal) to list everything it trades.' },
       { sel: '.station-row-actions button:not([disabled])', nth: 0, text: '**Buy** opens Add Inventory pre-filled and marks it in transit. **Sell** (shown) sells your in-transit stock of that commodity here.' },
       { sel: '.station-row-actions button[disabled]', nth: 2, text: 'A **greyed-out** button means the station does not trade it in that direction.' },
+    ],
+  },
+
+  'prices-buy': {
+    file: 'prices-buy.webp', title: 'Buy — where to buy a ship or item', viewport: { w: 440, h: 700 },
+    setup: "switchTab('prices'); switchPricesView('buy', document.getElementById('buy-chip')); document.getElementById('buy-search').value = 'avenger'; runBuy();",
+    after: "document.getElementById('buy-search').value = ''; switchPricesView('commodity', document.querySelector('#prices-view-chips .chip'));",
+    wait: 4500,
+    points: [
+      { sel: '#buy-chip', text: '**Buy** — look up where to buy a ship or an item.' },
+      { sel: '#buy-kind-chips', text: '**Ships or Items.** Items also shows who pays you for it.' },
+      { sel: '#buy-search', text: '**Type a name** (or part of one). Words can be in any order.' },
+      { sel: '.buy-row.best', at: 'tr', text: '**Cheapest shop first**, with where it is, the price and how long ago a player reported it. Old reports are shown in amber.' },
     ],
   },
 
@@ -479,11 +507,14 @@ const HELP_SHOTS = {
   },
 
   'settings-top': {
-    file: 'settings-top.webp', title: 'Settings (1 of 2)', viewport: { w: 440, h: 700 },
+    file: 'settings-top.webp', title: 'Settings (1 of 2)', viewport: { w: 440, h: 1150 },
     setup: "await new Promise(r => switchTab('settings', r)); const s = document.querySelector('#panel-settings .scroll-area') || document.getElementById('panel-settings'); s.scrollTop = 0;",
     points: [
       { sel: '#language-select', text: '**Language** — English, Deutsch, Français, Español, Polski, Português, Русский, 日本語.' },
       { sel: '#opacity-range', text: '**Window Opacity** — how see-through the overlay is.' },
+      { sel: '#zoom-range', text: '**Text Size** — makes the whole app bigger or smaller; the window grows with it.' },
+      { sel: '#launcher-select', text: '**Launcher button** — a round logo button on screen while the overlay is hidden. Click it to bring the overlay back.' },
+      { sel: '#obs-select', text: '**OBS Window Capture** — only if OBS shows a frozen picture.' },
       { sel: '#shortcut-select', text: '**Show / Hide key** — works even while the game has focus.' },
       { sel: '#close-behavior-select', text: '**Close Button** — hide to tray, or quit.' },
       { sel: '#hover-hints-select', text: '**Hover Hints** — the descriptions you see when you hover over things.' },

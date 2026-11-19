@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   // UEX Corp commodity data
   getCommodities: () => ipcRenderer.invoke('api:getCommodities'),
   getVehicles: () => ipcRenderer.invoke('api:getVehicles'),
+  buySearch: (kind, q) => ipcRenderer.invoke('buy:search', kind, q),
   getShipLoadout: (slug) => ipcRenderer.invoke('api:getShipLoadout', slug),
   getShipLiveries: (tag) => ipcRenderer.invoke('api:getShipLiveries', tag),
   getCommodityPrices: (id, type) => ipcRenderer.invoke('api:getCommodityPrices', { id, type }),
@@ -47,6 +48,9 @@ contextBridge.exposeInMainWorld('api', {
   setOpacity: (v) => ipcRenderer.invoke('window:setOpacity', v),
   getOpacity: () => ipcRenderer.invoke('window:getOpacity'),
   setAlwaysOnTop: (v) => ipcRenderer.invoke('window:setAlwaysOnTop', v),
+  getLauncher: () => ipcRenderer.invoke('launcher:get'),
+  setLauncher: (v) => ipcRenderer.invoke('launcher:set', v),
+  onLauncherChanged: (cb) => ipcRenderer.on('launcher:changed', (_, v) => cb(v)),
   getObsMode: () => ipcRenderer.invoke('obs:get'),
   setObsMode: (v) => ipcRenderer.invoke('obs:set', v),
   getZoom: () => ipcRenderer.invoke('ui:getZoom'),

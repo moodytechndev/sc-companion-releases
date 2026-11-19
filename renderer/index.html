@@ -249,6 +249,27 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
 .mk-price { font-size:12px; font-weight:700; color:var(--success); font-variant-numeric:tabular-nums; }
 .mk-btns { display:flex; gap:4px; }
 .mk-tag { font-size:9px; font-weight:800; letter-spacing:.5px; color:#fff; background:var(--accent); border-radius:3px; padding:1px 4px; margin-right:5px; vertical-align:1px; }
+  .buy-note { padding:10px; font-size:11px; line-height:1.5; color:var(--text-dim); }
+  .buy-card { margin:8px 10px 0; padding:8px 10px 6px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--r); }
+  .buy-name { font-size:13px; font-weight:700; color:var(--text-bright); }
+  .buy-sub { font-size:10px; color:var(--text-dim); margin-top:1px; }
+  .buy-sec { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-dim); margin:8px 0 3px; }
+  .buy-row { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:4px 0; border-top:1px solid var(--border); font-size:11px; }
+  .buy-sec + .buy-row { border-top:none; }
+  .buy-where { min-width:0; }
+  .buy-term { color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .buy-loc { font-size:10px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .buy-x { font-size:10px; color:var(--text-dim); }
+  .buy-price { flex-shrink:0; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
+  .buy-row.best .buy-term { color:var(--text-bright); font-weight:600; }
+  .buy-cost { color:var(--accent); }
+  .buy-gain { color:var(--success); }
+  .buy-unit { font-size:9px; font-weight:400; color:var(--text-dim); }
+  .buy-age { display:block; font-size:9px; font-weight:400; color:var(--text-dim); }
+  .buy-age.old { color:var(--warn); }
+  .buy-more { font-size:10px; color:var(--text-dim); padding:3px 0 2px; border-top:1px solid var(--border); }
+  .buy-none { font-size:11px; line-height:1.5; color:var(--text-dim); padding:6px 0 4px; }
+
 .mk-badge { display:inline-block; min-width:14px; margin-left:5px; padding:0 4px; border-radius:7px; background:var(--accent); color:#fff; font-size:9px; font-weight:800; line-height:14px; text-align:center; }
 .mk-badge[hidden] { display:none; }
 .mk-bub { padding:6px 8px; border-radius:8px; background:var(--bg-hover); font-size:12px; color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; }
@@ -659,6 +680,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <div class="chip active" onclick="switchPricesView('commodity',this)">Commodity</div>
             <div class="chip" id="market-chip" onclick="switchPricesView('market',this)" title="Player-to-player listings from the UEX Corp marketplace">Market<span id="market-badge" class="mk-badge" hidden></span></div>
             <div class="chip" onclick="switchPricesView('station',this)">Station</div>
+            <div class="chip" id="buy-chip" onclick="switchPricesView('buy',this)" title="Look up where to buy a ship or an item, and what it costs">Buy</div>
           </div>
           <a id="price-source-logo" href="#" onclick="openPriceSourceSite();return false" style="display:flex;align-items:center;flex-shrink:0;text-decoration:none"></a>
         </div>
@@ -680,6 +702,16 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             style="width:100%;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
             <option value="">Select a station…</option>
           </select>
+        </div>
+        <div id="buy-controls" style="display:none">
+          <div class="filter-chips" id="buy-kind-chips" style="margin-bottom:6px">
+            <div class="chip active" onclick="setBuyKind('ships',this)">Ships</div>
+            <div class="chip" onclick="setBuyKind('items',this)" title="Weapons, armor, ship components, gadgets and other things shops sell">Items</div>
+          </div>
+          <div class="search-bar">
+            <span class="ico">🔍</span>
+            <input type="text" id="buy-search" placeholder="Type a ship name, e.g. Cutlass Black" oninput="buyInputChanged()" autocomplete="off">
+          </div>
         </div>
         <div id="market-controls" style="display:none">
           <div class="search-bar">
@@ -706,6 +738,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
       <div class="scroll-area" id="com-list">
         <div class="loading" id="com-loading"><div class="spinner"></div><span data-i18n="prices.loading">Loading commodities…</span></div>
       </div>
+      <div class="scroll-area" id="buy-list" style="display:none"></div>
       <div class="scroll-area" id="market-list" style="display:none">
         <div id="market-watch-panel" style="display:none;margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-input)">
           <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;line-height:1.5">Get a Windows notification when a matching listing appears. It is checked every 3 minutes, also while SC Companion sits in the tray.</div>
@@ -939,6 +972,17 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <span id="zoom-value" style="min-width:38px;text-align:right;color:var(--accent);font-weight:700">100%</span>
             <button class="btn btn-sm" id="zoom-reset" onclick="saveZoom(100)">Reset</button>
           </div>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Launcher button</div>
+            <div class="setting-desc">A small round button with the logo that appears on screen while the overlay is hidden. Click it to bring the overlay back, drag it where you like, right-click to hide it. It shows how many refinery jobs are ready. It can only be clicked while the game shows a mouse cursor (mobiGlas, menus, kiosks); the hotkey still works everywhere.</div>
+          </div>
+          <select id="launcher-select" onchange="saveLauncher()"
+            style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--accent);font-size:12px;font-weight:700;outline:none">
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
         </div>
         <div class="setting-row">
           <div>
@@ -1447,6 +1491,31 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
   </div>
 </div>
 
+<!-- ── Record a sale (Inventory → In Transit → Sell, or Sell on a commodity in Prices) ── -->
+<div id="sale-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center" onclick="if(event.target===this)closeSaleModal()">
+  <div class="modal" style="width:400px">
+    <div id="sale-form">
+      <h3>💰 Record this sale</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;line-height:1.5">The game sells one box size at a time, so each size has its own line. Set how many you sold and what that sale paid. Boxes you do not sell stay in your inventory; sell the rest later at its own price.</p>
+      <div id="sale-list"></div>
+      <div id="sale-sum" style="font-size:12px;font-weight:700;color:var(--text-bright);margin:6px 0 8px"></div>
+      <input id="sale-loc" type="text" maxlength="80" placeholder="Where you sold it (optional)" autocomplete="off"
+        style="width:100%;margin:0 0 6px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none">
+      <div style="font-size:10px;color:var(--text-dim);line-height:1.5;margin-bottom:12px">Amounts are filled in from the best current price as a guess. Change them to what the terminal paid; one you leave alone is marked as an estimate.</div>
+      <div class="modal-actions">
+        <button class="btn" style="flex:1" onclick="confirmSale(true)">✓ Record sale</button>
+        <button class="btn" style="background:none;border-color:var(--border)" onclick="closeSaleModal()">Cancel</button>
+      </div>
+      <div style="margin-top:10px;text-align:center"><a href="#" onclick="confirmSale(false);return false" style="font-size:11px;color:var(--text-dim)" title="Take the boxes out of your inventory and keep no record of the sale">Remove without recording</a></div>
+    </div>
+    <div id="sale-done" style="display:none;text-align:center;padding:14px 4px 4px">
+      <div style="font-size:28px;margin-bottom:10px">💰</div>
+      <div id="sale-done-text" style="font-size:13px;color:var(--text-bright);line-height:1.6;margin-bottom:16px"></div>
+      <button class="btn btn-full" onclick="closeSaleModal()">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Blueprint Details Modal (quality effects + mission drops) ── -->
 <div id="bp-details-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;align-items:center;justify-content:center" onclick="if(event.target===this)closeBpDetailsModal()">
   <div class="modal" style="width:420px">
@@ -1484,16 +1553,6 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 </div>
 
 <!-- ── Station Sell Modal ── -->
-<div id="station-sell-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center" onclick="if(event.target===this)closeStationSellModal()">
-  <div class="modal" style="width:320px;max-height:75vh;display:flex;flex-direction:column;padding:16px">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;flex-shrink:0">
-      <div id="ssm-title" style="font-size:13px;font-weight:700;color:var(--text-bright)"></div>
-      <button onclick="closeStationSellModal()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex-shrink:0;margin-left:8px">✕</button>
-    </div>
-    <div id="ssm-body" style="overflow-y:auto;flex:1"></div>
-  </div>
-</div>
-
 <!-- ── Kiosk Detected Toast ── -->
 <div id="kiosk-toast" data-i18n="toast.kiosk">🏭 Refinery kiosk detected — timer ready!</div>
 <!-- ── Job Complete Toast ── -->
@@ -2249,6 +2308,7 @@ async function init() {
   // Pre-load inventory so startup price prefetch knows what to fetch
   craftInventory = (await api.getStore('craftInventory', [])) || [];
   jobHistory = (await api.getStore('jobHistory', [])) || [];
+  salesLog = (await api.getStore('salesLog', [])) || [];
   miningLoadout = sanitizeLoadout(await api.getStore('miningLoadout', null));
   factionStanding = (await api.getStore('factionStanding', {})) || {};
   { const h = (await api.getStore('wikeloHave', {})) || {}; wikeloHave = { open: h.open !== false, favor: wkNum(h.favor), bit: wkNum(h.bit), raw: Object.fromEntries(Object.entries(h.raw || {}).map(([k, v]) => [k, wkNum(v)])) }; }
@@ -3214,6 +3274,8 @@ function renderJobs() {
 // more), and labelled as an estimate — UEX has no usable fee data to fall back on.
 // Delivered jobs are kept in jobHistory with the numbers as they were at delivery.
 let jobHistory = [];
+let salesLog = [];             // what the player actually sold, one entry per box size per sale: [{ id, at, name, quality, size, boxes, scu, total, est, location }], newest first
+const SALES_MAX = 500;
 const JOB_HISTORY_MAX = 300;
 
 const fmtMoney = (n) => Math.round(n).toLocaleString();
@@ -3247,13 +3309,15 @@ function jobFee(job, outCSCU) {
   return { value: null, known: false, estimated: false };
 }
 
-function jobProfit(job) {
+function jobProfit(job, keepIdx) {
   const ores = jobOres(job);
+  const kept = new Set(keepIdx || []);       // ores the player keeps (crafting, missions): not counted as money
   let gross = 0, outCSCU = 0, priced = 0;
   const unpriced = [];
   const parts = ores.map((ore, i) => {
     const cscu = parseInt((job.yields || [])[i]) || 0;
     outCSCU += cscu;
+    if (kept.has(i)) return { ore, out: refinedOutputName(ore), cscu, price: null, at: '', value: null, kept: true };
     const p = outputPriceFor(ore);
     const value = p && cscu > 0 ? (cscu / 100) * p.price : null;
     if (value != null) { gross += value; priced++; }
@@ -3315,10 +3379,11 @@ async function ensureJobPrices() {
 }
 
 // snapshot a job into the history as it is delivered
-function recordJobHistory(job) {
-  const p = jobProfit(job);
+function recordJobHistory(job, keepIdx) {
+  const p = jobProfit(job, keepIdx);
   jobHistory.unshift({
     id: job.id, deliveredAt: Date.now(), ores: jobOres(job), yields: job.yields || [],
+    kept: (keepIdx || []).map(i => refinedOutputName(jobOres(job)[i])).filter(Boolean),
     method: job.method || 'Custom', location: job.location || '', durationSeconds: job.durationSeconds || 0,
     outCSCU: p.outCSCU, gross: p.gross, cost: p.fee.value, costKnown: p.fee.known && !p.fee.estimated,
     costEstimated: p.fee.estimated, net: p.net,
@@ -3613,12 +3678,12 @@ function blueprintOptionsFor(rec) {
 
 function setProfitMode(mode) {
   profitMode = mode;
-  if (mode !== 'refining') ensureScmdb();
+  if (mode !== 'refining' && mode !== 'sales') ensureScmdb();
   renderProfit();
 }
 function profitModeBar() {
   const chip = (m, label) => `<div class="chip${profitMode === m ? ' active' : ''}" onclick="setProfitMode('${m}')">${label}</div>`;
-  return `<div class="filter-chips" style="margin:0;padding:10px 10px 0">${chip('refining', 'Refining')}${chip('contracts', 'My contracts')}${chip('browse', 'Browse')}${chip('wikelo', 'Wikelo')}</div>`;
+  return `<div class="filter-chips" style="margin:0;padding:10px 10px 0">${chip('refining', 'Refining')}${chip('sales', 'Sold')}${chip('contracts', 'My contracts')}${chip('browse', 'Browse')}${chip('wikelo', 'Wikelo')}</div>`;
 }
 
 function scmdbCredit() {
@@ -3956,9 +4021,87 @@ function renderContractBrowseResults() {
     }).join('');
 }
 
+// ── Profit → Sold: what the player really sold, from the sale dialog in Inventory ──
+let _clearSalesArmed = false;
+function deleteSale(id) {
+  salesLog = salesLog.filter(x => x.id !== id);
+  api.setStore('salesLog', salesLog);
+  renderProfit();
+}
+function clearSales() {
+  const btn = document.getElementById('sales-clear-btn');
+  if (!_clearSalesArmed) {
+    _clearSalesArmed = true;
+    if (btn) btn.textContent = 'Click again to clear every sale';
+    setTimeout(() => { _clearSalesArmed = false; const b = document.getElementById('sales-clear-btn'); if (b) b.textContent = 'Clear sold history'; }, 4000);
+    return;
+  }
+  _clearSalesArmed = false;
+  salesLog = [];
+  api.setStore('salesLog', salesLog);
+  renderProfit();
+}
+
+function renderSales(body) {
+  const head = (s) => `<div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">${s}</div>`;
+  let html = profitModeBar();
+  if (!salesLog.length) {
+    body.innerHTML = html + `<div style="padding:14px 10px;font-size:12px;line-height:1.6;color:var(--text-dim)">Nothing sold yet.<br>When you sell cargo, open Crafting → Inventory, tick the boxes marked in transit and press <b style="color:var(--text)">💰 Sell</b>. A small window asks what the terminal paid, and the sale is kept here: what you really sold, separate from what a refinery job was worth. Anything you keep, like ore for crafting, never shows up as sold.</div>`;
+    return;
+  }
+  const total = salesLog.reduce((n, x) => n + (x.total || 0), 0);
+  const unpriced = salesLog.filter(x => x.total == null).length;
+  const estimated = salesLog.filter(x => x.est).length;
+  const by = {};
+  for (const x of salesLog) {
+    const g = by[x.name] = by[x.name] || { scu: 0, total: 0, n: 0 };
+    g.n++; g.total += x.total || 0;
+    if (x.total != null && !isUnitOre(x.name)) g.scu += x.scu || 0;
+  }
+  const rows = Object.entries(by).sort((a, b) => b[1].total - a[1].total);
+  const tile = (label, value, sub) => `
+    <div style="flex:1 1 45%;min-width:0;padding:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)">${label}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--text-bright);margin-top:2px;font-variant-numeric:tabular-nums">${value}</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:1px">${sub || '&nbsp;'}</div>
+    </div>`;
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 10px 0">
+    ${tile('Total sold', fmtMoney(total) + ' aUEC', unpriced ? `${unpriced} without an amount not counted` : 'what you entered')}
+    ${tile('Sales', salesLog.length, estimated ? `${estimated} amount${estimated === 1 ? ' is' : 's are'} an estimate (marked ≈)` : 'all amounts entered by you')}
+  </div><div style="padding:0 10px 12px">`;
+
+  html += head('By material');
+  html += `<div style="display:grid;grid-template-columns:1fr 70px 90px;gap:6px;font-size:9px;color:var(--text-dim);text-transform:uppercase;padding:0 8px 3px"><span>Material</span><span style="text-align:right">Sold</span><span style="text-align:right">aUEC</span></div>`;
+  html += rows.map(([name, g]) => `
+    <div style="display:grid;grid-template-columns:1fr 70px 90px;gap:6px;font-size:11px;padding:5px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:3px;font-variant-numeric:tabular-nums">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
+      <span style="text-align:right;color:var(--text-dim)">${g.n} sale${g.n === 1 ? '' : 's'}</span>
+      <span style="text-align:right;color:var(--success)">${fmtMoney(g.total)}</span>
+    </div>`).join('');
+
+  html += head('History');
+  html += salesLog.map(x => {
+    const when = new Date(x.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const per = x.total != null && !isUnitOre(x.name) && x.scu > 0 ? ` · ${fmtMoney(x.total / x.scu)}/SCU` : '';
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
+      <div style="min-width:0">
+        <div style="color:var(--text);font-weight:600">${esc(x.name)} <span style="font-weight:400;color:var(--text-dim)">· ${esc(saleQtyText(x))}${x.quality ? ' · q ' + esc(String(x.quality)) : ''}</span></div>
+        <div style="font-size:10px;color:var(--text-dim)">${esc(when)}${x.location ? ' · ' + esc(x.location) : ''}${per}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <span style="font-weight:700;font-variant-numeric:tabular-nums;color:${x.total != null ? 'var(--success)' : 'var(--text-dim)'}" ${x.est ? 'data-tip="You left the suggested amount, which is a guess from the best current price"' : ''}>${x.total != null ? (x.est ? '≈ ' : '') + fmtMoney(x.total) : 'no amount'}</span>
+        <button onclick="deleteSale('${esc(x.id)}')" title="Remove this sale from the history" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;line-height:1;padding:0 2px">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  html += `<div style="margin-top:10px"><button class="btn btn-sm" id="sales-clear-btn" onclick="clearSales()" style="background:none;border-color:var(--border);color:var(--text-dim)">Clear sold history</button></div></div>`;
+  body.innerHTML = html;
+}
+
 function renderProfit() {
   const body = document.getElementById('profit-body');
   if (!body) return;
+  if (profitMode === 'sales') { renderSales(body); return; }
   if (profitMode === 'contracts') { renderContracts(body); return; }
   if (profitMode === 'browse') { renderContractBrowse(body); return; }
   if (profitMode === 'wikelo') { renderWikelo(body); return; }
@@ -3990,9 +4133,9 @@ function renderProfit() {
 
   let html = profitModeBar() + `<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 10px 0">
     ${tile('Delivered jobs', hist.length, hist.length ? `${fmtMoney(totalHours)} refinery hours` : '')}
-    ${tile('Net profit', hist.length ? fmtMoney(totalNet) + ' aUEC' : '—', hist.length ? 'estimated, after fees' : '')}
-    ${tile('Per refinery hour', perHour != null ? fmtMoney(perHour) : '—', 'aUEC, delivered jobs')}
-    ${tile('Best method', best ? esc(best.name) : '—', best && best.perHour != null ? fmtMoney(best.perHour) + ' aUEC/h' : '')}
+    ${tile('Est. value of jobs', hist.length ? fmtMoney(totalNet) + ' aUEC' : '—', hist.length ? 'if all of it sold at the best price, after fees' : '')}
+    ${tile('Sold so far', salesLog.length ? fmtMoney(salesLog.reduce((n, x) => n + (x.total || 0), 0)) + ' aUEC' : '—', salesLog.length ? `${salesLog.length} sale${salesLog.length === 1 ? '' : 's'} you recorded · see Sold` : 'what you really sold, see Sold')}
+    ${tile('Per refinery hour', perHour != null ? fmtMoney(perHour) : '—', 'aUEC, estimated')}
   </div><div style="padding:0 10px 12px">`;
 
   html += head(`In progress or waiting${live.length ? ` · ≈ ${fmtMoney(liveNet)} aUEC` : ''}`, 'live');
@@ -4020,7 +4163,7 @@ function renderProfit() {
 
   html += head('History', 'history');
   if (!hist.length) {
-    html += `<div style="font-size:11px;color:var(--text-dim)">Nothing yet. When you mark a job as delivered, its estimated profit is recorded here.</div>`;
+    html += `<div style="font-size:11px;color:var(--text-dim)">Nothing yet. When you mark a job as delivered, its estimated value is recorded here. Tick Keep on an ore you are not selling and it is left out. What you really sell is kept under Sold.</div>`;
   } else {
     html += hist.slice(0, 60).map(h => `
       <div style="padding:6px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;font-size:11px">
@@ -4029,7 +4172,7 @@ function renderProfit() {
           <span style="flex-shrink:0;font-weight:700;color:${h.net == null ? 'var(--text-dim)' : h.net >= 0 ? 'var(--success)' : 'var(--danger)'}">${h.net == null ? 'no price' : '≈ ' + fmtMoney(h.net)}</span>
         </div>
         <div style="color:var(--text-dim);font-size:10px;margin-top:2px">
-          ${esc(new Date(h.deliveredAt).toLocaleDateString())} · ${esc(h.method)}${h.location ? ' · ' + esc(h.location) : ''}${h.gross != null ? ` · ${fmtMoney(h.gross)} sold${h.cost != null ? ' − ' + fmtMoney(h.cost) + ' fee' + (h.costEstimated ? ' est.' : '') : ' (fee unknown)'}` : ''}
+          ${esc(new Date(h.deliveredAt).toLocaleDateString())} · ${esc(h.method)}${h.location ? ' · ' + esc(h.location) : ''}${h.kept && h.kept.length ? ` · kept ${esc(h.kept.join(', '))}` : ''}${h.gross != null ? ` · ${fmtMoney(h.gross)} est. value${h.cost != null ? ' − ' + fmtMoney(h.cost) + ' fee' + (h.costEstimated ? ' est.' : '') : ' (fee unknown)'}` : ''}
         </div>
       </div>`).join('');
     html += `<button id="profit-clear-btn" class="btn btn-sm" style="margin-top:8px" onclick="clearProfitHistory()">Clear history</button>`;
@@ -4386,20 +4529,97 @@ function switchPricesView(view, el) {
   pricesView = view;
   document.querySelectorAll('#prices-view-chips .chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  const market = view === 'market';
+  const market = view === 'market', buy = view === 'buy', own = market || buy;
+  document.getElementById('buy-controls').style.display       = buy ? '' : 'none';
+  document.getElementById('buy-list').style.display           = buy ? '' : 'none';
   document.getElementById('price-type-filters').style.display = view === 'commodity' ? '' : 'none';
   document.getElementById('com-search-bar').style.display     = view === 'commodity' ? '' : 'none';
   document.getElementById('station-select-row').style.display = view === 'station'   ? '' : 'none';
   document.getElementById('market-controls').style.display    = market ? '' : 'none';
   document.getElementById('market-list').style.display        = market ? '' : 'none';
-  document.getElementById('com-list').style.display           = market ? 'none' : '';
-  document.getElementById('price-source-logo').style.display  = market ? 'none' : 'flex';
+  document.getElementById('com-list').style.display           = own ? 'none' : '';
+  document.getElementById('price-source-logo').style.display  = own ? 'none' : 'flex';
   closePriceDetail();
   // the territory banner belongs to the station view; renderStations() puts it back for the selected station
   document.querySelectorAll('#com-list .terr-banner').forEach(e => e.remove());
   if (market) { openMarketView(); return; }
+  if (buy) { openBuyView(); return; }
   if (view === 'station') renderStations(); else renderComs();
 }
+
+// ════════════════════════════════════════════════════════════════════
+// Buy — where to buy a ship or an item (Prices → Buy)
+// Prices are the ones players report to UEX Corp. The search runs in uex-buy.js; only the matches come back.
+// ════════════════════════════════════════════════════════════════════
+let buyKind = 'ships', buySeq = 0, buyTimer = null;
+
+function openBuyView() {
+  const el = document.getElementById('buy-search');
+  if (el) el.focus();
+  runBuy();
+}
+function setBuyKind(kind, el) {
+  buyKind = kind;
+  document.querySelectorAll('#buy-kind-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const inp = document.getElementById('buy-search');
+  inp.placeholder = kind === 'items' ? 'Type an item name, e.g. P8-AR or Venture Arms' : 'Type a ship name, e.g. Cutlass Black';
+  inp.focus();
+  runBuy();
+}
+function buyInputChanged() { clearTimeout(buyTimer); buyTimer = setTimeout(runBuy, 250); }
+
+async function runBuy() {
+  const box = document.getElementById('buy-list');
+  const q = (document.getElementById('buy-search').value || '').trim();
+  const mine = ++buySeq;
+  if (q.replace(/[^a-z0-9]/gi, '').length < 2) {
+    box.innerHTML = `<div class="buy-note">Type at least two letters of a ${buyKind === 'items' ? 'weapon, armor piece or other item' : 'ship'} name to see which shops sell it and for how much.<br>Prices are reported by players to UEX Corp, so a price can be a few days old.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="loading"><div class="spinner"></div><span>${buyKind === 'items' ? 'Searching items… the first search downloads the price list and can take a few seconds' : 'Searching ships…'}</span></div>`;
+  let r;
+  try { r = await api.buySearch(buyKind, q); } catch (e) { r = { status: 'error', error: e.message }; }
+  if (mine !== buySeq) return;                      // a newer search replaced this one
+  renderBuy(box, r, q);
+}
+
+function buyOffers(list, total, label, tone) {
+  if (!list || !list.length) return '';
+  const age = (d) => d == null ? '' : `<span class="buy-age${d > 60 ? ' old' : ''}" data-tip="${d > 60 ? 'Nobody has reported this price for over two months, so it may have changed' : 'When a player last reported this price'}">${d < 1 ? 'today' : d + 'd ago'}</span>`;
+  return `<div class="buy-sec">${label}</div>` + list.map((o, i) => `
+    <div class="buy-row${i === 0 ? ' best' : ''}">
+      <div class="buy-where"><div class="buy-term">${esc(o.terminal)}${o.count > 1 ? ` <span class="buy-x">×${o.count}</span>` : ''}</div><div class="buy-loc">${esc(o.loc)}</div></div>
+      <div class="buy-price"><span class="${tone}">${fmtMoney(o.price)}</span> <span class="buy-unit">aUEC</span>${age(o.days)}</div>
+    </div>`).join('') + (total > list.length ? `<div class="buy-more">+ ${total - list.length} more shop${total - list.length === 1 ? '' : 's'}</div>` : '');
+}
+
+function renderBuy(box, r, q) {
+  if (r.status !== 'ok') {
+    box.innerHTML = `<div class="buy-note" style="color:var(--danger)">Could not reach UEX Corp (${esc(r.error || 'no answer')}). Check your connection and try again.</div>`;
+    return;
+  }
+  if (!r.results.length) {
+    box.innerHTML = `<div class="buy-note">Nothing matches "${esc(q)}". ${buyKind === 'items' ? 'UEX only lists items a player has seen in a shop, and uses the in-game name. Try fewer words.' : 'Try fewer words, or just the ship name.'}</div>`;
+    return;
+  }
+  const head = (r.total > r.results.length ? `<div class="buy-note" style="padding-bottom:0">Showing ${r.results.length} of ${r.total} matches. Type more of the name to narrow it down.</div>` : '') +
+    (r.stale ? `<div class="buy-note" style="padding-bottom:0;color:var(--warn)">UEX could not be reached, so these are saved results from earlier.</div>` : '');
+  box.innerHTML = head + r.results.map(x => {
+    const sub = buyKind === 'items'
+      ? esc(x.category || '')
+      : [x.maker, x.crew ? 'Crew ' + x.crew : '', x.scu > 0 ? x.scu + ' SCU' : ''].filter(Boolean).map(esc).join(' · ');
+    let body;
+    if (buyKind === 'items') {
+      body = buyOffers(x.buy, x.buyCount, 'Buy from', 'buy-cost') + buyOffers(x.sell, x.sellCount, 'Shops that pay you for it', 'buy-gain');
+    } else {
+      body = x.buyCount ? buyOffers(x.buy, x.buyCount, 'Buy for', 'buy-cost')
+        : `<div class="buy-none">No shop is known to sell this for aUEC. It may be a pledge-only or limited-time ship, or nobody has reported a price yet.</div>`;
+    }
+    return `<div class="buy-card"><div class="buy-name">${esc(x.name)}</div>${sub ? `<div class="buy-sub">${sub}</div>` : ''}${body}</div>`;
+  }).join('');
+}
+
 
 // ════════════════════════════════════════════════════════════════════
 // Market — UEX marketplace listings, watchlist and alerts (Prices → Market)
@@ -4996,70 +5216,7 @@ function sellAtStation(btn, name, location, canBuy, sellPrice) {
     return;
   }
 
-  openStationSellModal(name, sellPrice, matches);
-}
-
-let _stationSaleIndices = [];
-
-function openStationSellModal(name, sellPrice, matches) {
-  _stationSaleIndices = matches.map(m => m.i);
-  const totalSCU = matches.reduce((s, { item }) => s + itemSCU(item), 0);
-  const proceeds = Math.round(totalSCU * (sellPrice || 0));
-
-  const byLoc = {};
-  matches.forEach(({ item }) => {
-    const loc = item.location || '(unspecified)';
-    byLoc[loc] = (byLoc[loc] || 0) + itemSCU(item);
-  });
-
-  document.getElementById('ssm-title').textContent = `Sell ${name}`;
-  document.getElementById('ssm-body').innerHTML = `
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">In transit, awaiting sale:</div>
-    ${Object.entries(byLoc).map(([loc, scu]) => `
-      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
-        <span style="color:var(--text)">${esc(loc)}</span>
-        <span style="color:var(--accent);font-variant-numeric:tabular-nums">${fmtSCULabel(scu)}</span>
-      </div>`).join('')}
-    <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:12px">
-      <span style="color:var(--text-dim)">Total</span>
-      <span style="color:var(--text-bright);font-weight:700;font-variant-numeric:tabular-nums">${fmtSCULabel(totalSCU)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;padding:2px 0 10px;font-size:12px">
-      <span style="color:var(--text-dim)">Price</span>
-      <span style="color:var(--text)">${sellPrice ? sellPrice.toLocaleString() : '0'} aUEC/SCU</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(0,204,102,0.08);border:1px solid var(--success);border-radius:var(--r);margin-bottom:14px">
-      <span style="color:var(--success);font-weight:700;font-size:11px">Est. proceeds</span>
-      <span style="color:var(--success);font-weight:700;font-variant-numeric:tabular-nums">${proceeds.toLocaleString()} aUEC</span>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn" style="flex:1" onclick="confirmStationSale('${esc(name)}',${proceeds},${totalSCU})">✓ Confirm Sale</button>
-      <button class="btn" style="background:none;border-color:var(--border)" onclick="closeStationSellModal()">Cancel</button>
-    </div>`;
-  document.getElementById('station-sell-modal-overlay').style.display = 'flex';
-}
-
-function closeStationSellModal() {
-  document.getElementById('station-sell-modal-overlay').style.display = 'none';
-  _stationSaleIndices = [];
-}
-
-async function confirmStationSale(name, proceeds, totalSCU) {
-  const idxSet = new Set(_stationSaleIndices);
-  craftInventory = craftInventory.filter((_, i) => !idxSet.has(i));
-  selectedInvBoxes.clear();
-  clearExpandedGroups();
-  await api.setStore('craftInventory', craftInventory);
-  renderInventory();
-
-  document.getElementById('ssm-title').textContent = 'Sale Complete';
-  document.getElementById('ssm-body').innerHTML = `
-    <div style="text-align:center;padding:20px 6px">
-      <div style="font-size:28px;margin-bottom:10px">💰</div>
-      <div style="font-size:13px;color:var(--text-bright);line-height:1.6">You made <strong style="color:var(--success)">${proceeds.toLocaleString()} aUEC</strong> from selling <strong>${fmtSCULabel(totalSCU)}</strong> of <strong>${esc(name)}</strong>.</div>
-    </div>
-    <button class="btn btn-full" onclick="closeStationSellModal()">Done</button>`;
-  _stationSaleIndices = [];
+  openSaleDialog(matches.map(m => m.item), { prices: { [name]: sellPrice }, location });
 }
 
 function setFilter(f, el) {
@@ -5415,6 +5572,12 @@ async function initObsMode() {
   const el = document.getElementById('obs-select');
   if (el) el.value = (await api.getObsMode()) ? 'on' : 'off';
 }
+async function initLauncher() {
+  const el = document.getElementById('launcher-select');
+  if (el) el.value = (await api.getLauncher()) ? 'on' : 'off';
+  api.onLauncherChanged((v) => { const e = document.getElementById('launcher-select'); if (e) e.value = v ? 'on' : 'off'; });   // hidden from the bubble's own menu
+}
+async function saveLauncher() { await api.setLauncher(document.getElementById('launcher-select').value === 'on'); }
 async function saveObsMode() { await api.setObsMode(document.getElementById('obs-select').value === 'on'); }
 async function initZoom() {
   const pct = Math.round((await api.getZoom()) * 100);
@@ -6396,6 +6559,7 @@ const HINTS_BY_CALL = {
   // prices
   'switchPricesView:commodity': 'Browse every commodity and where it sells best',
   'switchPricesView:station': 'Pick a station to see everything it buys and sells',
+  'switchPricesView:buy': 'Look up where to buy a ship or an item, and what it costs',
   'setFilter:all': 'Show all commodities',
   'setFilter:mineral': 'Show only minerals',
   'setFilter:raw': 'Show only raw ore',
@@ -6404,8 +6568,8 @@ const HINTS_BY_CALL = {
   'showTerminalPrices': 'See every commodity this terminal buys and sells',
   'buyAtStation': 'Buy this here — opens Add Inventory pre-filled and marks it in transit',
   'sellAtStation': 'Sell your in-transit stock of this commodity here',
-  'confirmStationSale': 'Remove this stock from inventory and record the sale',
-  'closeStationSellModal': 'Close without selling',
+  'confirmSale': 'Record the sale and take the sold boxes out of your inventory',
+  'closeSaleModal': 'Close without selling',
   'closeTerminalModal': 'Close this window',
   'closePriceDetail': 'Close this window',
   // hangar: blueprints
@@ -6508,6 +6672,7 @@ const HINTS_BY_ID = {
   'opacity-range': 'How see-through the overlay is',
   'zoom-range': 'Make the whole app bigger or smaller',
   'whatsnew-btn': 'Show the latest changes',
+  'launcher-select': 'Show a clickable logo on screen while the overlay is hidden; click it to bring the overlay back',
   'obs-select': 'Compatibility makes the window solid so OBS Legacy (BitBlt) window capture can refresh. Restarts the app.',
   'capture-job-btn': 'Screenshot the in-game refinery screen and try to pre-fill a job (you review it before starting)',
   'owned-filter': 'Show all blueprints, only ones you own, only ones you don\'t, or only ones you can craft from your current stock',
@@ -6681,6 +6846,7 @@ initCloseBehavior();
 initGameSafe();
 initZoom();
 initObsMode();
+initLauncher();
 initOpacity();
 initWhatsNew();
 initPriceSource();
@@ -9819,15 +9985,138 @@ async function moveSelectedFromTransit(btn, indices) {
   renderInventory();
 }
 
-async function sellSelectedTransit(name, indices) {
-  const toSell = indices.filter(i => selectedInvBoxes.has(i) && craftInventory[i]?.inTransit && (!name || craftInventory[i].name === name));
-  if (!toSell.length) return;
-  const toSellSet = new Set(toSell);
-  craftInventory = craftInventory.filter((_, i) => !toSellSet.has(i));
+// Selling in-transit cargo asks what the terminal paid. The game sells one box size at a time and each sale has its
+// own price, so the dialog lists every size on its own: how many boxes of that size, and what that sale paid.
+// Profit → Sold keeps each sale, so it shows what was really sold (a delivered refinery job is not a sold one).
+let saleDraft = null;      // { rows: [{ name, quality, size, have, entries, price, unitOre }] }
+
+const saleNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const saleRound = (n, d) => Math.round(n * (d || 1000000)) / (d || 1000000);
+const saleSizeLabel = (r) => (r.unitOre ? 'Units' : r.size === 1 ? 'Loose SCU' : `${r.size} SCU boxes`);
+const saleCountWord = (r) => (r.unitOre ? 'units' : r.size === 1 ? 'SCU' : 'boxes');
+
+// the amount of a recorded sale: "3 × 4 SCU" when it was boxes of one size
+function saleQtyText(x) {
+  if (!isUnitOre(x.name) && x.size > 1 && x.boxes) return `${x.boxes} × ${x.size} SCU`;
+  return fmtAmt(x.name, x.scu);
+}
+
+// items: the inventory entries on offer. opts.prices = { name: aUEC per SCU } to suggest, opts.location = where
+function openSaleDialog(items, opts) {
+  opts = opts || {};
+  const by = new Map();
+  for (const it of items) {
+    const size = saleNum(it.unit) || 1, q = String(it.quality || '').trim();
+    const key = it.name + '|' + q + '|' + size;
+    let r = by.get(key);
+    if (!r) by.set(key, r = { name: it.name, quality: q, size, have: 0, entries: [], unitOre: isUnitOre(it.name) });
+    r.have = saleRound(r.have + saleNum(it.qty));
+    r.entries.push(it);
+  }
+  const rows = [...by.values()].filter(r => r.have > 0)
+    .sort((a, b) => a.name.localeCompare(b.name) || b.size - a.size || saleNum(b.quality) - saleNum(a.quality));
+  if (!rows.length) return;
+  rows.forEach(r => { r.price = r.unitOre ? null : ((opts.prices && opts.prices[r.name]) || invBestSellPrice(r.name) || null); });
+  saleDraft = { rows };
+  const inp = 'padding:5px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;text-align:right;outline:none;font-variant-numeric:tabular-nums';
+  let last = '';
+  document.getElementById('sale-list').innerHTML = rows.map((r, k) => {
+    const head = r.name !== last ? `<div style="font-size:13px;font-weight:700;color:var(--text);padding:10px 0 2px;${last ? 'border-top:1px solid var(--border);margin-top:6px' : ''}">${esc(r.name)}</div>` : '';
+    last = r.name;
+    const guess = r.price ? Math.round(r.price * r.have * r.size) : '';
+    return `${head}
+    <div class="sale-row" data-k="${k}" style="padding:5px 0 7px">
+      <div style="font-size:11px;color:var(--text)"><b>${esc(saleSizeLabel(r))}</b><span style="color:var(--text-dim)">${r.quality ? ' · quality ' + esc(r.quality) : ''} · you have ${saleRound(r.have, 100)}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text-dim)">Sold</span>
+        <input class="sale-count" type="number" min="0" max="${r.have}" step="${Number.isInteger(r.have) ? 1 : 0.01}" value="${r.have}" style="width:64px;${inp}" onfocus="this.select()" oninput="saleRowChanged(${k},'count')">
+        <span style="font-size:11px;color:var(--text-dim)">${saleCountWord(r)} for</span>
+        <input class="sale-total" type="number" min="0" step="1" value="${guess}" placeholder="Total paid" style="width:100px;${inp}" onfocus="this.select()" oninput="saleRowChanged(${k},'total')">
+        <span style="font-size:11px;color:var(--text-dim)">aUEC</span>
+      </div>
+      <div class="sale-per" style="font-size:10px;color:var(--text-dim);margin-top:2px;min-height:13px"></div>
+    </div>`;
+  }).join('');
+  rows.forEach((r, k) => { r.auto = r.price != null; saleRowChanged(k, 'init'); });
+  document.getElementById('sale-loc').value = opts.location || '';
+  document.getElementById('sale-form').style.display = '';
+  document.getElementById('sale-done').style.display = 'none';
+  document.getElementById('sale-modal-overlay').style.display = 'flex';
+}
+
+function saleRowEl(k) { return document.querySelector(`#sale-list .sale-row[data-k="${k}"]`); }
+
+// count and total are read back, kept in range, and the guess follows the count until the player types a total
+function saleRowChanged(k, which) {
+  const d = saleDraft; if (!d) return;
+  const r = d.rows[k], el = saleRowEl(k);
+  const cEl = el.querySelector('.sale-count'), tEl = el.querySelector('.sale-total');
+  const count = Math.min(r.have, Math.max(0, saleNum(cEl.value)));
+  if (which === 'total') r.auto = false;
+  else if (which === 'count' && r.auto && r.price) tEl.value = Math.round(r.price * count * r.size);
+  const total = tEl.value.trim() === '' ? null : saleNum(tEl.value);
+  const amount = count * r.size;
+  el.querySelector('.sale-per').textContent = total != null && amount > 0 ? `= ${fmtMoney(total / amount)} aUEC per ${r.unitOre ? 'unit' : 'SCU'}` : '';
+  let n = 0, scu = 0, sum = 0;
+  d.rows.forEach((x, i) => {
+    const e = saleRowEl(i), c = Math.min(x.have, Math.max(0, saleNum(e.querySelector('.sale-count').value)));
+    if (c > 0) { n++; if (!x.unitOre) scu += c * x.size; sum += saleNum(e.querySelector('.sale-total').value); }
+  });
+  document.getElementById('sale-sum').textContent = n ? `Selling ${saleRound(scu, 100)} SCU in ${n} sale${n === 1 ? '' : 's'}${sum ? ' · ' + fmtMoney(sum) + ' aUEC' : ''}` : 'Nothing selected to sell';
+}
+
+function closeSaleModal() {
+  saleDraft = null;
+  document.getElementById('sale-modal-overlay').style.display = 'none';
+}
+
+async function confirmSale(record) {
+  const d = saleDraft;
+  if (!d) return;
+  const loc = (document.getElementById('sale-loc').value || '').trim().slice(0, 80);
+  const now = Date.now(), made = [], touched = new Set();
+  d.rows.forEach((r, k) => {
+    const el = saleRowEl(k);
+    const count = Math.min(r.have, Math.max(0, saleNum(el.querySelector('.sale-count').value)));
+    if (!(count > 0)) return;
+    const raw = el.querySelector('.sale-total').value.trim();
+    const total = raw === '' ? null : Math.max(0, Math.round(saleNum(raw)));
+    let left = count;                                   // take the boxes out of the inventory, entry by entry
+    for (const it of r.entries) {
+      if (left <= 1e-9) break;
+      const q = saleNum(it.qty), take = Math.min(q, left);
+      it.qty = String(saleRound(q - take)); left = saleRound(left - take); touched.add(it);
+    }
+    made.push({
+      id: now + '-' + k, at: now, name: r.name, quality: r.quality, size: r.size, boxes: saleRound(count), scu: saleRound(count * r.size, 1000),
+      total, est: total != null && r.price != null && total === Math.round(r.price * count * r.size), location: loc,
+    });
+  });
+  if (!made.length) { document.getElementById('sale-sum').textContent = 'Enter how many you sold, or press Cancel'; return; }
+  craftInventory = craftInventory.filter(it => !(touched.has(it) && saleNum(it.qty) <= 1e-9));
+  if (record) {
+    salesLog.unshift(...made);
+    if (salesLog.length > SALES_MAX) salesLog.length = SALES_MAX;
+    await api.setStore('salesLog', salesLog);
+  }
   selectedInvBoxes.clear();
   clearExpandedGroups();
   await api.setStore('craftInventory', craftInventory);
   renderInventory();
+  if (profitTabOpen()) renderProfit();
+  const sum = made.reduce((n, x) => n + (x.total || 0), 0);
+  document.getElementById('sale-done-text').innerHTML = record
+    ? `Recorded <b>${made.length}</b> sale${made.length === 1 ? '' : 's'}${sum ? ` for <b style="color:var(--success)">${fmtMoney(sum)} aUEC</b>` : ''}. They are in Profit → Sold. Anything you did not sell is still in your inventory.`
+    : 'Took the cargo out of your inventory. Nothing was recorded.';
+  document.getElementById('sale-form').style.display = 'none';
+  document.getElementById('sale-done').style.display = '';
+  saleDraft = null;
+}
+
+// Inventory: Sell on the ticked in-transit boxes
+function sellSelectedTransit(name, indices) {
+  const items = indices.filter(i => selectedInvBoxes.has(i) && craftInventory[i]?.inTransit && (!name || craftInventory[i].name === name)).map(i => craftInventory[i]);
+  if (items.length) openSaleDialog(items);
 }
 
 async function clearTransitAtLoc(name, loc) {
@@ -9959,6 +10248,7 @@ function deliverJob(id) {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px">
         <div style="font-size:13px;font-weight:700;color:var(--text)">${nameHTML}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+          <label style="display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-dim);cursor:pointer;margin-right:4px" title="Tick this if you are keeping it for crafting or missions. It still goes into your inventory, but is not counted as profit."><input type="checkbox" class="deliver-keep" style="width:12px;height:12px;min-width:0;padding:0;margin:0;accent-color:var(--accent);color-scheme:dark">Keep</label>
           <input type="number" class="deliver-quality" placeholder="Quality" min="0" max="100" step="0.1"
             value="${esc(String(qualities[i] || ''))}"
             style="width:72px;padding:4px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;outline:none;text-align:center">
@@ -9983,7 +10273,9 @@ function deliverJob(id) {
 async function confirmDelivery() {
   const job = jobs.find(j => j.id === deliveryJobId);
   const location = job?.location || '';
+  const keepIdx = [];
   document.querySelectorAll('#deliver-ore-list .deliver-ore-row').forEach(section => {
+    if (section.querySelector('.deliver-keep')?.checked) keepIdx.push(Number(section.dataset.oreIdx));
     const ore     = refinedOutputName(section.dataset.ore);
     const quality = section.querySelector('.deliver-quality').value.trim();
     section.querySelectorAll('.deliver-box-row').forEach(row => {
@@ -9994,7 +10286,7 @@ async function confirmDelivery() {
   });
   await api.setStore('craftInventory', craftInventory);
   const jobId = deliveryJobId;
-  if (job) recordJobHistory(job);          // while the job still exists and prices are current
+  if (job) recordJobHistory(job, keepIdx);   // while the job still exists and prices are current
   closeDeliverModal();
   if (jobId) removeJob(jobId);
   switchTab('crafting');

@@ -42,6 +42,11 @@ function demoData() {
       { id: 'demo2', ores: ['Titanium'], qualities: ['874'], yields: ['150'], method: 'Cormack Method',
         location: 'CRU-L1 Ambitious Dream', startTime: now - 5 * H, durationSeconds: 2 * 3600, notes: 'Collect on the way back' },
     ],
+    salesLog: [
+      { id: 'd1', at: now - 2 * H, name: 'Quantainium', quality: '850', size: 4, boxes: 3, scu: 12, total: 1186800, est: false, location: 'Port Tressler' },
+      { id: 'd2', at: now - 2 * H, name: 'Quantainium', quality: '850', size: 1, boxes: 2, scu: 2, total: 190000, est: false, location: 'Port Tressler' },
+      { id: 'd3', at: now - 26 * H, name: 'Gold', quality: '700', size: 4, boxes: 2, scu: 8, total: 60000, est: true, location: 'Area 18' },
+    ],
     jobHistory: [
       { id: 'h4', deliveredAt: now - 1 * 864e5, ores: ['Quantainium'], yields: ['210'], method: 'Dinyx Solventation', location: 'ARC-L1 Wide Forest',
         durationSeconds: 3 * 3600, outCSCU: 210, gross: 357000, cost: 880, costKnown: true, costEstimated: false, net: 356120 },
@@ -185,7 +190,7 @@ const ANNOTATE = `(points) => {
   const demo = demoData();
   await ev(`(async () => { const d = ${JSON.stringify(demo)};
     await api.setJobs(d.jobs);
-    for (const k of ['craftInventory','craftShips','craftAssets','jobHistory','language','hoverHints','refineryCaptureMode']) await api.setStore(k, d[k]);
+    for (const k of ['craftInventory','craftShips','craftAssets','jobHistory','salesLog','language','hoverHints','refineryCaptureMode']) await api.setStore(k, d[k]);
   })()`);
   await ev('location.reload()');
   await sleep(3000);

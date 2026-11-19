@@ -60,6 +60,14 @@ const { autoUpdater } = require('electron-updater');
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// The launcher bubble (see launcher.js): a clickable logo on the screen while the overlay is hidden
+const launcher = require('./launcher').create({
+  store, obsMode,
+  getMainWindow: () => mainWindow,
+  showWindow: () => showWindow(),
+  onChanged: (v) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('launcher:changed', v); },
+});
+
 let _lastToggle = 0;
 function toggleWindow() {
   const now = Date.now();
@@ -325,6 +333,7 @@ function createWindow() {
 
   mainWindow.on('moved',   saveBounds);
   mainWindow.on('resized', saveBounds);
+  for (const ev of ['show', 'hide', 'minimize', 'restore']) mainWindow.on(ev, () => launcher.sync());
 
   mainWindow.on('close', (e) => {
     if (app.isQuitting) return;
@@ -391,6 +400,7 @@ app.whenReady().then(() => {
   session.fromPartition(ERKUL_PARTITION).setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   createWindow();
   buildTray();
+  launcher.sync();
 
   const savedVK = store.get('hotkeyVK', '2D');
   registerShortcut(savedVK);
@@ -443,6 +453,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  launcher.destroy();
   if (pendingOpacity !== null) { store.set('windowOpacity', pendingOpacity); pendingOpacity = null; }   // a slider move just before quitting
   // The taskbar button is added by hand while the overlay cannot be activated (see ensureTaskbarButton), and Windows
   // does not tidy such a button up when the window goes: take it away first, or its icon stays behind after quitting.
@@ -512,6 +523,10 @@ ipcMain.handle('api:getCommodities', async () => {
     return { status: 'error', error: e.message };
   }
 });
+
+// Where to buy a ship or an item (Prices -> Buy): searched here, only the matches go to the window.
+const uexBuy = require('./uex-buy').create(fetchJson);
+ipcMain.handle('buy:search', (_, kind, q) => uexBuy.search(kind === 'items' ? 'items' : 'ships', q));
 
 ipcMain.handle('api:getVehicles', async () => {
   try {
@@ -1684,7 +1699,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['gameSafeOverlay', 'wikeloHave', 'jobs', 'jobHistory', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['gameSafeOverlay', 'launcherEnabled', 'wikeloHave', 'jobs', 'jobHistory', 'salesLog', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
