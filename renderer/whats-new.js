@@ -3,6 +3,9 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '2.0.2', items: [
+    "New: ships in Prices > Buy have an I bought this button. It opens Add Ship with that ship already picked, so a ship you buy in the game goes into your Hangar in a few clicks. A ship you already own shows how many are in your Hangar.",
+  ] },
   { version: '2.0.1', items: [
     "New: Refinery > Station Bonuses has a second dropdown. Pick an ore and every station is ranked for it, best first, so you can see where to refine it. Tap a row to open that station.",
     "Crafting now uses the game's own files, so it works offline and no longer waits on another website. Blueprints that were missing are in, and the Special tag is gone.",
