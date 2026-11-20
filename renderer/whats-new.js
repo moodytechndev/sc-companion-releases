@@ -3,6 +3,14 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '2.0.5', items: [
+    "New: the Loadout tab now checks the rock's mass. Check a rock has a Mass box (the live scan fills it), and the advice says whether each laser has the power to crack the rock. If no single MOLE laser is enough, it tells you which lasers to fire together.",
+    "New: mining gadgets are worked out for every laser, and for lasers fired together. A gadget can turn a rock that is too much for your lasers into one they can crack, and the advice says which laser does it. Tap the gadgets you carry (Loadout > Gadgets you carry) and only those are suggested.",
+    "New: on the MOLE, the live scan asks which laser you are sitting at (Front, Port or Starboard), and Set my loadout from the game saves to that one.",
+    "New: a summary strip stays at the top of the Loadout tab while you scroll: the rock, what to do about it and the best gadget.",
+    "Fixed: the rock numbers the live scan put in Check a rock had your laser's effect counted twice. They are now the rock's own numbers.",
+    "The power estimate uses a formula from the mining community, so treat it as a guide.",
+  ] },
   { version: '2.0.4', items: [
     "New: Mining > Loadout now starts with your ship (Prospector, MOLE or Golem). The MOLE has three lasers, so Front, Port and Starboard each get their own laser and modules.",
     "New: Live rock scan (Mining > Loadout). Switch it on at a rock and the app reads the rock and your laser from the game screen: ore, mass, resistance, instability and what the rock is made of. It works best in a dark scene, and Star Citizen has to run in Borderless or Windowed mode.",

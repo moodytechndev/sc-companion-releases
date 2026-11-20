@@ -1836,7 +1836,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['gameSafeOverlay', 'launcherEnabled', 'wikeloHave', 'jobs', 'jobHistory', 'salesLog', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'miningFleet', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['gameSafeOverlay', 'launcherEnabled', 'wikeloHave', 'jobs', 'jobHistory', 'salesLog', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'miningFleet', 'miningGadgets', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -1853,6 +1853,7 @@ function validateImport(data) {
   if (data.ownedPaints !== undefined && (typeof data.ownedPaints !== 'object' || data.ownedPaints === null || Array.isArray(data.ownedPaints))) return 'ownedPaints must be an object';
   if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
   if (data.miningFleet !== undefined && (typeof data.miningFleet !== 'object' || data.miningFleet === null || Array.isArray(data.miningFleet))) return 'miningFleet must be an object';
+  if (data.miningGadgets !== undefined && !Array.isArray(data.miningGadgets)) return 'miningGadgets must be a list';
   if (data.factionStanding !== undefined && (typeof data.factionStanding !== 'object' || data.factionStanding === null || Array.isArray(data.factionStanding))) return 'factionStanding must be an object';
   if (data.contractLog !== undefined && (typeof data.contractLog !== 'object' || data.contractLog === null || Array.isArray(data.contractLog))) return 'contractLog must be an object';
   if (data.wikeloHave !== undefined && (typeof data.wikeloHave !== 'object' || data.wikeloHave === null || Array.isArray(data.wikeloHave))) return 'wikeloHave must be an object';

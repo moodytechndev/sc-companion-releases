@@ -2893,8 +2893,10 @@ function syncActiveLoadout() {
   if (!heads.some(h => h.key === miningFleet.head)) miningFleet.head = heads[0].key;
   miningLoadout = fleetLoadout(miningFleet.ship, miningFleet.head);
 }
+let ownedGadgets = new Set();
 async function loadMiningFleet() {
   if (!gearReady()) return;
+  try { const g = await api.getStore('miningGadgets', []); ownedGadgets = new Set(Array.isArray(g) ? g.filter(id => typeof id === 'string') : []); } catch { ownedGadgets = new Set(); }
   const saved = await api.getStore('miningFleet', null);
   miningFleet = { ship: '', head: '', loadouts: {} };
   if (saved && typeof saved === 'object') {
@@ -2918,6 +2920,7 @@ function totalsOf(laser, mods) {
   const mul = (k) => (parts.reduce((a, p) => a * (1 + (p[k] || 0) / 100), 1) - 1) * 100;
   return {
     power: mods.reduce((a, m) => a * (m.power || 1), 1),
+    powerSteady: mods.filter(m => m.kind !== 'active').reduce((a, m) => a * (m.power || 1), 1),
     resistance: mul('resistance'), instability: mul('instability'), window: mul('window'), windowRate: mul('windowRate'),
     inert: Math.min(100, parts.reduce((a, p) => a + (p.inert || 0), 0)),
     active: mods.filter(m => m.kind === 'active').length,
@@ -3027,9 +3030,9 @@ api.onRockUpdate(rockOnUpdate);
 function rockRescan() { api.rockRescan(); }
 // the countdown of a held scan
 function rockHoldTick() {
-  const el = document.getElementById('rock-hold'); if (!el) return;
   const left = Math.max(0, Math.round((rockLive.holdUntil - Date.now()) / 1000));
-  el.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+  const txt = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+  for (const id of ['rock-hold', 'rock-hold2']) { const el = document.getElementById(id); if (el) el.textContent = txt; }
 }
 setInterval(rockHoldTick, 1000);
 
@@ -3086,7 +3089,7 @@ function rockSetLoadout() {
   const top = fits.filter(f => f.err <= (fits[0] ? fits[0].err + 0.01 : 0));
   const unique = fits.length && fits[0].err < 3 && top.length === 1;
   const head = headDef(miningFleet.ship, miningFleet.head);
-  if (!headLasers(head).some(l => l.id === laser.id)) { rockLive.note = `${laser.name} does not fit this laser head. Pick the head you are sitting at above.`; renderRockLive(); return; }
+  if (!headLasers(head).some(l => l.id === laser.id)) { rockLive.note = `${laser.name} does not fit this laser head. Check the ship and the laser you are sitting at.`; renderRockLive(); return; }
   miningFleet.loadouts[miningFleet.ship][miningFleet.head] = sanitizeLoadoutFor({ laser: laser.id, modules: unique ? fits[0].ids.concat(Array(8).fill('')) : [] }, head);
   syncActiveLoadout();
   saveLoadout();
@@ -3095,6 +3098,26 @@ function rockSetLoadout() {
     : fits.length && fits[0].err < 3 ? `Laser set. ${top.length} sets of modules give the numbers the game shows, so pick yours.` : 'Laser set. The numbers could not be read well enough to tell the modules, so pick them by hand.';
   renderLoadout();
   renderMining();
+}
+
+// ── Mass: can the laser crack the rock at all ──
+// The power a rock needs grows with its mass and its resistance: needed MW = mass x (1 + resistance%) / 5. The 5 is what the
+// mining community measured (it is not in the game files), so this is an estimate; the laser's own power is from the game files.
+// A laser's power is its beam times its modules. Active modules only add theirs while switched on, so "steady" counts the
+// passive ones and "peak" all of them.
+const ROCK_POWER_DIVISOR = 5;
+const rockNeedMw = (mass, resPct) => mass * (1 + Math.max(-90, resPct) / 100) / ROCK_POWER_DIVISOR;
+const rockMassOf = (r) => (r && Number.isFinite(Number(r.mass)) && Number(r.mass) > 0 ? Number(r.mass) : null);
+function laserPower(laser, mods) {
+  const t = totalsOf(laser, mods); if (!t || !laser || !(laser.beam > 1)) return null;
+  return { steady: laser.beam * t.powerSteady, peak: laser.beam * t.power, active: t.active };
+}
+// 'ok' = cracks it with always-on power, 'boost' = only with active modules switched on, 'no' = not enough
+function powerVerdict(pw, need) { return !pw || need == null ? '' : need <= pw.steady ? 'ok' : need <= pw.peak ? 'boost' : 'no'; }
+const verdictRank = { ok: 0, boost: 1, '': 1, no: 2 };
+const fmtMw = (n) => Math.round(n).toLocaleString('en-US');
+function verdictPill(v) {
+  return v === 'ok' ? '<span class="risk easy">Cracks it</span>' : v === 'boost' ? '<span class="risk medium">Needs active modules on</span>' : v === 'no' ? '<span class="risk extreme">Too weak</span>' : '';
 }
 
 // Which of the ship's laser heads suits the rock that is on screen. The numbers the game shows for a rock already include the
@@ -3112,35 +3135,65 @@ function rockAdvice() {
     res: (hud && hud.resistance ? hud.resistance : active ? 100 + active.resistance : 100) / 100,
     inst: (hud && hud.instability ? hud.instability : active ? 100 + active.instability : 100) / 100,
   };
+  const mass = rockMassOf(r), rawRes = r.resistance / cur.res;
   const rows = heads.map(h => {
     const ld = fleetLoadout(miningFleet.ship, h.key), laser = MINING_LASERS.find(l => l.id === ld.laser);
     const mods = ld.modules.map(id => MINING_MODULES.find(m => m.id === id)).filter(Boolean);
     const t = totalsOf(laser, mods); if (!t) return null;
     const rm = 1 + t.resistance / 100, im = 1 + t.instability / 100;
-    return { head: h, laser, mods, window: t.window, res: Math.max(0, r.resistance * rm / cur.res), inst: Math.max(0, r.instability * im / cur.inst), score: (rm / cur.res) * (im / cur.inst) };
-  }).filter(Boolean).sort((a, b) => a.score - b.score || b.window - a.window);
-  return rows.length ? { rock: r, rows, usedHud: !!hud } : null;
+    const res = Math.max(0, r.resistance * rm / cur.res);
+    const pw = mass ? laserPower(laser, mods) : null, need = mass ? rockNeedMw(mass, res) : null;
+    return { head: h, laser, mods, window: t.window, res, inst: Math.max(0, r.instability * im / cur.inst), rm, score: (rm / cur.res) * (im / cur.inst), pw, need, verdict: powerVerdict(pw, need) };
+  }).filter(Boolean).sort((a, b) => verdictRank[a.verdict] - verdictRank[b.verdict] || a.score - b.score || b.window - a.window);
+  // no single laser is enough: two or three of a ship's lasers fired together add their power (the resistance is their average)
+  const combo = mass && !rows.some(x => x.verdict === 'ok') ? bestCombo(rows, mass, rawRes, 1) : null;
+  const baseVerdict = rows.length && rows[0].verdict === 'no' && combo ? combo.verdict : (rows[0] ? rows[0].verdict : '');
+  return rows.length ? { rock: r, rows, usedHud: !!hud, mass, combo, rawRes, baseVerdict, crackNow: baseVerdict !== 'no' } : null;
 }
-// Mining gadgets are stuck onto the rock and change it on top of the laser. A gadget is offered when it makes the rock clearly
-// easier for the head that was picked (resistance and instability multiplied, as for the heads), and only when the rock is not
-// already rated Easy. Each is shown with what it would do to this rock and what it costs (a smaller charge window, for example).
+// The best way to fire several of the ship's lasers together at one rock. gm is a resistance multiplier from a gadget (1 = none).
+function bestCombo(rows, mass, rawRes, gm) {
+  if (!mass || rows.length < 2 || !rows.every(x => x.pw)) return null;
+  const subsets = [];
+  for (let m = 1; m < (1 << rows.length); m++) { const sel = rows.filter((_, i) => m & (1 << i)); if (sel.length > 1) subsets.push(sel); }
+  return subsets.map(sel => {
+    const rm = Math.pow(sel.reduce((p, x) => p * x.rm, 1), 1 / sel.length), res = Math.max(0, rawRes * rm * gm), need = rockNeedMw(mass, res);
+    const steady = sel.reduce((p, x) => p + x.pw.steady, 0), peak = sel.reduce((p, x) => p + x.pw.peak, 0);
+    return { heads: sel.map(x => x.head), need, steady, peak, verdict: need <= steady ? 'ok' : need <= peak ? 'boost' : 'no' };
+  }).filter(o => o.verdict !== 'no').sort((a, b) => verdictRank[a.verdict] - verdictRank[b.verdict] || a.heads.length - b.heads.length || (b.steady / b.need) - (a.steady / a.need))[0] || null;
+}
+// Mining gadgets are stuck onto the rock before you fire and change it (resistance, instability, charge window), on top of the
+// laser. Each gadget is tried on every laser the ship has, and, when no single laser is enough, on the lasers fired together:
+// less resistance means less power needed, which can turn "too weak" into "cracks it", or let one laser do what took two.
+// Otherwise a gadget is offered when it clearly eases the rock (resistance x instability down by 10% or more).
+// Only the gadgets you said you carry are offered; with none ticked, every gadget is.
 function rockGadgets(a) {
-  if (typeof MINING_GADGETS === 'undefined' || !a || !a.rows.length) return [];
+  const none = { list: [], other: [] };
+  if (typeof MINING_GADGETS === 'undefined' || !a || !a.rows.length) return none;
   const best = a.rows[0];
-  const base = best.res * best.inst || 0;
-  return MINING_GADGETS.map(g => {
+  const all = MINING_GADGETS.map(g => {
     const rm = 1 + (g.resistance || 0) / 100, im = 1 + (g.instability || 0) / 100;
     const res = Math.max(0, best.res * rm), inst = Math.max(0, best.inst * im);
     const window = (1 + best.window / 100) * (1 + (g.window || 0) / 100) * 100 - 100;
-    return { g, res, inst, window, gain: rm * im };
-  }).filter(x => x.gain <= 0.9).sort((x, y) => x.gain - y.gain || y.window - x.window).slice(0, 5);
+    let verdict = '', via = null;
+    if (a.mass && best.pw) {
+      const single = a.rows.filter(x => x.pw).map(x => ({ x, v: powerVerdict(x.pw, rockNeedMw(a.mass, x.res * rm)) })).sort((p, q) => verdictRank[p.v] - verdictRank[q.v])[0];
+      verdict = single.v; via = single.v === 'no' ? null : [single.x.head];
+      if (verdict === 'no') { const c = bestCombo(a.rows, a.mass, a.rawRes, rm); if (c) { verdict = c.verdict; via = c.heads; } }
+    }
+    const crackHelp = !a.crackNow && verdict && verdict !== 'no';
+    const fewerHelp = !!(a.combo && via && via.length < a.combo.heads.length);
+    return { g, res, inst, window, gain: rm * im, verdict, via, helps: a.rock.difficulty !== 'easy' && rm * im <= 0.9 || crackHelp || fewerHelp };
+  }).filter(x => x.helps)
+    .sort((x, y) => (a.crackNow ? 0 : verdictRank[x.verdict] - verdictRank[y.verdict]) || ((x.via ? x.via.length : 9) - (y.via ? y.via.length : 9)) || x.gain - y.gain || y.window - x.window);
+  const mine = ownedGadgets.size ? all.filter(x => ownedGadgets.has(x.g.id)) : all;
+  return { list: mine.slice(0, 5), other: ownedGadgets.size ? all.filter(x => !ownedGadgets.has(x.g.id)).slice(0, 2) : [] };
 }
 function rockGadgetHtml(a) {
-  const easy = a.rock.difficulty === 'easy';
-  if (easy) return `<div class="lo-note">This rock is rated Easy already, so a mining gadget is not needed.</div>`;
-  const list = rockGadgets(a);
+  if (a.rock.difficulty === 'easy' && a.crackNow && !a.combo) return `<div class="lo-note">This rock is rated Easy already, so a mining gadget is not needed.</div>`;
+  const { list, other } = rockGadgets(a);
   const best = a.rows[0];
-  if (!list.length) return `<div class="lo-sec" style="margin-top:10px">Mining gadget</div><div class="lo-note" style="margin-top:0">No gadget would make this rock clearly easier${a.rock.difficulty ? '' : ' (the game did not say how hard it is)'}.</div>`;
+  const otherNote = other.length ? ` ${other.map(x => esc(x.g.name)).join(' and ')} would ${other.length > 1 ? 'help' : 'help'} too, but ${other.length > 1 ? 'are' : 'is'} not in your list.` : '';
+  if (!list.length) return `<div class="lo-sec" style="margin-top:10px">Mining gadget</div><div class="lo-note" style="margin-top:0">${ownedGadgets.size ? 'None of the gadgets you carry would' : 'No gadget would'} ${a.crackNow ? 'make this rock clearly easier' : 'let your lasers crack this rock'}${a.rock.difficulty || !a.crackNow ? '' : ' (the game did not say how hard it is)'}.${otherNote}</div>`;
   const items = list.map(x => {
     const why = [];
     if (x.g.resistance && x.g.resistance < 0) why.push(`resistance ${x.g.resistance}%`);
@@ -3151,46 +3204,107 @@ function rockGadgetHtml(a) {
     if (x.g.instability > 0) cost.push(`instability +${x.g.instability}%`);
     if (x.g.window < 0) cost.push(`window ${x.g.window}%`);
     if (x.g.windowRate < 0) cost.push(`window fills ${-x.g.windowRate}% slower`);
+    const via = x.via && !a.crackNow || (x.via && a.combo && x.via.length < a.combo.heads.length)
+      ? `<br>${a.rows.length === 1 ? 'Your laser' : `<b>${x.via.map(h => esc(h.label)).join(' + ')}</b> ${x.via.length > 1 ? 'together' : 'alone'}`} ${x.verdict === 'boost' ? 'cracks it with active modules on' : 'cracks it'}` : '';
     return `<div class="lo-row" style="align-items:flex-start">
-      <div><div class="n">${esc(x.g.name)}</div><div class="lo-note" style="margin:0">${esc(x.g.mfr || '')}${why.length ? ' · ' + why.join(', ') : ''}${cost.length ? '<br>Costs: ' + cost.join(', ') : ''}</div></div>
+      <div><div class="n">${esc(x.g.name)} ${a.crackNow ? '' : verdictPill(x.verdict)}</div><div class="lo-note" style="margin:0">${esc(x.g.mfr || '')}${why.length ? ' \u00b7 ' + why.join(', ') : ''}${cost.length ? '<br>Costs: ' + cost.join(', ') : ''}${via}</div></div>
       <div class="m">Resistance ${Math.round(x.res)}%<br>Instability ${_oreNum(x.inst)}<br>Window ${_sgn(x.window)}</div>
     </div>`;
   }).join('');
   return `<div class="lo-sec" style="margin-top:10px">Mining gadget that would help</div>
     <div class="lo-note" style="margin-top:0">${best.head ? `With ${esc(best.head.label)} as it is now (resistance ${Math.round(best.res)}%, instability ${_oreNum(best.inst)}), a gadget stuck on the rock would give:` : 'A gadget stuck on the rock would give:'}</div>${items}
-    <div class="lo-note">A gadget goes onto the rock before you fire and works on top of your laser. Estimated the same way as the laser advice.</div>`;
+    <div class="lo-note">A gadget goes onto the rock before you fire and works on top of your laser. Estimated the same way as the laser advice.${ownedGadgets.size ? ' Only the gadgets you carry are listed.' : ' Tick the gadgets you carry below to hide the rest.'}${otherNote}</div>`;
 }
 function rockAdviceHtml() {
   const a = rockAdvice(); if (!a) return '';
-  const multi = a.rows.length > 1, tied = multi && Math.abs(a.rows[0].score - a.rows[a.rows.length - 1].score) < 0.005;
-  const items = a.rows.map((x, i) => `<div class="lo-row${multi && i === 0 && !tied ? ' best' : ''}" style="align-items:flex-start">
-      <div><div class="n">${esc(x.head.label)}${multi && i === 0 && !tied ? ' <span style="font-size:10px;color:var(--success);font-weight:700;margin-left:4px">USE THIS ONE</span>' : ''}</div>
+  const multi = a.rows.length > 1, top = a.rows[0];
+  const tied = multi && a.rows.every(x => Math.abs(x.score - top.score) < 0.005 && x.verdict === top.verdict && (!x.pw || !top.pw || Math.abs(x.pw.steady - top.pw.steady) < 1));
+  const crack = !!a.mass && !!top.pw;
+  const items = a.rows.map((x, i) => `<div class="lo-row${multi && i === 0 && !tied && x.verdict !== 'no' ? ' best' : ''}" style="align-items:flex-start">
+      <div><div class="n">${esc(x.head.label)}${multi && i === 0 && !tied && x.verdict !== 'no' ? ' <span style="font-size:10px;color:var(--success);font-weight:700;margin-left:4px">USE THIS ONE</span>' : ''} ${verdictPill(x.verdict)}</div>
       <div class="lo-note" style="margin:0">${esc(x.laser.name)}${x.mods.length ? ' + ' + x.mods.map(m => esc(m.name)).join(', ') : ''}</div></div>
-      <div class="m">Resistance ${Math.round(x.res)}%<br>Instability ${_oreNum(x.inst)}<br>Window ${_sgn(x.window)}</div>
+      <div class="m">${x.pw ? `Power ${fmtMw(x.pw.steady)}${x.pw.peak > x.pw.steady + 0.5 ? ` (${fmtMw(x.pw.peak)} with active modules)` : ''} MW<br>Needs ${fmtMw(x.need)} MW<br>` : ''}Resistance ${Math.round(x.res)}%<br>Instability ${_oreNum(x.inst)}<br>Window ${_sgn(x.window)}</div>
     </div>`).join('');
-  const lead = !multi ? `On this ${esc(a.rock.ore || 'rock')}, your ${esc(a.rows[0].laser.name)} gives:`
-    : tied ? 'Your lasers are set up the same, so any of them gives the same result on this rock. Set up the loadout of each laser above to compare them.'
-    : `For this ${esc(a.rock.ore || 'rock')}, use <b>${esc(a.rows[0].head.label)}</b>:`;
+  const rockName = esc(a.rock.ore || 'rock');
+  let lead;
+  if (crack && top.verdict === 'no') {
+    const c = a.combo;
+    lead = c
+      ? `This ${rockName} weighs ${fmtMw(a.mass)} kg and needs about ${fmtMw(c.need)} MW. <b>No single laser has enough power</b>, but ${c.heads.map(h => `<b>${esc(h.label)}</b>`).join(' + ')} fired together do${c.verdict === 'boost' ? ' (with their active modules on)' : ''}. Each laser needs someone at its seat.`
+      : `This ${rockName} weighs ${fmtMw(a.mass)} kg and needs about ${fmtMw(top.need)} MW, <b>more than your ${multi ? 'lasers have' : 'laser has'}</b>${a.rows.some(x => x.pw && x.pw.peak > x.pw.steady) ? ' even with active modules on' : ''}. Skip it, or try a gadget below${multi ? '' : ' or a stronger laser'}.`;
+  } else if (crack && top.verdict === 'boost') {
+    lead = `This ${rockName} weighs ${fmtMw(a.mass)} kg and needs about ${fmtMw(top.need)} MW. <b>${esc(top.head.label)}</b> only gets there with its active modules switched on.`;
+  } else if (!multi) lead = `On this ${rockName}${crack ? ` (${fmtMw(a.mass)} kg, needs about ${fmtMw(top.need)} MW)` : ''}, your ${esc(top.laser.name)} gives:`;
+  else if (tied) lead = 'Your lasers are set up the same, so any of them gives the same result on this rock. Set up the loadout of each laser above to compare them.';
+  else lead = `For this ${rockName}${crack ? ` (${fmtMw(a.mass)} kg, needs about ${fmtMw(top.need)} MW)` : ''}, use <b>${esc(top.head.label)}</b>:`;
+  const massNote = a.mass ? ' Power is judged from the rock’s mass and resistance; the formula comes from the mining community, so treat it as a guide.' : ' (The rock’s mass was not read, so power is not checked.)';
   return `<div class="lo-sec" style="margin-top:10px">Which laser for this rock</div><div class="lo-note" style="margin-top:0">${lead}</div>${items}
-    <div class="lo-note">Estimated from your saved loadouts and the numbers on the scanner. Lower resistance and instability are better.${a.usedHud ? '' : ' (Based on the loadout you have saved for the laser you are at, since the laser panel could not be read.)'}</div>${rockGadgetHtml(a)}`;
+    <div class="lo-note">Estimated from your saved loadouts and the numbers on the scanner. Lower resistance and instability are better.${massNote}${a.usedHud ? '' : ' (Based on the loadout you have saved for the laser you are at, since the laser panel could not be read.)'}</div>${rockGadgetHtml(a)}`;
 }
 
 // What was read from the rock goes into the "Check a rock" boxes below, once it has been read the same way twice.
 function rockFillCheck() {
   const r = rockShown().rock;
   if (!r || r.reads < 2 || r.resistance == null || r.instability == null) return;
-  const instIn = document.getElementById('lo-rock-inst'), resIn = document.getElementById('lo-rock-res');
+  const instIn = document.getElementById('lo-rock-inst'), resIn = document.getElementById('lo-rock-res'), massIn = document.getElementById('lo-rock-mass');
   if (!instIn || !resIn) return;
-  const key = r.resistance + '/' + r.instability;
+  const key = r.resistance + '/' + r.instability + '/' + (rockMassOf(r) || '');
   if (rockLive.filled === key) return;
   rockLive.filled = key;
-  instIn.value = r.instability; resIn.value = r.resistance;
+  // the numbers the game shows already include the laser that is aimed at the rock; the boxes want the rock's own numbers, and
+  // the loadout is applied below them, so the laser panel's modifiers are taken off again
+  const lsr = rockShown().laser, hud = lsr && lsr.agree >= 2 ? lsr.mods : null, act = loadoutTotals();
+  const resF = (hud && hud.resistance ? hud.resistance : act ? 100 + act.resistance : 100) / 100;
+  const instF = (hud && hud.instability ? hud.instability : act ? 100 + act.instability : 100) / 100;
+  instIn.value = +(r.instability / instF).toFixed(2); resIn.value = Math.round(r.resistance / resF);
+  if (massIn && rockMassOf(r)) massIn.value = rockMassOf(r);
   loRefresh();
+}
+
+// The short version, kept at the top of the tab: the rock, what to do about it, and the best gadget, so nothing has to be
+// scrolled for. It is empty until a rock has been read.
+function rockSummaryHtml() {
+  const sh = rockShown(), r = sh.rock;
+  if (!rockLive.on || !r) return '';
+  const a = rockAdvice();
+  const chip = (k, v, cls) => `<span style="white-space:nowrap"><span style="color:var(--text-dim);font-size:9px;text-transform:uppercase">${k}</span> <b${cls ? ` class="${cls}"` : ''}>${v}</b></span>`;
+  const facts = [
+    chip('Ore', esc(r.ore || 'Rock')),
+    r.difficulty ? `<span class="risk ${rockDiffClass(r.difficulty)}">${esc(r.difficulty)}</span>` : '',
+    rockMassOf(r) ? chip('Mass', fmtMw(rockMassOf(r))) : '',
+    r.resistance != null ? chip('Res', r.resistance + '%') : '',
+    r.instability != null ? chip('Inst', rockNum(r.instability, 2)) : '',
+    r.totalScu != null ? chip('Size', rockNum(r.totalScu, 2) + ' SCU') : '',
+  ].filter(Boolean).join('');
+  let act = '', gad = '';
+  if (a) {
+    const multi = a.rows.length > 1, top = a.rows[0], crack = !!a.mass && !!top.pw;
+    const tied = multi && a.rows.every(x => Math.abs(x.score - top.score) < 0.005 && x.verdict === top.verdict && (!x.pw || !top.pw || Math.abs(x.pw.steady - top.pw.steady) < 1));
+    let text, tone = 'easy';
+    if (crack && top.verdict === 'no') {
+      if (a.combo) { text = `Fire <b>${a.combo.heads.map(h => esc(h.label)).join(' + ')}</b> together`; tone = 'medium'; }
+      else { text = 'Too much for your lasers'; tone = 'extreme'; }
+    } else if (crack && top.verdict === 'boost') { text = `<b>${esc(top.head.label)}</b> with its active modules on`; tone = 'medium'; }
+    else if (multi) text = tied ? 'Any of your lasers will do' : `Use <b>${esc(top.head.label)}</b>`;
+    else text = crack ? 'Your laser cracks it' : `Your <b>${esc(top.laser.name)}</b>`;
+    act = `<div style="margin-top:4px"><span class="risk ${tone}" style="margin-right:6px">${tone === 'easy' ? 'Go' : tone === 'medium' ? 'Careful' : 'Skip'}</span>${text}${crack ? (() => { const n = top.verdict === 'no' && a.combo ? a.combo : { need: top.need, steady: top.pw.steady }; return ` <span style="color:var(--text-dim)">\u00b7 needs ${fmtMw(n.need)} MW, has ${fmtMw(n.steady)}</span>`; })() : ''}</div>`;
+    const g = (a.rock.difficulty === 'easy' && a.crackNow && !a.combo) ? null : rockGadgets(a).list[0];
+    if (g) gad = `<div style="margin-top:2px;color:var(--text-dim)">Gadget: <b style="color:var(--text)">${esc(g.g.name)}</b>${g.via ? ` \u2014 ${a.rows.length === 1 ? 'your laser' : g.via.map(h => esc(h.label)).join(' + ')} ${a.rows.length === 1 || g.via.length === 1 ? 'cracks' : 'crack'} it` : ''}</div>`;
+  } else act = `<div style="margin-top:4px;color:var(--text-dim)">${rockLive.status === 'held' ? 'Scan held.' : 'Reading the rock\u2026'}</div>`;
+  const hold = rockLive.status === 'held' ? `<span style="float:right;color:var(--text-dim);font-size:10px">holding <span id="rock-hold2"></span></span>` : '';
+  return `<div style="font-size:11px;line-height:1.5">${hold}<div style="display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center">${facts}</div>${act}${gad}</div>`;
+}
+function renderRockSummary() {
+  const el = document.getElementById('rock-summary'); if (!el) return;
+  const h = rockSummaryHtml();
+  el.innerHTML = h;
+  el.style.cssText = h ? 'position:sticky;top:-10px;z-index:6;margin:-10px -10px 8px;padding:9px 12px;background:var(--bg-card);border-bottom:1px solid var(--border-hi)' : '';
 }
 
 function renderRockLive() {
   const el = document.getElementById('rock-live');
   if (!el) return;
+  renderRockSummary();
   const st = rockLive.status;
   const msg = !rockLive.on ? 'Reads the rock and your laser from the game while you mine. Off by default.'
     : st === 'starting' ? 'Starting…'
@@ -3229,6 +3343,7 @@ function renderRockLive() {
   const l = shownNow.laser;
   if (l) {
     const t = loadoutTotals();
+    const atHeads = shipHeads(), atHead = headDef(miningFleet.ship, miningFleet.head);   // only a ship with several lasers (the MOLE) asks which one you are at
     const line = (label, hud, mine) => {
       const d = hudDelta(hud);
       if (d == null) return '';
@@ -3238,7 +3353,8 @@ function renderRockLive() {
     html += `<div class="lo-rock" style="margin-top:8px">
       <div style="font-size:12px"><b>${esc(l.name || 'Mining laser')}</b> <span style="color:var(--text-dim);font-size:10px">as the game shows it${t ? '' : ' — no loadout saved yet'}</span></div>
       <div style="margin-top:4px;font-size:11px;display:flex;flex-wrap:wrap;gap:2px 0">${line('Resistance', l.mods.resistance, t && t.resistance)}${line('Instability', l.mods.instability, t && t.instability)}${line('Charge window', l.mods.window, t && t.window)}${l.mods.fracture == null ? '' : `<span style="white-space:nowrap">Fracture power <b>${l.mods.fracture}%</b></span>`}</div>
-      <div style="margin-top:6px"><button class="btn btn-sm" onclick="rockSetLoadout()" data-tip="${esc('Pick the laser and modules below to match what the game shows')}">Set my loadout from the game</button> <span style="color:var(--text-dim);font-size:11px">${esc(rockLive.note || '')}</span></div>
+      ${atHeads.length > 1 ? `<div class="lo-note" style="margin:8px 0 2px">Which laser are you sitting at? The loadout is saved for that one.</div><div class="filter-chips" style="margin:0 0 4px">${atHeads.map(h => `<div class="chip${h.key === miningFleet.head ? ' active' : ''}" onclick="loSetHead('${esc(h.key)}')">${esc(h.label)}</div>`).join('')}</div>` : ''}
+      <div style="margin-top:6px"><button class="btn btn-sm" onclick="rockSetLoadout()" data-tip="${esc('Pick the laser and modules below to match what the game shows')}">${atHeads.length > 1 && atHead ? `Set ${esc(atHead.label)} from the game` : 'Set my loadout from the game'}</button> <span style="color:var(--text-dim);font-size:11px">${esc(rockLive.note || '')}</span></div>
     </div>`;
   }
   if (rockLive.on && (st === 'reading' || st === 'no-rock') && rockLive.frame) {
@@ -3250,6 +3366,15 @@ function renderRockLive() {
 
 // ── Loadout view ─────────────────────────────────────────────────────────────
 function saveLoadout() { api.setStore('miningFleet', miningFleet); }
+function renderGadgetChips() {
+  const el = document.getElementById('lo-gadgets'); if (!el || typeof MINING_GADGETS === 'undefined') return;
+  el.innerHTML = MINING_GADGETS.map(g => `<div class="chip${ownedGadgets.has(g.id) ? ' active' : ''}" onclick="toggleOwnedGadget('${esc(g.id)}')">${esc(g.name)}</div>`).join('');
+}
+function toggleOwnedGadget(id) {
+  if (ownedGadgets.has(id)) ownedGadgets.delete(id); else ownedGadgets.add(id);
+  api.setStore('miningGadgets', [...ownedGadgets]);
+  renderGadgetChips(); renderRockLive();
+}
 
 function moduleLabel(m) {
   return m.kind === 'active' ? `${m.name} \u00b7 ${m.charges}\u00d7 ${m.seconds}s` : m.name;
@@ -3282,6 +3407,7 @@ function renderLoadout() {
     : '';
 
   body.innerHTML = `
+    <div id="rock-summary"></div>
     <div id="rock-live"></div>
     <div class="lo-sec">Your ship</div>
     <select class="lo-select" style="width:100%" onchange="loSetShip(this.value)">${shipOpts}</select>
@@ -3290,18 +3416,25 @@ function renderLoadout() {
     <select class="lo-select" style="width:100%;margin-bottom:6px" onchange="loSetLaser(this.value)">${laserOpts}</select>
     ${slotsHtml}
     <div id="lo-summary"></div>
+    <div class="lo-sec">Gadgets you carry</div>
+    <div class="lo-note" style="margin-top:0">Tap the mining gadgets you have. The rock advice then only suggests those. Leave them all off to see every gadget.</div>
+    <div class="filter-chips" id="lo-gadgets" style="margin:4px 0 6px"></div>
     <div class="lo-sec">Check a rock</div>
     <div class="lo-read">
       <label>Instability<input type="number" id="lo-rock-inst" placeholder="e.g. 350" step="1" oninput="loRefresh()"></label>
       <label>Resistance %<input type="number" id="lo-rock-res" placeholder="e.g. 62" step="1" oninput="loRefresh()"></label>
+      <label>Mass<input type="number" id="lo-rock-mass" placeholder="e.g. 1012" step="1" oninput="loRefresh()"></label>
     </div>
-    <div class="lo-note">Type what your scanner shows for the rock. The ores below are ranked by how close they are to it. Rocks often mix several ores, so treat the top one as the likely main ore.</div>
+    <div class="lo-note">Type what your scanner shows for the rock. With the mass it also says whether your laser has the power to crack it. The ores below are ranked by how close they are to it. Rocks often mix several ores, so treat the top one as the likely main ore.</div>
     <div id="lo-rock"></div>
     <div class="lo-sec">Ores</div>
     <div id="lo-results"></div>
     <div class="lo-note">Effects are percentages from the game's data files, multiplied together and applied to each ore \u2014 an estimate, not the game's exact formula. Active modules only last a few seconds per charge.</div>`;
+  renderGadgetChips();
+  rockLive.filled = null;   // the boxes above were just rebuilt empty, so the scan fills them again
   loRefresh();
   renderRockLive();
+  rockFillCheck();
   syncRockLive();
 }
 
@@ -3353,6 +3486,8 @@ function loRefresh() {
   const rockI = instIn && instIn.value !== '' ? parseFloat(instIn.value) : null;
   const rockR = resIn && resIn.value !== '' ? parseFloat(resIn.value) / 100 : null;
   const haveRock = Number.isFinite(rockI) && Number.isFinite(rockR);
+  const massIn = document.getElementById('lo-rock-mass');
+  const rockM = massIn && massIn.value !== '' ? parseFloat(massIn.value) : null;
 
   const rockEl = document.getElementById('lo-rock');
   if (rockEl) {
@@ -3360,9 +3495,15 @@ function loRefresh() {
     else {
       const e = effOre({ resistance: rockR, instability: rockI });
       const [ik, il] = instRisk(e.inst), [rk, rl] = resRisk(e.res);
+      let powerLine = '';
+      if (Number.isFinite(rockM) && rockM > 0) {
+        const pw = laserPower(gearLaser(), gearModules()), need = rockNeedMw(rockM, e.res * 100), v = powerVerdict(pw, need);
+        powerLine = pw ? `<br>mass <b>${fmtMw(rockM)}</b> needs about <b>${fmtMw(need)} MW</b>; your laser gives <b>${fmtMw(pw.steady)} MW</b>${pw.peak > pw.steady + 0.5 ? ` (${fmtMw(pw.peak)} with active modules)` : ''} ${verdictPill(v)}`
+          : '<br><span class="lo-note">Pick a laser above to check its power against this mass.</span>';
+      }
       rockEl.innerHTML = `<div class="lo-rock">Your rock${e.loadout ? ' with this loadout' : ''}:
         resistance <b>${Math.round(e.res * 100)}%</b>${e.loadout ? ` (scanner ${Math.round(rockR * 100)}%)` : ''} <span class="risk ${rk}">${rl}</span><br>
-        instability <b>${_oreNum(e.inst)}</b>${e.loadout ? ` (scanner ${_oreNum(rockI)})` : ''} <span class="risk ${ik}">${il}</span></div>`;
+        instability <b>${_oreNum(e.inst)}</b>${e.loadout ? ` (scanner ${_oreNum(rockI)})` : ''} <span class="risk ${ik}">${il}</span>${powerLine}</div>`;
     }
   }
 
