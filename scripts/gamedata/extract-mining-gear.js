@@ -81,9 +81,11 @@ for (const r of d.records) {
     }
     const pc = comp(o, 'SItemPortContainerComponentParams');
     const slots = pc ? (d.resolve(pc, 3).Ports || []).filter(p => (p.Types || []).some(t => t.Type === 'MiningModifier')).length : 0;
+    // a laser made for one ship (the Golem's) says so in the tags it needs; the ordinary mounting tag does not count
+    const needs = String(def.RequiredTags || '').split(/\s+/).filter(t => t && !/^miningMount$/i.test(t))[0] || '';
     lasers.push({
       id: className, name: name.replace(/ Mining Laser$/i, '') + (/MPUV/i.test(className) ? ' (MPUV)' : ''), mfr, size: def.Size, slots,
-      ...mods, inert: filter,
+      ...mods, inert: filter, beam: round2(beam), ...(needs ? { needs } : {}),
     });
   } else {
     const mm = comp(o, 'EntityComponentAttachableModifierParams');
@@ -110,6 +112,81 @@ for (const r of d.records) {
   }
 }
 
+// ── gadgets ────────────────────────────────────────────────────────────────────────────────────────────────
+// Mining gadgets are stuck onto a rock and change it: the same kinds of modifiers a module has, applied to the rock.
+const gadgets = [];
+for (const r of d.records) {
+  if (r.struct !== entStruct) continue;
+  const className = r.name.replace(/^EntityClassDefinition\./, '');
+  if (!/^Mining_Gadget_/i.test(className) || /test|template|placeholder/i.test(className)) continue;
+  const o = d.readInstance(r.struct, r.inst, 1);
+  const att = comp(o, 'SAttachableComponentParams');
+  const def = att && (d.resolve(att, 3) || {}).AttachDef;
+  const mm = comp(o, 'EntityComponentAttachableModifierParams');
+  if (!def || !mm) continue;
+  const name = L(def.Localization && def.Localization.Name);
+  if (!name || /placeholder/i.test(name)) continue;
+  const mfrRec = def.Manufacturer && def.Manufacturer.ref ? byId.get(def.Manufacturer.ref) : null;
+  const mfr = mfrRec ? L((d.readInstance(mfrRec.struct, mfrRec.inst, 2).Localization || {}).Name) : '';
+  let mods = null;
+  for (const raw of d.resolve(mm, 5).modifiers || []) {
+    const x = R(raw, 6);
+    if (x && x._type === 'ItemMineableRockModifierParams') mods = modifiersOf(R(x.MiningLaserModifier, 3) || x.MiningLaserModifier);
+  }
+  if (mods) gadgets.push({ id: className, name, mfr, ...mods });
+}
+gadgets.sort((a, b) => a.name.localeCompare(b.name));
+
+// ── ships: where the mining lasers go ────────────────────────────────────────────────────────────────────
+// Every flyable ship whose default loadout mounts a mining laser: one entry per laser head (the MOLE has three
+// turrets, each its own laser). The ground vehicles (ROC) are left out.
+const entClass = (n) => (n.entityClassName ? String(n.entityClassName) : (n.entityClassReference && n.entityClassReference.ref && byId.get(n.entityClassReference.ref) ? byId.get(n.entityClassReference.ref).name.replace(/^.*\./, '') : ''));
+function plainDeep(v, dep) {
+  if (v && typeof v === 'object') {
+    if (v.ptr || v.weak) { if (dep <= 0) return null; const x = R(v, 8); return x ? plainDeep(x, dep - 1) : null; }
+    if (Array.isArray(v)) return v.map(x => plainDeep(x, dep));
+    const o = {}; for (const k in v) o[k] = plainDeep(v[k], dep); return o;
+  }
+  return v;
+}
+// The ships the planner offers. The base ships only: the variants (AI crews, the Alliance / Teach / Wikelo editions) have the same
+// heads, and the ground vehicles (ROC) are left out on purpose.
+const PLANNER_SHIPS = new Set(['MISC_Prospector', 'ARGO_MOLE', 'DRAK_Golem']);
+const HEAD_LABEL = { front: 'Front (center)', left: 'Port (left)', right: 'Starboard (right)' };
+const ships = [];
+for (const r of d.records) {
+  if (r.struct !== entStruct || !/\/entities\/spaceships\//i.test(r.file)) continue;
+  const className = r.name.replace(/^EntityClassDefinition\./, '');
+  if (!PLANNER_SHIPS.has(className)) continue;
+  const o = d.readInstance(r.struct, r.inst, 1);
+  const dl = comp(o, 'SEntityComponentDefaultLoadoutParams');
+  if (!dl) continue;
+  const heads = [];
+  (function walk(n, dep, ancestors) {
+    if (!n || typeof n !== 'object' || dep > 14) return;
+    if (Array.isArray(n)) { n.forEach(x => walk(x, dep, ancestors)); return; }
+    let next = ancestors;
+    if (n.itemPortName !== undefined) {
+      const cls = entClass(n);
+      next = ancestors.concat([{ port: String(n.itemPortName), cls }]);
+      if (/^Mining_Laser_/i.test(cls)) {
+        const cab = [...ancestors].reverse().find(a => /^hardpoint_mining_(cab|arm)/i.test(a.port));
+        const tag = cab ? cab.port.toLowerCase().match(/cab_(front|left|right)/) : null;
+        heads.push({ key: tag ? tag[1] : 'main', label: tag ? HEAD_LABEL[tag[1]] : 'Mining laser', laser: cls });
+      }
+    }
+    for (const k in n) { const v = n[k]; if (v && typeof v === 'object') walk(v, dep + 1, next); }
+  })(plainDeep(d.resolve(dl, 14), 14), 0, []);
+  if (!heads.length) continue;
+  // the order the game lists them is not the order a player thinks in: front, port, starboard
+  const rank = { main: 0, front: 0, left: 1, right: 2 };
+  heads.sort((a, b) => rank[a.key] - rank[b.key]);
+  const vc = comp(o, 'VehicleComponentParams');
+  const vp = vc && d.resolve(vc, 3);
+  const nm = vp ? L(vp.vehicleName) : '';
+  ships.push({ id: className, name: nm || className.replace(/_/g, ' '), heads });
+}
+
 const bySize = (a, b) => a.size - b.size || a.name.localeCompare(b.name);
 lasers.sort(bySize);
 modules.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'active' ? -1 : 1));
@@ -129,8 +206,19 @@ ${lasers.map(l => ' ' + show(l)).join(',\n')}
 const MINING_MODULES = [
 ${modules.map(m => ' ' + show(m)).join(',\n')}
 ];
+// Mining gadgets: stuck onto a rock, they change it (same modifiers as a module, percent).
+const MINING_GADGETS = [
+${gadgets.map(g => ' ' + show(g)).join(',\n')}
+];
+// The ships that carry mining lasers and where each laser sits. A laser fits a head of its own size; one that "needs" a tag
+// (the Golem's Pitman) only fits a head whose default laser needs the same.
+const MINING_SHIPS = [
+${ships.map(sh => ' ' + JSON.stringify(sh)).join(',\n')}
+];
 `;
 fs.writeFileSync(OUT, text);
-console.log(`wrote ${path.relative(ROOT, OUT)}: ${lasers.length} lasers, ${modules.length} modules`);
+console.log(`wrote ${path.relative(ROOT, OUT)}: ${lasers.length} lasers, ${modules.length} modules, ${gadgets.length} gadgets, ${ships.length} ships`);
+for (const g of gadgets) console.log(`  G ${g.name.padEnd(10)} inst ${g.instability || 0} win ${g.window || 0} res ${g.resistance || 0} rate ${g.windowRate || 0} shatter ${g.shatter || 0} cluster ${g.cluster || 0} overcharge ${g.overcharge || 0}`);
+for (const sh of ships) console.log(`  S ${sh.name} (${sh.id}): ` + sh.heads.map(h => `${h.label} <- ${h.laser}`).join(' | '));
 for (const l of lasers) console.log(`  L ${l.name.padEnd(14)} S${l.size} slots ${l.slots} inst ${l.instability || 0} win ${l.window || 0} res ${l.resistance || 0} rate ${l.windowRate || 0} inert ${l.inert || 0} beam ${l.beam}`);
 for (const m of modules) console.log(`  M ${m.name.padEnd(14)} ${m.kind.padEnd(7)} ${m.charges}x${m.seconds}s power ${m.power} inst ${m.instability || 0} win ${m.window || 0} res ${m.resistance || 0} rate ${m.windowRate || 0} inert ${m.inert || 0}`);

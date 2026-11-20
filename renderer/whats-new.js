@@ -3,6 +3,12 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '2.0.4', items: [
+    "New: Mining > Loadout now starts with your ship (Prospector, MOLE or Golem). The MOLE has three lasers, so Front, Port and Starboard each get their own laser and modules.",
+    "New: Live rock scan (Mining > Loadout). Switch it on at a rock and the app reads the rock and your laser from the game screen: ore, mass, resistance, instability and what the rock is made of. It works best in a dark scene, and Star Citizen has to run in Borderless or Windowed mode.",
+    "New: once a scan is confident, the Loadout tab tells you which laser to use for that rock (on the MOLE: Front, Port or Starboard) and, if the rock is not Easy, which mining gadget would help. A confident scan is held for 3.5 minutes, then the screen is read again. The Rescan button reads it at once.",
+    "Fixed: the screen grab for refinery capture and the rock scan no longer picks a browser window that has Star Citizen in its title.",
+  ] },
   { version: '2.0.3', items: [
     "Fixed: the Show / Hide key (Insert by default) now works while Star Citizen has focus. The game blocked the way the app used to listen for it, so the app now checks the key itself.",
     "If the game runs as administrator, Windows hides the key from apps that do not. Settings > Show / Hide Key now says so and has a Restart as administrator button, and a notice appears once when the game starts.",

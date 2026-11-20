@@ -5,24 +5,24 @@
 // inert material filtered out. "power" on a module multiplies the laser's beam power.
 const MINING_GEAR_INFO = {"game":"4.10.201.48085","branch":"sc-alpha-4.10.0"};
 const MINING_LASERS = [
- {"id":"Mining_Laser_GRIN_Arbor_S0","name":"Arbor MHV","mfr":"Greycat Industrial","instability":-40},
- {"id":"Mining_Laser_SHIN_Klein_S0","name":"Lawson","mfr":"Shubin Interstellar","instability":30,"window":40,"resistance":-40},
- {"id":"Mining_Laser_THCN_Helix_S0","name":"S0 Helix","mfr":"Thermyte Concern","window":-40,"windowRate":20},
- {"id":"Mining_Laser_SHIN_Hofstede_S0","name":"S00 Hofstede","mfr":"Shubin Interstellar","instability":30,"window":40,"resistance":-40,"windowRate":20},
- {"id":"Mining_Laser_GRIN_Arbor_S1","name":"Arbor MH1","mfr":"Musashi Industrial & Starflight Concern","size":1,"slots":1,"instability":-35,"window":40,"resistance":25,"inert":30},
- {"id":"Mining_Laser_MPUV_Arm","name":"Arbor MH1 (MPUV)","mfr":"Musashi Industrial & Starflight Concern","size":1,"slots":1},
- {"id":"Mining_Laser_THCN_Helix_S1","name":"Helix I","mfr":"Thermyte Concern","size":1,"slots":2,"window":-40,"resistance":-30,"inert":30},
- {"id":"Mining_Laser_SHIN_Hofstede_S1","name":"Hofstede-S1","mfr":"Shubin Interstellar","size":1,"slots":1,"instability":10,"window":60,"resistance":-30,"windowRate":20,"inert":30},
- {"id":"Mining_Laser_THCN_Impact_S1","name":"Impact I","mfr":"Thermyte Concern","size":1,"slots":2,"instability":-10,"window":20,"resistance":10,"windowRate":-40,"inert":30},
- {"id":"Mining_Laser_SHIN_Klein_S1","name":"Klein-S1","mfr":"Shubin Interstellar","size":1,"instability":35,"window":20,"resistance":-45,"inert":30},
- {"id":"Mining_Laser_GRIN_Lancet_S1","name":"Lancet MH1","mfr":"Greycat Industrial","size":1,"slots":1,"instability":-10,"window":-60,"windowRate":40,"inert":30},
- {"id":"Mining_Laser_DRAK_Golem_S1","name":"Pitman","mfr":"Drake Interplanetary","size":1,"slots":2,"instability":35,"window":40,"resistance":25,"windowRate":-40,"inert":40},
- {"id":"Mining_Laser_GRIN_Arbor_S2","name":"Arbor MH2","mfr":"Musashi Industrial & Starflight Concern","size":2,"slots":2,"instability":-35,"window":40,"resistance":25,"inert":40},
- {"id":"Mining_Laser_THCN_Helix_S2","name":"Helix II","mfr":"Thermyte Concern","size":2,"slots":3,"window":-40,"resistance":-30,"inert":40},
- {"id":"Mining_Laser_SHIN_Hofstede_S2","name":"Hofstede-S2","mfr":"Shubin Interstellar","size":2,"slots":2,"instability":10,"window":60,"resistance":-30,"windowRate":20,"inert":40},
- {"id":"Mining_Laser_THCN_Impact_S2","name":"Impact II","mfr":"Thermyte Concern","size":2,"slots":3,"instability":-10,"window":20,"resistance":10,"windowRate":-40,"inert":40},
- {"id":"Mining_Laser_SHIN_Klein_S2","name":"Klein-S2","mfr":"Shubin Interstellar","size":2,"slots":1,"instability":35,"window":20,"resistance":-45,"inert":40},
- {"id":"Mining_Laser_GRIN_Lancet_S2","name":"Lancet MH2","mfr":"Greycat Industrial","size":2,"slots":2,"instability":-10,"window":-60,"windowRate":40,"inert":40}
+ {"id":"Mining_Laser_GRIN_Arbor_S0","name":"Arbor MHV","mfr":"Greycat Industrial","instability":-40,"beam":0.8},
+ {"id":"Mining_Laser_SHIN_Klein_S0","name":"Lawson","mfr":"Shubin Interstellar","instability":30,"window":40,"resistance":-40,"beam":0.8},
+ {"id":"Mining_Laser_THCN_Helix_S0","name":"S0 Helix","mfr":"Thermyte Concern","window":-40,"windowRate":20,"beam":1},
+ {"id":"Mining_Laser_SHIN_Hofstede_S0","name":"S00 Hofstede","mfr":"Shubin Interstellar","instability":30,"window":40,"resistance":-40,"windowRate":20,"beam":0.8,"needs":"roc_ds"},
+ {"id":"Mining_Laser_GRIN_Arbor_S1","name":"Arbor MH1","mfr":"Musashi Industrial & Starflight Concern","size":1,"slots":1,"instability":-35,"window":40,"resistance":25,"inert":30,"beam":2340},
+ {"id":"Mining_Laser_MPUV_Arm","name":"Arbor MH1 (MPUV)","mfr":"Musashi Industrial & Starflight Concern","size":1,"slots":1,"beam":1850},
+ {"id":"Mining_Laser_THCN_Helix_S1","name":"Helix I","mfr":"Thermyte Concern","size":1,"slots":2,"window":-40,"resistance":-30,"inert":30,"beam":3900},
+ {"id":"Mining_Laser_SHIN_Hofstede_S1","name":"Hofstede-S1","mfr":"Shubin Interstellar","size":1,"slots":1,"instability":10,"window":60,"resistance":-30,"windowRate":20,"inert":30,"beam":2600},
+ {"id":"Mining_Laser_THCN_Impact_S1","name":"Impact I","mfr":"Thermyte Concern","size":1,"slots":2,"instability":-10,"window":20,"resistance":10,"windowRate":-40,"inert":30,"beam":2600},
+ {"id":"Mining_Laser_SHIN_Klein_S1","name":"Klein-S1","mfr":"Shubin Interstellar","size":1,"instability":35,"window":20,"resistance":-45,"inert":30,"beam":3120},
+ {"id":"Mining_Laser_GRIN_Lancet_S1","name":"Lancet MH1","mfr":"Greycat Industrial","size":1,"slots":1,"instability":-10,"window":-60,"windowRate":40,"inert":30,"beam":3120},
+ {"id":"Mining_Laser_DRAK_Golem_S1","name":"Pitman","mfr":"Drake Interplanetary","size":1,"slots":2,"instability":35,"window":40,"resistance":25,"windowRate":-40,"inert":40,"beam":3900,"needs":"DRAK_Golem"},
+ {"id":"Mining_Laser_GRIN_Arbor_S2","name":"Arbor MH2","mfr":"Musashi Industrial & Starflight Concern","size":2,"slots":2,"instability":-35,"window":40,"resistance":25,"inert":40,"beam":2900},
+ {"id":"Mining_Laser_THCN_Helix_S2","name":"Helix II","mfr":"Thermyte Concern","size":2,"slots":3,"window":-40,"resistance":-30,"inert":40,"beam":4930},
+ {"id":"Mining_Laser_SHIN_Hofstede_S2","name":"Hofstede-S2","mfr":"Shubin Interstellar","size":2,"slots":2,"instability":10,"window":60,"resistance":-30,"windowRate":20,"inert":40,"beam":4060},
+ {"id":"Mining_Laser_THCN_Impact_S2","name":"Impact II","mfr":"Thermyte Concern","size":2,"slots":3,"instability":-10,"window":20,"resistance":10,"windowRate":-40,"inert":40,"beam":4060},
+ {"id":"Mining_Laser_SHIN_Klein_S2","name":"Klein-S2","mfr":"Shubin Interstellar","size":2,"slots":1,"instability":35,"window":20,"resistance":-45,"inert":40,"beam":4350},
+ {"id":"Mining_Laser_GRIN_Lancet_S2","name":"Lancet MH2","mfr":"Greycat Industrial","size":2,"slots":2,"instability":-10,"window":-60,"windowRate":40,"inert":40,"beam":4350}
 ];
 const MINING_MODULES = [
  {"id":"Mining_Modules_Active_Brandt","name":"Brandt","kind":"active","charges":5,"seconds":60,"power":1.35,"resistance":15.5,"shatter":-30},
@@ -56,4 +56,20 @@ const MINING_MODULES = [
  {"id":"Mining_Modules_Passive_XTR_MK1","name":"XTR","kind":"passive","power":1,"extraction":0.85,"window":15,"inert":5},
  {"id":"Mining_Modules_Passive_XTR_MK2","name":"XTR-L","kind":"passive","power":1,"extraction":0.9,"window":22,"inert":5.75},
  {"id":"Mining_Modules_Passive_XTR_MK3","name":"XTR-XL","kind":"passive","power":1,"extraction":0.95,"window":25,"inert":6}
+];
+// Mining gadgets: stuck onto a rock, they change it (same modifiers as a module, percent).
+const MINING_GADGETS = [
+ {"id":"Mining_Gadget_THCN_BoreMax","name":"BoreMax","mfr":"Thermyte Concern","instability":-70,"resistance":10,"cluster":30},
+ {"id":"Mining_Gadget_SHIN_Okunis","name":"Okunis","mfr":"Shubin Interstellar","window":50,"windowRate":100,"cluster":-20},
+ {"id":"Mining_Gadget_GRIN_OptiMax","name":"OptiMax","mfr":"Greycat Industrial","window":-30,"resistance":-25,"cluster":60},
+ {"id":"Mining_Gadget_SHIN_Sabir","name":"Sabir","mfr":"Shubin Interstellar","instability":15,"window":50,"resistance":-50},
+ {"id":"Mining_Gadget_THCN_Stalwart","name":"Stalwart","mfr":"Thermyte Concern","instability":-35,"window":-30,"windowRate":50,"cluster":30},
+ {"id":"Mining_Gadget_GRIN_WaveShift","name":"Waveshift","mfr":"Greycat Industrial","instability":-35,"window":100,"windowRate":-30}
+];
+// The ships that carry mining lasers and where each laser sits. A laser fits a head of its own size; one that "needs" a tag
+// (the Golem's Pitman) only fits a head whose default laser needs the same.
+const MINING_SHIPS = [
+ {"id":"ARGO_MOLE","name":"Argo MOLE","heads":[{"key":"front","label":"Front (center)","laser":"Mining_Laser_GRIN_Arbor_S2"},{"key":"left","label":"Port (left)","laser":"Mining_Laser_GRIN_Arbor_S2"},{"key":"right","label":"Starboard (right)","laser":"Mining_Laser_GRIN_Arbor_S2"}]},
+ {"id":"DRAK_Golem","name":"Drake Golem","heads":[{"key":"main","label":"Mining laser","laser":"Mining_Laser_DRAK_Golem_S1"}]},
+ {"id":"MISC_Prospector","name":"MISC Prospector","heads":[{"key":"main","label":"Mining laser","laser":"Mining_Laser_GRIN_Arbor_S1"}]}
 ];

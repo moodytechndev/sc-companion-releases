@@ -500,6 +500,7 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   launcher.destroy();
   keyWatcher.stop();
+  rockStop();
   if (pendingOpacity !== null) { store.set('windowOpacity', pendingOpacity); pendingOpacity = null; }   // a slider move just before quitting
   // The taskbar button is added by hand while the overlay cannot be activated (see ensureTaskbarButton), and Windows
   // does not tidy such a button up when the window goes: take it away first, or its icon stays behind after quitting.
@@ -1231,6 +1232,92 @@ ipcMain.handle('ui:setZoom', (_, z) => {
   return uiZoom;
 });
 
+// ─── Live rock scan (Mining > Loadout) ─────────────────────────────────────────
+// While the switch on the Loadout tab is on, the game window is grabbed about once a second and the Prospector's
+// mining HUD is read from it (rock-ocr.js): the RESULTS panel (the rock) and the laser panel (what the loadout does).
+// Only the window of the game is grabbed, never the whole screen, so the overlay is not touched. The reading stops
+// when the switch goes off, the tab is left or the overlay is hidden, and the text reader is closed again.
+const rockOcr = require('./rock-ocr');
+// A confident scan is kept for 3.5 minutes without reading the screen again (nothing changes while you work one rock, and the
+// reading is not free); then the screen is read again until a new confident scan, which is kept the same way. "Rescan" skips the wait.
+const ROCK_HOLD_MS = Number(process.env.ROCK_HOLD_MS) || 3.5 * 60 * 1000;
+const rockLive = { on: false, timer: null, busy: false, worker: null, creating: null, lock: {}, voter: null, misses: 0, holdUntil: 0, held: null, rescan: false };
+function rockSend(msg) { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rock:update', msg); }
+async function rockWorker() {
+  if (rockLive.worker) return rockLive.worker;
+  if (!rockLive.creating) rockLive.creating = createWorker('eng').then(w => { rockLive.worker = w; return w; }).finally(() => { rockLive.creating = null; });
+  return rockLive.creating;
+}
+// confident: the rock was read the same way several times and its key numbers are there
+const rockConfident = (v) => !!v && v.reads >= 3 && v.agree >= 2 && v.resistance != null && v.instability != null && v.comp.length >= 2;
+const rockHeldMsg = () => ({ status: 'held', holdUntil: rockLive.holdUntil, rock: rockLive.held.rock, laser: rockLive.held.laser, at: Date.now() });
+async function rockTick() {
+  if (!rockLive.on || rockLive.busy) return;
+  const now = Date.now();
+  if (rockLive.holdUntil) {
+    // a held scan is not read again until its time is up
+    if (now < rockLive.holdUntil) { rockLive.timer = setTimeout(rockTick, Math.min(5000, rockLive.holdUntil - now + 50)); return; }
+    rockLive.holdUntil = 0; rockLive.rescan = true; rockLive.voter.reset(); rockLive.misses = 0;
+    rockSend({ status: 'rescanning', rock: null, laser: null });
+  }
+  rockLive.busy = true;
+  let msg = null, next = 700;
+  try {
+    const pd = screen.getPrimaryDisplay(), sf = pd.scaleFactor || 1;
+    // (ROCK_TEST_FRAME: a picture to read instead of the game window; only for trying the reader out)
+    const src = process.env.ROCK_TEST_FRAME ? { thumbnail: nativeImage.createFromPath(process.env.ROCK_TEST_FRAME) }
+      : await getGameWindowSource({ width: Math.round(pd.size.width * sf), height: Math.round(pd.size.height * sf) });
+    if (!src || !src.thumbnail || src.thumbnail.isEmpty()) { msg = { status: 'no-game' }; next = 3000; }
+    else if (refineryOcr.frameLooksBlank(src.thumbnail)) { msg = { status: 'blank' }; next = 3000; }
+    else {
+      const worker = await rockWorker();
+      if (!rockLive.on) { rockLive.busy = false; return; }
+      const res = await rockOcr.readFrame(src.thumbnail, worker, rockLive.lock, (ph) => { if (!rockLive.rescan) rockSend({ status: ph, rock: rockLive.voter.rockView(), laser: rockLive.voter.laserView() }); });
+      rockLive.lock = res.lock;
+      if (res.results || res.laser) { rockLive.misses = 0; rockLive.voter.add(res); }
+      else { rockLive.misses++; if (rockLive.misses >= 3) rockLive.voter.reset(); }
+      const shown = rockLive.misses < 3, rv = shown ? rockLive.voter.rockView() : null, lv = shown ? rockLive.voter.laserView() : null;
+      if (rockConfident(rv)) {
+        rockLive.holdUntil = Date.now() + ROCK_HOLD_MS; rockLive.held = { rock: rv, laser: lv }; rockLive.rescan = false;
+        msg = rockHeldMsg(); next = 5000;
+      } else if (rockLive.rescan) {
+        // looking for a new rock: the last scan stays on screen until one is read confidently
+        msg = { status: 'rescanning', rock: null, laser: null, ms: res.ms, at: Date.now() }; next = shown ? 600 : 2200;
+      } else {
+        msg = { status: shown ? 'reading' : 'no-rock', rock: rv, laser: lv, ms: res.ms, frame: src.thumbnail.getSize(), at: Date.now() };
+        next = shown ? 600 : 2200;
+      }
+    }
+  } catch (e) { msg = { status: 'error', error: String((e && e.message) || e) }; next = 4000; }
+  rockLive.busy = false;
+  if (msg) rockSend(msg);
+  if (rockLive.on) rockLive.timer = setTimeout(rockTick, next);
+}
+function rockStart() {
+  if (rockLive.on) return;
+  rockLive.on = true; rockLive.misses = 0; rockLive.voter = new rockOcr.RockVoter(7);
+  // coming back to the tab while a scan is still held: it is shown again and not read until its time is up
+  if (rockLive.held && Date.now() < rockLive.holdUntil) setTimeout(() => rockSend(rockHeldMsg()), 100);
+  rockLive.timer = setTimeout(rockTick, 50);
+}
+function rockStop() {
+  rockLive.on = false;
+  clearTimeout(rockLive.timer); rockLive.timer = null;
+  const w = rockLive.worker; rockLive.worker = null;
+  if (w) w.terminate().catch(() => {});          // the text reader is only kept while the scan runs
+}
+// "Rescan": drop the hold and read the screen now; the last scan stays shown until a new confident one replaces it.
+function rockRescan() {
+  if (!rockLive.on) return;
+  clearTimeout(rockLive.timer);
+  rockLive.holdUntil = 0; rockLive.rescan = !!rockLive.held; rockLive.voter.reset(); rockLive.misses = 0;
+  rockSend({ status: rockLive.held ? 'rescanning' : 'reading', rock: null, laser: null });
+  if (!rockLive.busy) rockLive.timer = setTimeout(rockTick, 50);
+}
+ipcMain.handle('rock:start', () => { rockStart(); return true; });
+ipcMain.handle('rock:stop', () => { rockStop(); return true; });
+ipcMain.handle('rock:rescan', () => { rockRescan(); return true; });
+
 // ─── IPC: Notifications ───────────────────────────────────────────────────────
 ipcMain.handle('notify', (_, { title, body }) => {
   if (Notification.isSupported()) {
@@ -1318,7 +1405,11 @@ ipcMain.handle('game:isRunning', () => isGameRunning());
 // so the caller falls back to the whole display.
 async function getGameWindowSource(thumbnailSize) {
   const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize });
-  return sources.find(s => s.name.toLowerCase().includes('star citizen')) || null;
+  // The game's own window is titled exactly "Star Citizen". A browser tab about the game ("... Star Citizen ... Firefox") also
+  // contains the words, so an exact match comes first and other windows that merely mention it are only a last resort.
+  return sources.find(s => /^star citizen\s*$/i.test(s.name))
+    || sources.find(s => /star citizen/i.test(s.name) && !/firefox|chrome|edge|opera|brave|browser|discord|spectrum|notepad|claude|visual studio|code/i.test(s.name))
+    || null;
 }
 
 // A grab of the whole display would include the overlay itself, sitting over the game screen. It is made
@@ -1745,7 +1836,7 @@ ipcMain.handle('bug:report', async (_, { description, includeView, includeCaptur
 });
 
 // ─── IPC: Data export / import ────────────────────────────────────────────────
-const EXPORT_KEYS = ['gameSafeOverlay', 'launcherEnabled', 'wikeloHave', 'jobs', 'jobHistory', 'salesLog', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
+const EXPORT_KEYS = ['gameSafeOverlay', 'launcherEnabled', 'wikeloHave', 'jobs', 'jobHistory', 'salesLog', 'homeBase', 'craftInventory', 'craftAssets', 'craftShips', 'craftingOwned', 'ownedPaints', 'marketWatches', 'miningLoadout', 'miningFleet', 'factionStanding', 'contractLog', 'closeBehavior', 'hotkeyVK', 'logPath', 'language'];
 
 const VALID_LANGS = new Set(['en', 'de', 'fr', 'es', 'pl', 'pt', 'ru', 'ja']);
 const VALID_CLOSE = new Set(['tray', 'quit']);
@@ -1761,6 +1852,7 @@ function validateImport(data) {
   if (data.marketWatches !== undefined && !Array.isArray(data.marketWatches)) return 'marketWatches must be a list';
   if (data.ownedPaints !== undefined && (typeof data.ownedPaints !== 'object' || data.ownedPaints === null || Array.isArray(data.ownedPaints))) return 'ownedPaints must be an object';
   if (data.miningLoadout !== undefined && (typeof data.miningLoadout !== 'object' || data.miningLoadout === null || Array.isArray(data.miningLoadout))) return 'miningLoadout must be an object';
+  if (data.miningFleet !== undefined && (typeof data.miningFleet !== 'object' || data.miningFleet === null || Array.isArray(data.miningFleet))) return 'miningFleet must be an object';
   if (data.factionStanding !== undefined && (typeof data.factionStanding !== 'object' || data.factionStanding === null || Array.isArray(data.factionStanding))) return 'factionStanding must be an object';
   if (data.contractLog !== undefined && (typeof data.contractLog !== 'object' || data.contractLog === null || Array.isArray(data.contractLog))) return 'contractLog must be an object';
   if (data.wikeloHave !== undefined && (typeof data.wikeloHave !== 'object' || data.wikeloHave === null || Array.isArray(data.wikeloHave))) return 'wikeloHave must be an object';

@@ -70,6 +70,10 @@ contextBridge.exposeInMainWorld('api', {
   getShortcut: () => ipcRenderer.invoke('shortcut:get'),
   setShortcut: (acc) => ipcRenderer.invoke('shortcut:set', acc),
   getHotkeyStatus: () => ipcRenderer.invoke('hotkey:status'),
+  rockStart: () => ipcRenderer.invoke('rock:start'),
+  rockStop: () => ipcRenderer.invoke('rock:stop'),
+  rockRescan: () => ipcRenderer.invoke('rock:rescan'),
+  onRockUpdate: (cb) => ipcRenderer.on('rock:update', (_, m) => cb(m)),
   restartAsAdmin: () => ipcRenderer.invoke('app:restartAsAdmin'),
 
   // Generic store
