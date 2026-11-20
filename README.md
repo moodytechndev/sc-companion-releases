@@ -46,7 +46,7 @@ Star Citizen companion overlay — refinery timers, commodity prices with statio
 - **Where to buy** — Prices → Buy: type a ship or an item and see which shops sell it, where they are and what they charge (player-reported prices from UEX Corp); items also show who pays you for them
 - **Sold history** — Sell in Inventory (or on a commodity in Prices) asks, for each box size, how many you sold and what the sale paid (the game sells one size at a time), and keeps it under Profit → Sold, so profit counts what you really sold; tick *Keep* on an ore when you deliver a refinery job to leave it out of the estimate
 - **Mining loadout** — pick a mining laser and modules (from the game's own data, `node scripts/gamedata/extract-mining-gear.js`) to see their combined effect and each ore's resistance and instability with that gear; a *Check a rock* box ranks ores from the scanner's instability and resistance; Ore Locations can be sorted by rarity, stability or ease and filtered to stable or easy ores; ore details show on refinery job chips and blueprint parts. Effects are estimates
-- **Special blueprints** — blueprints that are in the game's own data but missing from sc-craft.tools are added to the Blueprints list marked *Special* (generated with `node scripts/gamedata/extract-blueprints.js`; one that sc-craft.tools later lists stops being special)
+- **Blueprints from the game's own files** — every crafting blueprint (recipe, quality effects, craft time, the contracts that can award it with the chance of each, the starter blueprints) is read from Data.p4k by `node scripts/gamedata/extract-blueprints.js` and ships with the app, so Crafting works offline and is current the day the extractor is run; `node scripts/gamedata/check-blueprints.js` compares the result with sc-craft.tools
 - **Ore properties** — each ore in Ore Locations shows its rarity tier and the game's own instability, resistance and optimal-window numbers, generated from your Star Citizen install with `node scripts/gamedata/extract-mining.js --write`
 - **Item catalog** — the Add Asset name field suggests the game's own items (about 5,700 weapons, armor, ship components, consumables…) and fills in the type and size; the list is generated from your Star Citizen install with `node scripts/gamedata/extract-items.js` and refreshed after patches
 - **Hover hints** — short "what does this do" descriptions on controls, in English, Deutsch, Français, Español, Polski, Português, Русский and 日本語 (can be turned off)
@@ -114,7 +114,8 @@ Jobs count down live in the list. When a job's timer hits zero, you get a deskto
 **Collecting a finished job**: click **Delivered** on a ready job. A modal lets you record the actual box sizes and quantities you pulled from the cargo elevator for each ore in that job (pre-filled with a suggested box breakdown if you entered an expected yield when creating the job). Confirming adds those boxes straight into your **Hangar → Inventory**, automatically tagged with the job's location and marked **in-transit**, and removes the completed job from the list.
 
 **Station Bonuses**
-- Pick a station from the dropdown to see its refinery yield bonus/penalty per material, sorted best to worst — useful for choosing where to refine a given ore
+- Pick a station from the dropdown to see its refinery yield bonus/penalty per material, sorted best to worst
+- Or pick an ore to see every station ranked for it, best first — the quick way to choose where to refine a given ore
 
 ### Prices
 

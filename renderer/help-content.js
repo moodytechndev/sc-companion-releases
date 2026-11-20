@@ -22,7 +22,7 @@ const HELP_SECTIONS = [
     id: 'start', icon: '🚀', title: 'Getting started',
     intro: [
       'SC Companion is an always-on-top overlay for Star Citizen: refinery timers, live commodity prices, mining references, and a full inventory / crafting / ship tracker — without alt-tabbing.',
-      'Everything you enter is stored on your own PC. Prices come from UEX Corp; blueprints from sc-craft.tools; ship data from the Star Citizen Wiki.',
+      'Everything you enter is stored on your own PC. Prices come from UEX Corp; blueprints from the game\'s own files; ship data from the Star Citizen Wiki.',
     ],
     shots: ['overview'],
     tips: [
@@ -67,7 +67,7 @@ const HELP_SECTIONS = [
       '**Let the app read the screen (experimental):** with the in-game refinery job screen visible, click 📷 Capture. When asked, answer No unless the list scrolls. It takes four shots in quick succession, reads them, and pre-fills the form. You always review it before starting. Turn the button on under Settings → Refinery Job Capture.',
       '**Bring in jobs that are already running:** open the terminal\'s PROCESSING screen (the one with a panel per work order) and click 📷 Capture. A dialog lists each work order with its materials, quality, yield and time left. Jobs the app already tracks are recognised and left unticked; tick or untick the rest, fix any highlighted number, then Import.',
       '**Collect a finished job:** when the card turns green click Delivered, enter the boxes you pulled from the cargo elevator, then Add to Inventory. Tick **Keep** on any ore you are not selling (for crafting or missions): it still goes into your inventory, but is left out of the profit estimate.',
-      '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material.',
+      '**Choose where to refine:** Station Bonuses lists a station\'s yield bonus or penalty for every material. Or pick an ore under the station list and every station is ranked for it, best first.',
       '**See what a job is worth:** enter each ore\'s yield and every job card shows an estimated value and net profit. Delivered jobs are kept in the Profit tab with totals and a per-method comparison. These are estimates; what you really sold is under Profit → Sold.',
       '**Keep a record of what you sold:** in Crafting → Inventory tick the boxes marked in transit and press 💰 Sell (or use Sell on a commodity in Prices). The game sells one box size at a time, so each size has its own line: set how many boxes you sold and what that sale paid. Boxes you do not sell stay in your inventory, and you can sell them later at their own price. Each sale is kept in Profit → Sold with totals by material. Amounts you leave as the suggested guess are marked ≈.',
       '**Capture a long list:** if the materials list is longer than the terminal window, click 📷 Capture and answer Yes when asked. Press Capture this view, scroll the list down in the game, and press Capture this view again; repeat until you have seen the whole list, then click Finish. A row that appears in two views is counted once.',
@@ -341,6 +341,7 @@ const HELP_SHOTS = {
     after: "switchRefineryView('jobs');",
     points: [
       { sel: '#station-select', text: '**Choose a station.**' },
+      { sel: '#bonus-ore-select', text: '**Or choose an ore** to see every station ranked by its bonus for that ore, best first. Tap a row to open that station.' },
       { sel: '#bonuses-list > *', text: '**Each material** with that station\'s yield bonus or penalty, best first. Use it to decide where to refine a given ore.' },
     ],
   },

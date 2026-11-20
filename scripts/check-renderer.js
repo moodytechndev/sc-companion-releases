@@ -37,7 +37,7 @@ const sources = {
   'renderer/item-catalog.js': read('renderer/item-catalog.js'),
   'renderer/mining-data.js': read('renderer/mining-data.js'),
   'renderer/mining-gear.js': read('renderer/mining-gear.js'),
-  'renderer/special-blueprints.js': read('renderer/special-blueprints.js'),
+  'renderer/blueprints.js': read('renderer/blueprints.js'),
   'renderer/whats-new.js': read('renderer/whats-new.js'),
   'renderer/index.html (inline script)': inline.join('\n;\n'),
 };

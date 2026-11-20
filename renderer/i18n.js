@@ -14,6 +14,7 @@ const TRANSLATIONS = {
     'mining.stationBonuses': 'Station Bonuses',
     'mining.search': 'Search ores or locations…',
     'mining.selectStation': 'Select a station…',
+    'mining.pickOreBest': '…or pick an ore to find its best station',
 
     'prices.search': 'Search commodities...',
     'prices.all': 'All',

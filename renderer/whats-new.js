@@ -3,6 +3,13 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '2.0.1', items: [
+    "New: Refinery > Station Bonuses has a second dropdown. Pick an ore and every station is ranked for it, best first, so you can see where to refine it. Tap a row to open that station.",
+    "Crafting now uses the game's own files, so it works offline and no longer waits on another website. Blueprints that were missing are in, and the Special tag is gone.",
+    "Each blueprint now shows your real chance of getting it from each contract, for example 7.7%. Rewards from events are marked as event rewards.",
+    "The blueprints every player starts with (the Behr pistol and rifle with their magazines, and the CDS light armor) are ticked as owned the first time you open Crafting. You can untick them.",
+    "Updated for game patch 4.10.201.",
+  ] },
   { version: '2.0.0', items: [
     "New: Launcher button (Settings > Launcher button). A small round button with the logo appears on screen while the overlay is hidden. Click it to bring the app back, drag it where you like, right-click it to hide it. A green number shows refinery jobs that are ready. It can be clicked whenever the game shows a mouse cursor, such as mobiGlas and menus.",
     "New: Prices > Buy. Type a ship or an item and see which shops sell it, where they are and what they charge (prices come from players, so check the date shown).",

@@ -667,6 +667,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
               <option value="Stanton Gateway (Nyx)">Stanton Gateway (Nyx)</option>
             </optgroup>
           </select>
+          <select id="bonus-ore-select" onchange="onBonusOreSelect()"
+            style="width:100%;margin-top:6px;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;outline:none">
+            <option value="" data-i18n="mining.pickOreBest">…or pick an ore to find its best station</option>
+          </select>
         </div>
         <div class="scroll-area" id="bonuses-list"></div>
       </div>
@@ -1667,7 +1671,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
 <script src="help-translations.js"></script>
 <script src="mining-data.js"></script>
 <script src="mining-gear.js"></script>
-<script src="special-blueprints.js"></script>
+<script src="blueprints.js"></script>
 <script src="whats-new.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════
@@ -1682,7 +1686,8 @@ let timerTick;
 let editingJobId = null;
 let priceCache = {};
 let craftingView = 'owned';
-let allBlueprints = [];
+// Every crafting blueprint, read from the game's own files (renderer/blueprints.js, scripts/gamedata/extract-blueprints.js)
+let allBlueprints = typeof BLUEPRINTS !== 'undefined' ? BLUEPRINTS : [];
 let ownedBlueprints = {};
 let craftInventory = [];
 let craftAssets    = [];
@@ -2680,10 +2685,70 @@ function switchRefineryView(view, chipEl) {
   if (view === 'bonuses') renderBonuses();
 }
 
+// The materials the station table has numbers for, alphabetical. Filled the first time the view opens.
+function bonusMaterials() {
+  const set = new Set();
+  Object.values(STATION_BONUSES).forEach(list => list.forEach(b => set.add(b.material)));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+function fillBonusOreSelect() {
+  const sel = document.getElementById('bonus-ore-select');
+  if (!sel || sel.options.length > 1) return;
+  bonusMaterials().forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+}
+// Picking an ore replaces the station pick (and the other way round), so only one list is ever on screen.
+function onBonusOreSelect() {
+  if (document.getElementById('bonus-ore-select').value) document.getElementById('station-select').value = '';
+  renderBonuses();
+}
+// The system a station sits in, read from the groups of the station picker.
+function stationSystem(station) {
+  const opt = [...document.querySelectorAll('#station-select option')].find(o => o.value === station);
+  const g = opt && opt.parentElement && opt.parentElement.label;
+  return g ? g.replace(/[─\s]/g, '') : '';
+}
+// Every station ranked by its yield for one ore, best first.
+function renderBestStations(ore) {
+  const list = document.getElementById('bonuses-list');
+  const rows = Object.entries(STATION_BONUSES)
+    .map(([station, items]) => ({ station, y: (items.find(b => b.material === ore) || {}).yield }))
+    .filter(r => r.y != null)
+    .sort((a, b) => b.y - a.y || a.station.localeCompare(b.station));
+  const missing = Object.keys(STATION_BONUSES).length - rows.length;
+  if (!rows.length) { list.innerHTML = '<div class="empty-state"><div class="lbl">No station has a listed bonus for this ore yet</div></div>'; return; }
+  const top = rows[0].y;
+  const fmt = (y) => (y > 0 ? '+' : '') + y + '%';
+  const head = `<div style="padding:8px 12px 2px;font-size:11px;color:var(--text-dim);line-height:1.5">Best for <b style="color:var(--text)">${esc(ore)}</b>: ${rows.filter(r => r.y === top).map(r => esc(r.station)).join(', ')} at <b style="color:${top > 0 ? 'var(--success)' : 'var(--danger)'}">${fmt(top)}</b>. Worst: ${esc(rows[rows.length - 1].station)} at ${fmt(rows[rows.length - 1].y)}.</div>`;
+  const body = rows.map(r => {
+    const col = r.y > 0 ? 'var(--success)' : r.y < 0 ? 'var(--danger)' : 'var(--text-dim)';
+    const sys = stationSystem(r.station);
+    const best = r.y === top;
+    return `
+    <div class="mining-row" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer${best ? ';border-color:var(--success)' : ''}" onclick="showStationBonuses('${esc(r.station).replace(/'/g, '&#39;')}')" data-tip="${esc('Open everything this station pays')}">
+      <div style="min-width:0">
+        <div class="mining-ore" style="margin-bottom:0">${esc(r.station)}${best ? ' <span style="font-size:10px;color:var(--success);font-weight:700;margin-left:4px">BEST</span>' : ''}</div>
+        ${sys ? `<div style="font-size:10px;color:var(--text-dim)">${esc(sys)}</div>` : ''}
+      </div>
+      <div style="font-size:13px;font-weight:700;color:${col};font-variant-numeric:tabular-nums">${fmt(r.y)}</div>
+    </div>`;
+  }).join('');
+  const foot = missing > 0 ? `<div style="padding:8px 12px;font-size:10px;color:var(--text-dim);line-height:1.5">${missing} station${missing === 1 ? ' has' : 's have'} no bonus listed for ${esc(ore)}, so ${missing === 1 ? 'it is' : 'they are'} not shown.</div>` : '';
+  list.innerHTML = head + body + foot;
+}
+// Opens one station's full list (from a row of the best-station list).
+function showStationBonuses(station) {
+  document.getElementById('bonus-ore-select').value = '';
+  document.getElementById('station-select').value = station;
+  renderBonuses();
+}
+
 function renderBonuses() {
+  fillBonusOreSelect();
+  const ore = document.getElementById('bonus-ore-select').value;
+  if (ore) { renderBestStations(ore); return; }
   const station = document.getElementById('station-select').value;
   const list = document.getElementById('bonuses-list');
-  if (!station) { list.innerHTML = '<div class="empty-state"><div class="lbl">Select a station above</div></div>'; return; }
+  if (!station) { list.innerHTML = '<div class="empty-state"><div class="lbl">Select a station above, or pick an ore to see where it refines best</div></div>'; return; }
   const bonuses = STATION_BONUSES[station];
   if (!bonuses) {
     list.innerHTML = '<div class="empty-state"><div class="lbl">No data yet for this station</div></div>';
@@ -3444,7 +3509,7 @@ function contractOutcome(r) {
   return r.outcome;
 }
 
-// sc-craft.tools lists, per blueprint, the contracts that can award it. Those names can contain unfilled
+// Each blueprint lists the contracts that can award it (read from the game's data). Those names can contain unfilled
 // placeholders ("~mission(Location)"), so each is turned into a pattern a logged title is tested against.
 let _bpMissionIdx = null, _bpMissionIdxFor = 0;
 function bpMissionIndex() {
@@ -3656,7 +3721,7 @@ const illegalBorder = (illegal) => (illegal ? 'rgba(255,93,93,.5)' : 'var(--bord
 const scTitle = (t) => String(t || '').replace(/\[([A-Z ]+)\]/g, (m, w) => w.charAt(0) + w.slice(1).toLowerCase());
 
 // The blueprints a contract can award, with their chance: from SCMDB's pools when the contract is known there,
-// otherwise from sc-craft.tools's list. [{ name, chance, owned }]
+// otherwise from the blueprint list's own contract sources. [{ name, chance, owned }]
 function blueprintOptionsFor(rec) {
   const sc = scmdbFor(rec);
   const owned = (name) => { const h = blueprintsNamed(name); return h.length ? h.some(b => ownedBlueprints[b.blueprint_id]) : null; };
@@ -6556,6 +6621,8 @@ const HINTS_BY_CALL = {
   'confirmDelivery': 'Add these boxes to your inventory and remove the job',
   'closeDeliverModal': 'Close without collecting',
   'onStationSelect': 'Choose a station to see its yield bonuses',
+  'onBonusOreSelect': 'Pick an ore to see every station ranked by its yield bonus for it',
+  'showStationBonuses': 'Open this station\'s full list of yield bonuses',
   // prices
   'switchPricesView:commodity': 'Browse every commodity and where it sells best',
   'switchPricesView:station': 'Pick a station to see everything it buys and sells',
@@ -8159,6 +8226,14 @@ async function initCrafting() {
   }
 
   ownedBlueprints = (await api.getStore('craftingOwned', {})) || {};
+  // Everyone starts with a few blueprints (the game's own list, flagged in renderer/blueprints.js). They are ticked once;
+  // after that the list is yours to change.
+  if (!(await api.getStore('craftingStartersSeeded', false))) {
+    let added = false;
+    for (const b of allBlueprints) if (b.default_owned && !ownedBlueprints[b.blueprint_id]) { ownedBlueprints[b.blueprint_id] = true; added = true; }
+    if (added) await api.setStore('craftingOwned', ownedBlueprints);
+    await api.setStore('craftingStartersSeeded', true);
+  }
   craftInventory  = (await api.getStore('craftInventory', [])) || [];
   craftAssets     = (await api.getStore('craftAssets',    [])) || [];
   craftShips      = (await api.getStore('craftShips',     [])) || [];
@@ -8173,62 +8248,13 @@ async function initCrafting() {
   }
   backfillStockAssets(); // ships added before stock assets existed (runs in the background)
 
-  const list = document.getElementById('owned-list');
-  list.innerHTML = `<div class="loading"><div class="spinner"></div>${t('craft.loading.check')}</div>`;
-
-  try {
-    const cfgRes = await fetch('https://sc-craft.tools/api/config');
-    const cfg = await cfgRes.json();
-    const liveVersion = cfg.versions?.find(v => v.channel === 'live' && v.active)?.version || '';
-    const cachedVersion = (await api.getStore('craftingCacheVersion', '')) || '';
-
-    if (cachedVersion === liveVersion) {
-      const cached = (await api.getStore('craftingCache', [])) || [];
-      if (cached.length > 0) {
-        allBlueprints = cached;
-        mergeSpecialBlueprints();
-        craftingInitialized = true;
-        renderOwned();
-        return;
-      }
-    }
-
-    list.innerHTML = `<div class="loading"><div class="spinner"></div>${t('craft.loading.fetch')}</div>`;
-    const fetched = [];
-    const firstRes = await fetch(`https://sc-craft.tools/api/blueprints?page=1&limit=100&search=&version=${liveVersion}`);
-    const firstData = await firstRes.json();
-    fetched.push(...(firstData.items || []));
-    const totalPages = firstData.pagination?.pages || 1;
-
-    for (let p = 2; p <= totalPages; p++) {
-      const r = await fetch(`https://sc-craft.tools/api/blueprints?page=${p}&limit=100&search=&version=${liveVersion}`);
-      const d = await r.json();
-      fetched.push(...(d.items || []));
-    }
-
-    allBlueprints = fetched;
-    mergeSpecialBlueprints();
-    await api.setStore('craftingCache', fetched);
-    await api.setStore('craftingCacheVersion', liveVersion);
-    craftingInitialized = true;
-    renderOwned();
-  } catch (e) {
-    list.innerHTML = `<div class="empty-state"><div class="lbl">${t('craft.error.load')}</div><button class="btn btn-sm" style="margin-top:10px" onclick="craftingInitialized=false;initCrafting()">${t('craft.retry')}</button></div>`;
-  }
+  // The blueprints are bundled with the app, so there is nothing to download. The copy of sc-craft.tools's list
+  // that older versions cached in the store is dropped once.
+  craftingInitialized = true;
+  renderOwned();
+  const stale = await api.getStore('craftingCache', []);
+  if (stale && stale.length) { await api.setStore('craftingCache', []); await api.setStore('craftingCacheVersion', ''); }
 }
-
-// Blueprints that are in the game's own data but not on sc-craft.tools (renderer/special-blueprints.js,
-// generated by scripts/gamedata/extract-blueprints.js). They are added to the list marked
-// "Special"; one that sc-craft.tools later lists is simply skipped here. The cache of sc-craft's
-// list is not touched, so removing a special never leaves a stale copy behind.
-function mergeSpecialBlueprints() {
-  if (typeof SPECIAL_BLUEPRINTS === 'undefined') return;
-  const have = new Set(allBlueprints.map(b => String(b.blueprint_id).toLowerCase()));
-  const extra = SPECIAL_BLUEPRINTS.filter(b => !have.has(String(b.blueprint_id).toLowerCase()));
-  if (extra.length) allBlueprints = allBlueprints.concat(extra.map(b => ({ ...b, special: true })));
-}
-const specialPill = (bp) => bp.special
-  ? `<span class="bp-special" data-tip="${esc("Special blueprint \u2014 it is in the game's own data but not on sc-craft.tools, so some details (like the stat table) may be missing")}">${esc(t('craft.special'))}</span>` : '';
 
 // Ship components carry their size in the blueprint id: "_s03_" mid-id for
 // shields/coolers/power plants/quantum drives/radar, a trailing "_s2" for
@@ -8320,7 +8346,7 @@ function renderOwned() {
   }
 
   let bps = allBlueprints;
-  if (q)   bps = bps.filter(bp => matchesAll(q, bp.name, bp.category, bp.special ? 'special ' + t('craft.special') : ''));
+  if (q)   bps = bps.filter(bp => matchesAll(q, bp.name, bp.category));
   if (f === 'owned')   bps = bps.filter(bp => ownedBlueprints[bp.blueprint_id]);
   if (f === 'missing') bps = bps.filter(bp => !ownedBlueprints[bp.blueprint_id]);
   if (f === 'craftable') bps = bps.filter(bp => bpStockStatus(bp, stockIdx).ok);
@@ -8351,7 +8377,7 @@ function renderOwned() {
     <div class="craft-card${craftable ? ' craftable' : ''}" style="cursor:pointer" onclick="openBpDetails('${esc(bp.blueprint_id)}')" title="Click for quality effects and mission drops">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
-          <div class="craft-name">${esc(bp.name)}${specialPill(bp)}</div>
+          <div class="craft-name">${esc(bp.name)}</div>
           <div class="craft-cat">${esc(bp.category || '')}${sizeChipHtml(bpSize(bp))}</div>
         </div>
         <button class="craft-owned-btn ${owned ? 'owned' : ''}" onclick="event.stopPropagation(); toggleOwned('${esc(bp.blueprint_id)}')">
@@ -8371,7 +8397,7 @@ async function toggleOwned(id) {
 }
 
 // ── Blueprint details: quality-vs-stat modifiers + mission drops ─────────────
-// sc-craft.tools's own API (the same one craftingCache already pulls from) gives
+// The blueprint data (read from the game's own files) gives
 // a modifier range per ingredient per stat, but the stat names ("Integrity",
 // "Max. Shield Strength", etc.) don't reliably map to a base number anywhere
 // else in the data except armor's temperature resistance — so only that gets a
@@ -8499,8 +8525,15 @@ function bpStatTableHtml(bp, state) {
 }
 
 // Raw mission names sometimes contain unresolved localization placeholders like
-// "~mission(Location)" — sc-craft.tools's data doesn't fill in the actual value,
+// "~mission(Location)" — the game fills in the actual value only when the contract is offered,
 // so this just makes the placeholder read cleanly instead of showing the markup.
+// A drop chance as the player thinks of it: "<1%", "7.7%", "40%", "100%".
+function fmtDropChance(v) {
+  const n = (parseFloat(v) || 0) * 100;
+  if (n >= 99.5) return '100%';
+  if (n < 1) return '<1%';
+  return (n < 10 ? n.toFixed(1) : String(Math.round(n))) + '%';
+}
 function cleanMissionName(name) {
   return (name || '').replace(/~mission\(([^)]+)\)/g, '[$1]');
 }
@@ -8591,7 +8624,7 @@ function renderBpDetailsBody(bp) {
     ? missions.map(m => `
       <div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0">
         <span>${esc(cleanMissionName(m.name))}</span>
-        <span style="color:var(--text-dim)">${Math.round(parseFloat(m.drop_chance) * 100)}%</span>
+        <span style="color:var(--text-dim)">${m.event ? '' : fmtDropChance(m.drop_chance)}</span>
       </div>`).join('')
     : '<div style="font-size:12px;color:var(--text-dim)">No known mission drops for this blueprint.</div>';
 
@@ -8615,7 +8648,7 @@ function renderBpDetailsBody(bp) {
     <div id="bp-shopping">${bpShoppingHtml(bp)}</div>
 
     <div style="font-size:12px;font-weight:700;margin:14px 0 4px">Drops (${missions.length} missions)</div>
-    <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Mission names and drop chance only — exact locations aren't in this data source.</div>
+    <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Contracts that can award this blueprint, and your chance of getting it from each (from the game's data). Event rewards have no listed chance.</div>
     ${missionsHtml}
   `;
 }
@@ -8628,9 +8661,9 @@ function openBpDetails(blueprintId) {
     (bp.ingredients || []).forEach((ing, i) => { bpQualityState[blueprintId][i] = Math.max(500, bpMinQ(ing)); });
   }
   currentBpId = blueprintId;
-  document.getElementById('bp-details-title').innerHTML = esc(bp.name) + specialPill(bp);
+  document.getElementById('bp-details-title').innerHTML = esc(bp.name);
   document.getElementById('bp-details-body').innerHTML =
-    (bp.special ? `<div class="bp-special-note">${esc(bp.special_reason || '')}</div>` : '') + renderBpDetailsBody(bp);
+    renderBpDetailsBody(bp);
   document.getElementById('bp-add-asset-btn').textContent = '＋ Add as crafted asset';
   // Inventory may have changed since this blueprint was last opened — drop picks
   // that no longer point at a non-empty box of the right material.
