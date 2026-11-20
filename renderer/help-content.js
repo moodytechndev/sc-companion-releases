@@ -92,6 +92,7 @@ const HELP_SECTIONS = [
       '**Where does this sell best?** Commodity → search or filter → click the commodity.',
       '**What does this station trade?** Station → choose the station from the dropdown.',
       '**Where do I buy this ship or item?** Buy → Ships or Items → type the name (or part of it). Each match lists the shops that sell it, where they are and the price, cheapest first; Items also shows who pays you for it. Prices are reported by players to UEX Corp, so one marked with an older date may have changed. A ship with no shop listed is probably pledge-only or limited-time.',
+      '**Bought a ship in the game?** On the Buy tab, a ship has an **I bought this — add to Hangar** button. It opens Add Ship with that ship already picked, so you only choose where it is parked and save.',
       '**Buy here:** Buy opens Add Inventory pre-filled and marks the cargo as in transit.',
       '**Sell here:** Sell finds your in-transit stock of that commodity, shows the payout, and removes it from inventory when you confirm.',
       "**Browse the market:** Market → For sale shows what players are selling, Wanted what they want to buy. Search, pick a category, and sort by newest, price or quality. Click a listing's title to read its description.",

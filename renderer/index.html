@@ -268,6 +268,8 @@ html, body { width:100%; height:100%; overflow:hidden; background:transparent;
   .buy-age { display:block; font-size:9px; font-weight:400; color:var(--text-dim); }
   .buy-age.old { color:var(--warn); }
   .buy-more { font-size:10px; color:var(--text-dim); padding:3px 0 2px; border-top:1px solid var(--border); }
+  .buy-add { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 0 4px; }
+  .buy-have { font-size:11px; color:var(--success); }
   .buy-none { font-size:11px; line-height:1.5; color:var(--text-dim); padding:6px 0 4px; }
 
 .mk-badge { display:inline-block; min-width:14px; margin-left:5px; padding:0 4px; border-radius:7px; background:var(--accent); color:#fff; font-size:9px; font-weight:800; line-height:14px; text-align:center; }
@@ -4649,6 +4651,17 @@ async function runBuy() {
   renderBuy(box, r, q);
 }
 
+// Opens the Hangar's Add Ship dialog with this ship already picked. The Hangar's saved lists are loaded first, so
+// adding a ship can never replace a list that has not been read yet.
+async function buyAddToHangar(id) {
+  if (!craftingInitialized) await initCrafting();
+  await openAddShip();
+  const v = uexVehicles && uexVehicles.find(x => x.id === id);
+  if (!v) { document.getElementById('ship-pick-selected').textContent = 'That ship is not in the ship list yet. Search for it here.'; return; }
+  document.getElementById('ship-pick-search').value = v.name_full;
+  pickShip(id);
+}
+
 function buyOffers(list, total, label, tone) {
   if (!list || !list.length) return '';
   const age = (d) => d == null ? '' : `<span class="buy-age${d > 60 ? ' old' : ''}" data-tip="${d > 60 ? 'Nobody has reported this price for over two months, so it may have changed' : 'When a player last reported this price'}">${d < 1 ? 'today' : d + 'd ago'}</span>`;
@@ -4681,7 +4694,12 @@ function renderBuy(box, r, q) {
       body = x.buyCount ? buyOffers(x.buy, x.buyCount, 'Buy for', 'buy-cost')
         : `<div class="buy-none">No shop is known to sell this for aUEC. It may be a pledge-only or limited-time ship, or nobody has reported a price yet.</div>`;
     }
-    return `<div class="buy-card"><div class="buy-name">${esc(x.name)}</div>${sub ? `<div class="buy-sub">${sub}</div>` : ''}${body}</div>`;
+    // A ship you bought can go straight into the Hangar (items have no Hangar entry)
+    const have = buyKind === 'ships' && craftingInitialized ? (craftShips || []).filter(s => s.vid === x.id).length : 0;
+    const add = buyKind === 'ships' && x.id != null
+      ? `<div class="buy-add"><button class="btn btn-sm" onclick="buyAddToHangar(${Number(x.id)})" data-tip="${esc('Open Add Ship with this ship already picked, so you can add it to your Hangar')}">${have ? '＋ Add another to Hangar' : '＋ I bought this — add to Hangar'}</button>${have ? `<span class="buy-have">✓ ${have} in your Hangar</span>` : ''}</div>`
+      : '';
+    return `<div class="buy-card"><div class="buy-name">${esc(x.name)}</div>${sub ? `<div class="buy-sub">${sub}</div>` : ''}${body}${add}</div>`;
   }).join('');
 }
 
@@ -6621,6 +6639,7 @@ const HINTS_BY_CALL = {
   'confirmDelivery': 'Add these boxes to your inventory and remove the job',
   'closeDeliverModal': 'Close without collecting',
   'onStationSelect': 'Choose a station to see its yield bonuses',
+  'buyAddToHangar': 'Open Add Ship with this ship already picked, so you can add it to your Hangar',
   'onBonusOreSelect': 'Pick an ore to see every station ranked by its yield bonus for it',
   'showStationBonuses': 'Open this station\'s full list of yield bonuses',
   // prices
@@ -7769,6 +7788,7 @@ async function saveShip() {
   await api.setStore('craftShips', craftShips);
   closeAddShip();
   renderHangarLists();
+  if (typeof pricesView !== 'undefined' && pricesView === 'buy') runBuy();   // the Buy cards show how many of a ship you have
   seedShipStock(newShip); // pulls the stock loadout into Assets in the background
 }
 

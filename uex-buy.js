@@ -91,7 +91,7 @@ const ago = (sec) => (sec ? Math.max(0, Math.round((Date.now() / 1000 - sec) / 8
       results: hits.slice(0, MAX_RESULTS).map(({ veh }) => {
         const offers = (byVeh.get(veh.id) || []).slice().sort((a, b) => a.price - b.price);
         return {
-          name: veh.name, maker: veh.maker, crew: veh.crew, scu: veh.scu,
+          id: veh.id, name: veh.name, maker: veh.maker, crew: veh.crew, scu: veh.scu,
           buyCount: offers.length,
           buy: merge(offers.map(o => ({ ...place(t.rows, o.term, o.tname), price: o.price, days: o.days }))).slice(0, MAX_OFFERS),
         };
