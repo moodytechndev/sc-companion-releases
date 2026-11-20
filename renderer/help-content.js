@@ -196,6 +196,7 @@ const HELP_SECTIONS = [
     intro: [],
     faq: [
       ['Prices or ship data will not load', 'Check your internet connection, then reopen the tab. The app keeps the last prices it fetched, so it still opens offline.'],
+      ['The Show / Hide key does nothing in the game', "If Star Citizen runs as administrator, Windows hides your key from SC Companion while the game has focus. Settings → Show / Hide Key then shows a note with a **Restart as administrator** button (Windows asks for permission, and the app closes and reopens). If the game does not run as administrator, the key works as it is."],
       ['The overlay is not visible over the game', 'Run Star Citizen in borderless / windowed mode — exclusive fullscreen can cover any overlay. Press Insert to confirm it has not been hidden.'],
       ['Capture filled in nothing', 'Make sure the refinery job screen is fully visible and not covered by another window, then try again. Capture is experimental; you can always type the job in manually.'],
       ['Capture says the game screen came back black', 'Windows does not let apps take a picture of a game in exclusive fullscreen. Set Star Citizen to Fullscreen Borderless (Options → Graphics) and capture again. In borderless the overlay hides for a moment while the screen is taken, then comes back.'],

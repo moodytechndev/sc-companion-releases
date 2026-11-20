@@ -1028,6 +1028,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px;
             <button class="btn btn-sm" onclick="saveShortcut()" data-i18n="settings.hotkey.set">Set</button>
           </div>
         </div>
+        <div id="hotkey-admin-note" style="display:none;margin:-4px 0 10px;padding:8px 10px;border:1px solid var(--warn);border-radius:var(--r);font-size:11px;line-height:1.5;color:var(--text)">
+          Star Citizen is running as administrator, so Windows hides your key from SC Companion while the game has focus.
+          Restart SC Companion as administrator and the key works in game again. Windows asks for permission, and the app closes and reopens.
+          <div style="margin-top:6px"><button class="btn btn-sm" id="hotkey-admin-btn" onclick="restartAsAdmin()">Restart as administrator</button> <span id="hotkey-admin-msg" style="color:var(--text-dim)"></span></div>
+        </div>
         <div class="setting-row">
           <div>
             <div class="setting-label">Over the game</div>
@@ -5598,7 +5603,26 @@ async function initShortcut() {
   const vk = await api.getShortcut();
   const sel = document.getElementById('shortcut-select');
   if ([...sel.options].some(o => o.value === vk)) sel.value = vk;
+  refreshHotkeyNote();
 }
+
+// Shows the note under the Show / Hide key when the game runs as administrator and this app does not.
+async function refreshHotkeyNote(known) {
+  const note = document.getElementById('hotkey-admin-note');
+  if (!note) return;
+  let st = known || null;
+  if (!st) { try { st = await api.getHotkeyStatus(); } catch { /* leave the note as it was */ } }
+  if (!st) return;
+  note.style.display = st.blocked ? '' : 'none';
+  const btn = document.getElementById('hotkey-admin-btn');
+  if (btn) btn.disabled = !st.canRestart;
+}
+async function restartAsAdmin() {
+  const msg = document.getElementById('hotkey-admin-msg');
+  const r = await api.restartAsAdmin();
+  if (!r || !r.ok) { msg.textContent = (r && r.error) || 'Could not restart.'; msg.style.color = 'var(--danger)'; }
+}
+setInterval(() => { if (document.getElementById('panel-settings')?.classList.contains('active')) refreshHotkeyNote(); }, 5000);
 
 async function saveShortcut() {
   const vk = document.getElementById('shortcut-select').value;
@@ -6782,6 +6806,7 @@ const HINTS_BY_ID = {
   'help-btn': 'Open the illustrated user guide',
   'station-select': 'Choose a station to see its refinery yield bonus or penalty for each material',
   'shortcut-select': 'The key that shows or hides the overlay, even while the game has focus',
+  'restartAsAdmin': 'Close SC Companion and open it again as administrator, so Windows lets it see your Show / Hide key while an administrator game has focus',
   'price-source-select': 'Where prices come from — UEX Corp, or the SC Trade Tools community feed',
   'asset-size-input': 'Component size (S0–S6), used to check parts fit a ship slot',
   'inv-name-input': 'Which ore or material this is',

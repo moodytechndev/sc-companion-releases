@@ -353,12 +353,54 @@ const VK_TO_ACCEL = {
   '7A': 'F11',   '91': 'ScrollLock', '13': 'Pause', '24': 'Home', '23': 'End',
 };
 
+// The Windows hotkey is not delivered while Star Citizen has focus, so the same key is also watched by asking
+// Windows whether it is down (keywatch.js). Both call toggleWindow, which ignores a second call within 300 ms.
+const keyWatcher = require('./keywatch').create(() => toggleWindow());
 function registerShortcut(vkHex) {
   globalShortcut.unregisterAll();
   const accel = VK_TO_ACCEL[vkHex];
   if (accel) {
     try { globalShortcut.register(accel, toggleWindow); } catch {}
+    keyWatcher.setKey(parseInt(vkHex, 16));
+  } else {
+    keyWatcher.stop();
   }
+}
+
+// When the game runs as administrator and SC Companion does not, Windows hides the key from the app. Say so once,
+// and let the Settings page offer to restart the app as administrator.
+let hotkeyNoticeShown = false;
+async function hotkeyStatus() {
+  const st = await require('./keywatch').status();
+  st.canRestart = app.isPackaged;
+  return st;
+}
+function startHotkeyCheck() {
+  const check = async () => {
+    try {
+      const st = await hotkeyStatus();
+      if (st.blocked && !hotkeyNoticeShown && Notification.isSupported()) {
+        hotkeyNoticeShown = true;
+        const n = new Notification({ title: 'SC Companion cannot see your Show / Hide key', body: 'Star Citizen is running as administrator, so Windows hides the key from this app. Open Settings to restart SC Companion as administrator.', silent: false });
+        n.on('click', showWindow);
+        n.show();
+      }
+      if (!st.blocked) hotkeyNoticeShown = hotkeyNoticeShown && st.gameRunning;   // say it again if the game is restarted
+    } catch { /* the check is only a courtesy */ }
+  };
+  setTimeout(check, 15000);
+  setInterval(check, 15000);
+}
+// Starts SC Companion again as administrator (Windows asks for permission) and closes this copy.
+function restartAsAdmin() {
+  if (!app.isPackaged) return { ok: false, error: 'Only the installed app can restart as administrator.' };
+  const exe = process.execPath.replace(/'/g, "''");
+  try {
+    const { spawn } = require('child_process');
+    spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', `Start-Sleep -Milliseconds 1500; Start-Process -FilePath '${exe}' -Verb RunAs`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } catch (e) { return { ok: false, error: e.message }; }
+  setTimeout(() => { app.isQuitting = true; app.quit(); }, 300);
+  return { ok: true };
 }
 
 // ─── Erkul embed lockdown ─────────────────────────────────────────────────────
@@ -406,6 +448,9 @@ app.whenReady().then(() => {
   registerShortcut(savedVK);
 
   ipcMain.handle('shortcut:get', () => store.get('hotkeyVK', '2D'));
+  ipcMain.handle('hotkey:status', () => hotkeyStatus());
+  ipcMain.handle('app:restartAsAdmin', () => restartAsAdmin());
+  startHotkeyCheck();
   ipcMain.handle('shortcut:set', (_, vkHex) => {
     store.set('hotkeyVK', vkHex);
     registerShortcut(vkHex);
@@ -454,6 +499,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   app.isQuitting = true;
   launcher.destroy();
+  keyWatcher.stop();
   if (pendingOpacity !== null) { store.set('windowOpacity', pendingOpacity); pendingOpacity = null; }   // a slider move just before quitting
   // The taskbar button is added by hand while the overlay cannot be activated (see ensureTaskbarButton), and Windows
   // does not tidy such a button up when the window goes: take it away first, or its icon stays behind after quitting.

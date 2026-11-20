@@ -1,6 +1,6 @@
 {
   "name": "sc-companion",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Star Citizen companion overlay — refinery timers & commodity prices",
   "author": "Moody Technical Development Solutions",
   "license": "MIT",
@@ -16,6 +16,7 @@
   "dependencies": {
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
+    "koffi": "^3.3.8",
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
@@ -55,6 +56,7 @@
       "uex-market.js",
       "uex-buy.js",
       "launcher.js",
+      "keywatch.js",
       "launcher-preload.js",
       "renderer/**/*",
       "icon.png",

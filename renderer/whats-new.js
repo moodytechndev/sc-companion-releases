@@ -3,6 +3,10 @@
 // The popup shows every entry newer than the version the user last opened and not newer than the one they run,
 // so someone who skips a release still sees what they missed.
 const WHATS_NEW = [
+  { version: '2.0.3', items: [
+    "Fixed: the Show / Hide key (Insert by default) now works while Star Citizen has focus. The game blocked the way the app used to listen for it, so the app now checks the key itself.",
+    "If the game runs as administrator, Windows hides the key from apps that do not. Settings > Show / Hide Key now says so and has a Restart as administrator button, and a notice appears once when the game starts.",
+  ] },
   { version: '2.0.2', items: [
     "New: ships in Prices > Buy have an I bought this button. It opens Add Ship with that ship already picked, so a ship you buy in the game goes into your Hangar in a few clicks. A ship you already own shows how many are in your Hangar.",
   ] },

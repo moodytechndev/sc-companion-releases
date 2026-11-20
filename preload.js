@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('api', {
   // Toggle shortcut
   getShortcut: () => ipcRenderer.invoke('shortcut:get'),
   setShortcut: (acc) => ipcRenderer.invoke('shortcut:set', acc),
+  getHotkeyStatus: () => ipcRenderer.invoke('hotkey:status'),
+  restartAsAdmin: () => ipcRenderer.invoke('app:restartAsAdmin'),
 
   // Generic store
   getStore: (key, def) => ipcRenderer.invoke('store:get', key, def),
